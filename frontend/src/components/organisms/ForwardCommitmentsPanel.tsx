@@ -24,14 +24,12 @@ export function ForwardCommitmentsPanel({
           <div key={commitment.id} className="commitments__item">
             <h3 className="commitments__heading mono">Commitment {index + 1}</h3>
             <div className="commitments__row">
-              <FormField id={`commitment-${commitment.id}`} label="Commitment">
-                <Textarea
-                  id={`commitment-${commitment.id}`}
-                  value={commitment.commitment}
-                  disabled={readOnly}
-                  onChange={(event) => onCommitmentChange(commitment.id, 'commitment', event.target.value)}
-                />
-              </FormField>
+              <Textarea
+                aria-label={`Commitment ${index + 1}`}
+                value={commitment.commitment}
+                disabled={readOnly}
+                onChange={(event) => onCommitmentChange(commitment.id, 'commitment', event.target.value)}
+              />
               <FormField id={`commitment-support-${commitment.id}`} label="Agreed support / conditions">
                 <Textarea
                   id={`commitment-support-${commitment.id}`}
