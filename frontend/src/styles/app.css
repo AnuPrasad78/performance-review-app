@@ -307,11 +307,20 @@ a { color: var(--teal-deep); }
 }
 .commitments__row { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
 
-/* sign-off */
+/* sign-off — confirm checkbox over the document's signature row */
 .signoff { display: flex; flex-direction: column; gap: 16px; }
-.signoff__statement { font-size: 13.5px; line-height: 1.6; color: var(--ink); max-width: 720px; }
-.signoff__row { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
-.signoff__value { font-size: 14px; font-weight: 700; color: var(--black); }
+.checkbox-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ink);
+  max-width: 720px;
+  cursor: pointer;
+}
+.input.checkbox { width: 16px; height: 16px; flex: none; margin-top: 3px; padding: 0; border: 1px solid var(--hairline); background: var(--surface); accent-color: var(--teal); cursor: pointer; }
+.input.checkbox:disabled { cursor: not-allowed; }
 
 @media (max-width: 760px) {
   .question-panel__columns,

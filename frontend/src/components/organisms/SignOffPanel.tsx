@@ -1,39 +1,67 @@
 import { Card } from '../atoms/Card'
+import { Input } from '../atoms/Input'
+import { DataTable, type DataTableColumn } from '../molecules/DataTable'
+import { formatIsoDate } from '../../lib/dates'
 import type { SelfEvaluationEmployee } from '../../lib/types'
 
 export interface SignOffPanelProps {
   employee: SelfEvaluationEmployee
-  /** ISO date the app stamped on sign-off; null until confirmed. */
+  /** Confirmation checkbox state from the draft; the name/date stamp on save, not here. */
+  acknowledged: boolean
+  /** ISO date the app stamped on sign-off; null until a save or submit. */
   signedAt: string | null
   readOnly: boolean
-  onConfirm: () => void
+  onAcknowledgeChange: (acknowledged: boolean) => void
 }
 
-export function SignOffPanel({ employee, signedAt, readOnly, onConfirm }: SignOffPanelProps) {
+const CONFIRM_STATEMENT =
+  'I confirm the 2026 review discussion took place and the ratings and comments were shared with me.'
+
+interface SignoffRow {
+  employee: string
+  manager: string
+  date: string
+}
+
+const columns: readonly DataTableColumn<SignoffRow>[] = [
+  { key: 'employee', header: 'Employee', cell: (row) => row.employee },
+  { key: 'manager', header: 'Manager', cell: (row) => row.manager },
+  {
+    key: 'date',
+    header: 'Date (dd-Mmm-yyyy)',
+    cell: (row) => (row.date === '' ? row.date : <span className="mono nowrap">{row.date}</span>),
+  },
+]
+
+export function SignOffPanel({
+  employee,
+  acknowledged,
+  signedAt,
+  readOnly,
+  onAcknowledgeChange,
+}: SignOffPanelProps) {
+  const rows: readonly SignoffRow[] = [
+    {
+      employee: signedAt === null ? '' : `${employee.firstName} ${employee.lastName}`,
+      manager: '',
+      date: signedAt === null ? '' : formatIsoDate(signedAt),
+    },
+  ]
   return (
-    <Card>
-      <div className="signoff">
-        <p className="signoff__statement">
-          I confirm the 2026 review discussion took place and the ratings and comments were shared with me.
-        </p>
-        <div className="signoff__row">
-          <div className="signoff__field">
-            <span className="field__label">Name</span>
-            <span className="signoff__value mono">
-              {employee.firstName} {employee.lastName}
-            </span>
-          </div>
-          <div className="signoff__field">
-            <span className="field__label">Date</span>
-            <span className="signoff__value mono">{signedAt ?? '—'}</span>
-          </div>
-        </div>
-        {signedAt === null && !readOnly ? (
-          <button type="button" className="btn btn--ghost" onClick={onConfirm}>
-            Confirm and sign off
-          </button>
-        ) : null}
-      </div>
-    </Card>
+    <div className="signoff">
+      <label className="checkbox-row">
+        <Input
+          type="checkbox"
+          className="checkbox"
+          checked={acknowledged}
+          disabled={readOnly}
+          onChange={(event) => onAcknowledgeChange(event.target.checked)}
+        />
+        <span>{CONFIRM_STATEMENT}</span>
+      </label>
+      <Card>
+        <DataTable rows={rows} columns={columns} rowKey={() => 'sign-off-row'} emptyMessage="No sign-off recorded." />
+      </Card>
+    </div>
   )
 }

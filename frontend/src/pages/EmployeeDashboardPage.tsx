@@ -175,9 +175,10 @@ export function EmployeeDashboardPage() {
         />
         <SignOffPanel
           employee={draft.employee}
+          acknowledged={draft.acknowledged}
           signedAt={record.employeeSignedAt}
           readOnly={readOnly}
-          onConfirm={() => updateDraft((current) => ({ ...current, acknowledged: true }))}
+          onAcknowledgeChange={(acknowledged) => updateDraft((current) => ({ ...current, acknowledged }))}
         />
         {readOnly ? (
           <Card caption="Submitted" captionAccent>
