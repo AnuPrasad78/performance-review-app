@@ -59,7 +59,7 @@ export function EmployeeDashboardPage() {
 
   const leadLine: ReactNode = (
     <>
-      Self-evaluation due{' '}
+      Hi {MOCK_EMPLOYEE.firstName} — self-evaluation due{' '}
       <strong className="page-head__due">
         {formatIsoDate(cycleSettings?.submissionDeadline ?? DEFAULT_SUBMISSION_DEADLINE)}
       </strong>
