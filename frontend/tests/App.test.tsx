@@ -30,7 +30,7 @@ describe('App — routed pages', () => {
     expect(await screen.findByRole('heading', { name: 'My review', level: 1 })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Open navigation' })).not.toBeInTheDocument()
     expect(document.querySelector('.drawer')).toBeNull()
-    expect(await screen.findByText('Q1 · Assessment question')).toBeInTheDocument()
+    expect(await screen.findByText('Q1. Key contributions and achievements')).toBeInTheDocument()
   })
 
   it('navigates from Users to CSV upload and Cycle settings through the drawer', async () => {

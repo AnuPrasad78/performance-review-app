@@ -5,7 +5,7 @@ import type { AssessmentQuestion } from '../../lib/types'
 
 export interface ReviewQuestionPanelProps {
   question: AssessmentQuestion
-  /** Human identifier for form labels, e.g. "Q1". */
+  /** Human identifier for the question number, e.g. "Q1". */
   label: string
   readOnly: boolean
   error?: string | null
@@ -22,13 +22,16 @@ export function ReviewQuestionPanel({
   onResponseChange,
 }: ReviewQuestionPanelProps) {
   return (
-    <Card caption={`${label} · Assessment question`} captionAccent>
+    <Card>
       <div className="question-panel">
-        <p className="question-panel__text">{question.question}</p>
+        <h3 className="question-panel__title">
+          {label}. {question.title}
+        </h3>
+        <p className="question-panel__text muted">{question.question}</p>
         <div className="question-panel__columns">
           <FormField
             id={`response-${question.id}`}
-            label="Your response"
+            label="Employee response"
             required
             error={error ?? null}
           >
@@ -38,7 +41,7 @@ export function ReviewQuestionPanel({
                 value={question.employeeResponse}
                 disabled
                 readOnly
-                aria-label={`${label} — your response`}
+                aria-label={`${label} — employee response`}
               />
             ) : (
               <Textarea
@@ -50,7 +53,7 @@ export function ReviewQuestionPanel({
           </FormField>
           <div className="field">
             <span className="field__label" id={`manager-comment-${question.id}`}>
-              Manager comment
+              Manager comments
             </span>
             {question.managerComment === null ? (
               <p className="question-panel__empty muted" aria-describedby={`manager-comment-${question.id}`}>

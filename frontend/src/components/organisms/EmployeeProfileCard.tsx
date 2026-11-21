@@ -31,7 +31,7 @@ export function EmployeeProfileCard({ employee }: EmployeeProfileCardProps) {
   ]
 
   return (
-    <Card caption="Employee & review details" captionAccent>
+    <Card>
       <div className="profile">
         <span className="avatar avatar--lg" aria-hidden="true">
           {initialsOf(employee)}

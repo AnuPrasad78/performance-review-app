@@ -17,7 +17,7 @@ export function ForwardCommitmentsPanel({
   onCommitmentChange,
 }: ForwardCommitmentsPanelProps) {
   return (
-    <Card caption="Forward commitments for 2027" captionAccent>
+    <Card>
       <div className="commitments">
         <p className="commitments__hint muted">{COMMITMENT_HINT}</p>
         {commitments.map((commitment, index) => (

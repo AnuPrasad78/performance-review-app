@@ -1,10 +1,13 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { DashboardTemplate } from '../components/templates/DashboardTemplate'
-import { EmployeeDashboardHome } from '../components/organisms/EmployeeDashboardHome'
+import { ReviewProgressCard } from '../components/organisms/ReviewProgressCard'
+import { EmployeeProfileCard } from '../components/organisms/EmployeeProfileCard'
 import { ReviewQuestionPanel } from '../components/organisms/ReviewQuestionPanel'
+import { RatingReferencePanel } from '../components/organisms/RatingReferencePanel'
 import { OverallRatingPanel } from '../components/organisms/OverallRatingPanel'
 import { ForwardCommitmentsPanel } from '../components/organisms/ForwardCommitmentsPanel'
 import { SignOffPanel } from '../components/organisms/SignOffPanel'
+import { ReviewSectionHeading } from '../components/molecules/ReviewSectionHeading'
 import { Button } from '../components/atoms/Button'
 import { Card } from '../components/atoms/Card'
 import { useAdminStore } from '../state/AdminContext'
@@ -112,10 +115,13 @@ export function EmployeeDashboardPage() {
   return (
     <DashboardTemplate eyebrow={HEAD_EYEBROW} title="My review" lead={leadLine}>
       <div className="page-stack">
-        <EmployeeDashboardHome
-          employee={MOCK_EMPLOYEE}
-          sectionsCompleted={completedSections(draft)}
-          sectionsTotal={7}
+        <ReviewProgressCard sectionsCompleted={completedSections(draft)} sectionsTotal={7} />
+        <ReviewSectionHeading number={1} title="Employee & review details" />
+        <EmployeeProfileCard employee={MOCK_EMPLOYEE} />
+        <ReviewSectionHeading
+          number={2}
+          title="Assessment questions"
+          description="Four questions, one per topic. The manager comments in the right-hand column after the discussion. Describe your own work — objectives and numbers over words."
         />
         {draft.questions.map((question) => (
           <ReviewQuestionPanel
@@ -129,6 +135,17 @@ export function EmployeeDashboardPage() {
             }
           />
         ))}
+        <ReviewSectionHeading
+          number={3}
+          title="Rating scale reference"
+          description="Use these definitions when giving the self-rating and before the manager completes the overall rating."
+        />
+        <RatingReferencePanel />
+        <ReviewSectionHeading
+          number={4}
+          title="Overall rating & feedback"
+          description="The manager's rating is based on the responses above and the role's responsibilities. The manager justifies the rating with concrete examples from across the whole year."
+        />
         <OverallRatingPanel
           ratingValues={RATING_VALUES}
           overallRating={draft.overallRating}
@@ -139,12 +156,22 @@ export function EmployeeDashboardPage() {
           onRatingSelect={(rating) => updateDraft((current) => ({ ...current, overallRating: rating }))}
           onSummaryChange={(summary) => updateDraft((current) => ({ ...current, overallSummary: summary }))}
         />
+        <ReviewSectionHeading
+          number={5}
+          title="Forward commitments for 2027"
+          description="These commitments are the direct inputs to the 2027 goal-setting exercise."
+        />
         <ForwardCommitmentsPanel
           commitments={draft.commitments}
           readOnly={readOnly}
           onCommitmentChange={(id, field, value) =>
             updateDraft((current) => updateCommitment(current, id, field, value))
           }
+        />
+        <ReviewSectionHeading
+          number={6}
+          title="Review discussion & sign-off"
+          description="Sign-off confirms the review discussion took place and the rating and comments were shared with you."
         />
         <SignOffPanel
           employee={draft.employee}

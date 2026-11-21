@@ -30,7 +30,7 @@ describe('EmployeeDashboardPage — shell', () => {
   it('renders the self-evaluation form below the details and highlights the due date', async () => {
     render(renderPage())
 
-    expect(await screen.findByText('Q1 · Assessment question')).toBeInTheDocument()
+    expect(await screen.findByText('Q1. Key contributions and achievements')).toBeInTheDocument()
     const dueDate = screen.getByText('15-Jan-2027')
     expect(dueDate.className).toContain('page-head__due')
   })
@@ -55,7 +55,7 @@ describe('EmployeeDashboardPage — draft state', () => {
   it('typing in a controlled textarea updates the persisted draft on save', async () => {
     const user = userEvent.setup()
     render(renderPage())
-    const q1 = await screen.findByLabelText('Your response *', { selector: '#response-contribution' })
+    const q1 = await screen.findByLabelText('Employee response *', { selector: '#response-contribution' })
     await user.type(q1, 'Cut ticket backlog 40 percent across 2026.')
 
     await user.click(screen.getByRole('button', { name: 'Save draft' }))
@@ -86,10 +86,10 @@ describe('EmployeeDashboardPage — draft state', () => {
     const user = userEvent.setup()
     render(renderPage())
 
-    const strengths = await screen.findByLabelText('Your response *', { selector: '#response-strengths' })
+    const strengths = await screen.findByLabelText('Employee response *', { selector: '#response-strengths' })
     await user.type(strengths, 'Clear written explanations.')
     expect(strengths).toHaveValue('Clear written explanations.')
-    expect(screen.getByLabelText('Your response *', { selector: '#response-contribution' })).toHaveValue(
+    expect(screen.getByLabelText('Employee response *', { selector: '#response-contribution' })).toHaveValue(
       'Shipped the feature.',
     )
   })
@@ -99,7 +99,7 @@ describe('EmployeeDashboardPage — submit validation', () => {
   it('shows a per-field error and does not submit when a question is empty', async () => {
     const user = userEvent.setup()
     render(renderPage())
-    await screen.findByLabelText('Your response *', { selector: '#response-contribution' })
+    await screen.findByLabelText('Employee response *', { selector: '#response-contribution' })
 
     await user.click(screen.getByRole('button', { name: 'Submit' }))
 
@@ -114,13 +114,13 @@ describe('EmployeeDashboardPage — submit validation', () => {
     const user = userEvent.setup()
     render(renderPage())
 
-    await user.type(await screen.findByLabelText('Your response *', { selector: '#response-contribution' }), 'Impact one.')
-    await user.type(screen.getByLabelText('Your response *', { selector: '#response-strengths' }), 'Strength one.')
-    await user.type(screen.getByLabelText('Your response *', { selector: '#response-development' }), 'Growth one.')
-    await user.type(screen.getByLabelText('Your response *', { selector: '#response-support' }), 'Support one.')
+    await user.type(await screen.findByLabelText('Employee response *', { selector: '#response-contribution' }), 'Impact one.')
+    await user.type(screen.getByLabelText('Employee response *', { selector: '#response-strengths' }), 'Strength one.')
+    await user.type(screen.getByLabelText('Employee response *', { selector: '#response-development' }), 'Growth one.')
+    await user.type(screen.getByLabelText('Employee response *', { selector: '#response-support' }), 'Support one.')
     const ratingChip4 = screen.getAllByRole('button', { name: '4' })
     await user.click(ratingChip4[0]!)
-    await user.type(screen.getByLabelText('Your overall summary comment *'), 'Summary of the year.')
+    await user.type(screen.getByLabelText('Overall comments *'), 'Summary of the year.')
 
     await user.click(screen.getByRole('button', { name: 'Submit' }))
 
@@ -128,6 +128,6 @@ describe('EmployeeDashboardPage — submit validation', () => {
     expect(stored.submittedAt).not.toBeNull()
     expect(stored.draft.overallRating).toBe(4)
     expect(await screen.findByText(/submitted on/)).toBeInTheDocument()
-    expect(screen.getByLabelText('Your response *', { selector: '#response-contribution' })).toBeDisabled()
+    expect(screen.getByLabelText('Employee response *', { selector: '#response-contribution' })).toBeDisabled()
   })
 })

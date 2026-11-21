@@ -15,14 +15,6 @@ export interface OverallRatingPanelProps {
   onSummaryChange: (summary: string) => void
 }
 
-const RATING_REFERENCE: readonly { value: number; meaning: string }[] = [
-  { value: 5, meaning: 'Significantly exceeds — contributed to process improvement' },
-  { value: 4, meaning: 'Exceeds' },
-  { value: 3, meaning: 'Meets' },
-  { value: 2, meaning: 'Below' },
-  { value: 1, meaning: 'Significantly below' },
-]
-
 const NO_MANAGER_RATING = 'Not decided yet. Your manager sets this after the discussion.'
 
 export function OverallRatingPanel({
@@ -36,7 +28,7 @@ export function OverallRatingPanel({
   onSummaryChange,
 }: OverallRatingPanelProps) {
   return (
-    <Card caption="Overall rating & feedback" captionAccent>
+    <Card>
       <div className="rating-panel">
         <FormField
           id="overall-self-rating"
@@ -57,12 +49,12 @@ export function OverallRatingPanel({
           )}
         </FormField>
         <p className="rating-panel__reference muted">
-          {RATING_REFERENCE.map((entry) => `${entry.value} — ${entry.meaning}`).join('. ')}.
-          The self-rating is a discussion input, not a verdict.
+          Choose your overall self-rating using the rating definitions in section 3. The
+          self-rating is a discussion input, not a verdict.
         </p>
         <FormField
           id="overall-summary"
-          label="Your overall summary comment"
+          label="Overall comments"
           required
           error={summaryError ?? null}
         >

@@ -42,9 +42,18 @@ export type AssessmentQuestionId = 'contribution' | 'strengths' | 'development' 
 
 export interface AssessmentQuestion {
   id: AssessmentQuestionId
+  /** Short heading from the 2026 form, e.g. "Key contributions and achievements". */
+  title: string
+  /** Full prompt the employee answers. */
   question: string
   employeeResponse: string
   managerComment: string | null
+}
+
+export interface RatingScaleEntry {
+  value: RatingValue
+  name: string
+  description: string
 }
 
 export interface ForwardCommitment {

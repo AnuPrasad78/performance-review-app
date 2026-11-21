@@ -11,7 +11,7 @@ export interface SignOffPanelProps {
 
 export function SignOffPanel({ employee, signedAt, readOnly, onConfirm }: SignOffPanelProps) {
   return (
-    <Card caption="Review discussion & sign-off" captionAccent>
+    <Card>
       <div className="signoff">
         <p className="signoff__statement">
           I confirm the 2026 review discussion took place and the ratings and comments were shared with me.
