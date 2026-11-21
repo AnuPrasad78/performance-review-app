@@ -1,13 +1,3 @@
-/** Whole days from today until the given ISO date (YYYY-MM-DD). Negative when past. */
-export function daysUntil(isoDate: string): number {
-  const deadline = new Date(isoDate + 'T00:00:00')
-  if (Number.isNaN(deadline.getTime())) return 0
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  deadline.setHours(0, 0, 0, 0)
-  return Math.round((deadline.getTime() - today.getTime()) / (24 * 60 * 60 * 1000))
-}
-
 /** ISO date (YYYY-MM-DD) of today, local. */
 export function todayIsoDate(): string {
   const now = new Date()

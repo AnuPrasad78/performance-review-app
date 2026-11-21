@@ -1,5 +1,4 @@
 import { render, screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { AdminStoreProvider } from '../../src/state/AdminContext'
 import { EmployeeDashboardPage } from '../../src/pages/EmployeeDashboardPage'
@@ -25,21 +24,12 @@ function renderDashboardWithRoutes(): React.ReactElement {
 }
 
 describe('EmployeeDashboardPage', () => {
-  it('reflects the store state in the stat strip and meter', async () => {
+  it('shows the review progress meter with employee details below it', async () => {
     render(renderDashboardWithRoutes())
 
-    expect((await screen.findAllByText('Not started')).length).toBeGreaterThan(0)
-    expect(screen.getAllByText('Not set').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('Not signed').length).toBeGreaterThan(0)
-  })
-
-  it('the primary action navigates to the self-evaluation form', async () => {
-    const user = userEvent.setup()
-    render(renderDashboardWithRoutes())
-
-    await user.click(await screen.findByRole('button', { name: 'Open self-evaluation' }))
-
-    expect(screen.getByRole('heading', { name: 'Self-evaluation', level: 1 })).toBeInTheDocument()
+    expect(await screen.findByText('0/7')).toBeInTheDocument()
+    expect(screen.getByRole('meter', { name: 'SECTIONS COMPLETED' })).toBeInTheDocument()
+    expect(screen.getByDisplayValue('Asha Nair')).toBeInTheDocument()
   })
 
   it('uses the admin deadline when cycle settings are published', async () => {
@@ -54,6 +44,8 @@ describe('EmployeeDashboardPage', () => {
     }))
     render(renderDashboardWithRoutes())
 
-    expect(await screen.findByText(/Self-evaluation due 01-Feb-2027/)).toBeInTheDocument()
+    const dueDate = await screen.findByText('01-Feb-2027')
+    expect(dueDate).toBeInTheDocument()
+    expect(dueDate.className).toContain('page-head__due')
   })
 })

@@ -219,23 +219,6 @@ a { color: var(--teal-deep); }
 
 /* employee dashboard vocabulary (ui.md §4.2) */
 
-/* stat strip — white card of big numerals over mono micro-labels */
-.strip {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  background: var(--surface);
-  border: 1px solid var(--hairline-2);
-}
-.strip__stat { display: flex; flex-direction: column; gap: 6px; padding: 18px 20px; }
-.strip__label {
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink-3);
-}
-.strip__value { font-size: 21px; font-weight: 800; letter-spacing: -0.01em; color: var(--black); line-height: 1.2; }
-
 /* meter/bar row */
 .bar-row { display: flex; align-items: center; gap: 12px; }
 .bar-row__label {
@@ -317,18 +300,8 @@ a { color: var(--teal-deep); }
 
 /* dashboard primary action row */
 .dashboard-cta { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.dashboard-cta__deadline { font-size: 11px; letter-spacing: 0.08em; color: var(--ink-2); }
-
-@media (max-width: 900px) {
-  .strip { grid-template-columns: 1fr 1fr; }
-  .strip__stat { border-top: 1px solid var(--hairline-2); }
-  .strip__stat:nth-child(-n+2) { border-top: 0; }
-}
 
 @media (max-width: 760px) {
-  .strip { grid-template-columns: 1fr; }
-  .strip__stat { border-top: 1px solid var(--hairline-2); }
-  .strip__stat:first-child { border-top: 0; }
   .question-panel__columns,
   .commitments__row,
   .signoff__row,

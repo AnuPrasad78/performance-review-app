@@ -46,6 +46,7 @@
 .page-head .eyebrow { display: block; margin-bottom: 6px; }
 .page-head h1 { font-size: 27px; font-weight: 800; letter-spacing: -0.015em; color: var(--black); }
 .page-head p { color: var(--ink-2); margin-top: 5px; font-size: 13.5px; max-width: 720px; }
+.page-head p .page-head__due { color: var(--teal-deep); font-weight: 700; }
 
 .content { flex: 1; min-width: 0; }
 
