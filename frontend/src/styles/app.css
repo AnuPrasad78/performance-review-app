@@ -307,16 +307,39 @@ a { color: var(--teal-deep); }
 }
 .commitments__row { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
 
-/* sign-off */
+/* sign-off — ordered role cards plus the two summary fields */
 .signoff { display: flex; flex-direction: column; gap: 16px; }
-.signoff__statement { font-size: 13.5px; line-height: 1.6; color: var(--ink); max-width: 720px; }
-.signoff__row { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
-.signoff__value { font-size: 14px; font-weight: 700; color: var(--black); }
+.signoff__order { font-size: 13px; line-height: 1.55; max-width: 720px; }
+.signoff__status-line { font-size: 13.5px; color: var(--ink); }
+.signoff__status-line strong { color: var(--black); }
+.signoff__cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.signoff-card {
+  background: var(--teal-wash);
+  border: 1px solid var(--hairline-2);
+  border-radius: 0 0 0 8px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.signoff-card__title { font-size: 15px; font-weight: 800; letter-spacing: -0.01em; color: var(--black); }
+.signoff-card__signed {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.signoff-card__signed .icon { color: var(--green); flex: none; margin-top: 1px; }
+.signoff-card__waiting { font-style: italic; font-size: 13px; }
+.signoff-card__statement { font-size: 12.5px; line-height: 1.55; color: var(--ink); }
+.signoff-card .btn { align-self: flex-start; }
 
 @media (max-width: 760px) {
   .question-panel__columns,
   .commitments__row,
-  .signoff__row,
+  .signoff__cards,
   .details-grid { grid-template-columns: 1fr; }
   .profile { align-items: flex-start; }
 }
