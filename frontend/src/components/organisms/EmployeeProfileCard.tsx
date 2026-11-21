@@ -1,11 +1,12 @@
 import { Card } from '../atoms/Card'
+import { Input } from '../atoms/Input'
 import type { SelfEvaluationEmployee } from '../../lib/types'
 
 export interface EmployeeProfileCardProps {
   employee: SelfEvaluationEmployee
 }
 
-interface ProfileLine {
+interface ProfileField {
   key: string
   label: string
   value: string
@@ -18,7 +19,8 @@ function initialsOf(employee: SelfEvaluationEmployee): string {
 }
 
 export function EmployeeProfileCard({ employee }: EmployeeProfileCardProps) {
-  const lines: readonly ProfileLine[] = [
+  const fields: readonly ProfileField[] = [
+    { key: 'name', label: 'Employee name', value: `${employee.firstName} ${employee.lastName}` },
     { key: 'id', label: 'Employee ID', value: employee.employeeId },
     { key: 'position', label: 'Position', value: employee.role },
     { key: 'department', label: 'Department', value: employee.department },
@@ -41,14 +43,16 @@ export function EmployeeProfileCard({ employee }: EmployeeProfileCardProps) {
           <span className="profile__email muted">{employee.email}</span>
         </div>
       </div>
-      <dl className="profile__grid">
-        {lines.map((line) => (
-          <div key={line.key} className="profile__cell">
-            <dt className="profile__cell-label mono">{line.label}</dt>
-            <dd className="profile__cell-value">{line.value}</dd>
+      <div className="details-grid">
+        {fields.map((field) => (
+          <div key={field.key} className="field">
+            <label className="field__label" htmlFor={`detail-${field.key}`}>
+              {field.label}
+            </label>
+            <Input id={`detail-${field.key}`} value={field.value} readOnly />
           </div>
         ))}
-      </dl>
+      </div>
     </Card>
   )
 }
