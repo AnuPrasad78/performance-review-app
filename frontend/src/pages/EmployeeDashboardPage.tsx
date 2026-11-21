@@ -59,7 +59,7 @@ export function EmployeeDashboardPage() {
 
   const leadLine: ReactNode = (
     <>
-      Hi {MOCK_EMPLOYEE.firstName} — self-evaluation due{' '}
+      Self-evaluation due{' '}
       <strong className="page-head__due">
         {formatIsoDate(cycleSettings?.submissionDeadline ?? DEFAULT_SUBMISSION_DEADLINE)}
       </strong>
@@ -69,7 +69,7 @@ export function EmployeeDashboardPage() {
 
   if (record === null) {
     return (
-      <DashboardTemplate eyebrow={HEAD_EYEBROW} title="My review" lead={leadLine}>
+      <DashboardTemplate eyebrow={HEAD_EYEBROW} title={`Hi ${MOCK_EMPLOYEE.firstName}`} lead={leadLine}>
         <p className="muted">Loading your review.</p>
       </DashboardTemplate>
     )
@@ -113,7 +113,7 @@ export function EmployeeDashboardPage() {
   }
 
   return (
-    <DashboardTemplate eyebrow={HEAD_EYEBROW} title="My review" lead={leadLine}>
+    <DashboardTemplate eyebrow={HEAD_EYEBROW} title={`Hi ${MOCK_EMPLOYEE.firstName}`} lead={leadLine}>
       <div className="page-stack">
         <ReviewProgressCard sectionsCompleted={completedSections(draft)} sectionsTotal={7} />
         <ReviewSectionHeading number={1} title="Employee & review details" />

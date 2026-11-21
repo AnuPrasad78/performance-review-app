@@ -27,7 +27,7 @@ describe('App — routed pages', () => {
   it('serves the employee side as a single page without a sidebar', async () => {
     render(renderApp(['/dashboard']))
 
-    expect(await screen.findByRole('heading', { name: 'My review', level: 1 })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Hi Asha', level: 1 })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Open navigation' })).not.toBeInTheDocument()
     expect(document.querySelector('.drawer')).toBeNull()
     expect(await screen.findByText('Q1. Key contributions and achievements')).toBeInTheDocument()
