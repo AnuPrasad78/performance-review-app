@@ -5,17 +5,11 @@ import { UsersPage } from './pages/UsersPage'
 import { UploadPage } from './pages/UploadPage'
 import { CycleSettingsPage } from './pages/CycleSettingsPage'
 import { EmployeeDashboardPage } from './pages/EmployeeDashboardPage'
-import { SelfEvaluationPage } from './pages/SelfEvaluationPage'
 
 const ADMIN_NAV_SECTIONS: readonly NavSection[] = [
   { to: '/upload', label: 'CSV upload', icon: 'upload' },
   { to: '/users', label: 'Users', icon: 'users' },
   { to: '/cycle-settings', label: 'Cycle settings', icon: 'calendar' },
-]
-
-const EMPLOYEE_NAV_SECTIONS: readonly NavSection[] = [
-  { to: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
-  { to: '/self-evaluation', label: 'My review', icon: 'review' },
 ]
 
 function AdminLayout() {
@@ -28,7 +22,7 @@ function AdminLayout() {
 
 function EmployeeLayout() {
   return (
-    <AppShell headerTitle="Employee self-review" navSections={EMPLOYEE_NAV_SECTIONS}>
+    <AppShell headerTitle="My review">
       <Outlet />
     </AppShell>
   )
@@ -45,7 +39,6 @@ export function AppRoutes() {
       </Route>
       <Route element={<EmployeeLayout />}>
         <Route path="/dashboard" element={<EmployeeDashboardPage />} />
-        <Route path="/self-evaluation" element={<SelfEvaluationPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/users" replace />} />
     </Routes>

@@ -11,31 +11,35 @@ export interface NavSection {
 
 export interface AppShellProps {
   headerTitle: string
-  navSections: readonly NavSection[]
+  /** Single-page shells render without the drawer; nav sections opt the shell back in. */
+  navSections?: readonly NavSection[]
   children: ReactNode
 }
 
 export function AppShell({ headerTitle, navSections, children }: AppShellProps) {
+  const hasDrawer = navSections !== undefined && navSections.length > 0
   const [navOpen, setNavOpen] = useState(false)
 
   return (
     <>
       <header className="header">
-        <button
-          className="icon-btn"
-          aria-label="Open navigation"
-          aria-expanded={navOpen}
-          onClick={() => setNavOpen(true)}
-        >
-          <Icon name="menu" size={22} />
-        </button>
+        {hasDrawer ? (
+          <button
+            className="icon-btn"
+            aria-label="Open navigation"
+            aria-expanded={navOpen}
+            onClick={() => setNavOpen(true)}
+          >
+            <Icon name="menu" size={22} />
+          </button>
+        ) : null}
         <span className="header__logo">
           <img src={logoUrl} alt="Emids" />
         </span>
         <span className="header__title">{headerTitle}</span>
       </header>
       <main className="content">{children}</main>
-      {navOpen ? (
+      {hasDrawer && navOpen ? (
         <>
           <div
             className="drawer-backdrop"

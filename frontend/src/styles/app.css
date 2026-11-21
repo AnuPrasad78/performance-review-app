@@ -298,9 +298,6 @@ a { color: var(--teal-deep); }
 .signoff__row { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
 .signoff__value { font-size: 14px; font-weight: 700; color: var(--black); }
 
-/* dashboard primary action row */
-.dashboard-cta { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-
 @media (max-width: 760px) {
   .question-panel__columns,
   .commitments__row,
