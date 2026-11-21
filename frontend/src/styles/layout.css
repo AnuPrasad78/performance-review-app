@@ -123,6 +123,9 @@
 }
 .drawer__close { margin-left: auto; }
 
+/* dashboard-scale avatar (ui.md §4.1: 62px on dashboards) */
+.avatar--lg { width: 62px; height: 62px; font-size: 18px; }
+
 .drawer__nav { padding: 14px 10px; flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
 
 .nav-item {

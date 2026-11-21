@@ -24,6 +24,21 @@ describe('App — routed pages', () => {
     expect(screen.getByRole('heading', { name: 'Employees', level: 1 })).toBeInTheDocument()
   })
 
+  it('serves the employee side with its own nav sections', async () => {
+    render(renderApp(['/dashboard']))
+    const user = userEvent.setup()
+
+    expect(screen.getByRole('heading', { name: 'My review', level: 1 })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Open navigation' }))
+    const drawer = document.querySelector('.drawer')
+    if (!(drawer instanceof HTMLElement)) throw new Error('drawer not found')
+    expect(within(drawer).getAllByRole('link')).toHaveLength(2)
+    expect(within(drawer).getByRole('link', { name: 'Dashboard' })).toBeInTheDocument()
+
+    await user.click(within(drawer).getByRole('link', { name: 'My review' }))
+    expect(screen.getByRole('heading', { name: 'Self-evaluation', level: 1 })).toBeInTheDocument()
+  })
+
   it('navigates from Users to CSV upload and Cycle settings through the drawer', async () => {
     render(renderApp())
     const user = userEvent.setup()
