@@ -16,9 +16,7 @@ import { DEFAULT_SUBMISSION_DEADLINE } from '../lib/selfEvaluationContent'
 import { validateSelfEvaluation } from '../lib/selfEvaluationValidation'
 import {
   buildFreshDraft,
-  deriveReviewStatus,
   getSelfEvaluation,
-  REVIEW_STATUS_LABELS,
   saveSelfEvaluation,
   MOCK_EMPLOYEE,
   type SelfEvaluationRecord,
@@ -177,9 +175,7 @@ export function EmployeeDashboardPage() {
         />
         <SignOffPanel
           employee={draft.employee}
-          managerName={draft.employee.manager}
           signedAt={record.employeeSignedAt}
-          formStatusLabel={REVIEW_STATUS_LABELS[deriveReviewStatus(record)]}
           readOnly={readOnly}
           onConfirm={() => updateDraft((current) => ({ ...current, acknowledged: true }))}
         />
