@@ -1,6 +1,7 @@
 import { render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AdminStoreProvider } from '../../src/state/AdminContext'
+import { AuthProvider } from '../../src/state/AuthContext'
 import { CycleSettingsPage } from '../../src/pages/CycleSettingsPage'
 
 const STORAGE_KEY = 'performance-review.admin.v1'
@@ -8,8 +9,10 @@ const STORAGE_KEY = 'performance-review.admin.v1'
 function page(): React.ReactElement {
   return (
     <AdminStoreProvider>
+          <AuthProvider>
       <CycleSettingsPage />
-    </AdminStoreProvider>
+    </AuthProvider>
+        </AdminStoreProvider>
   )
 }
 
