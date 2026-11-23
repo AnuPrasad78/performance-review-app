@@ -1,10 +1,22 @@
+/** Mirrors the roster CSV the backend validates (see POST /api/employees/import):
+    Employee Name, Employee ID, Email, Designation, Location, Org,
+    Current Account / Project, Delivery Head, Delivery Manager, Business
+    Partner, Reporting Manager, Status. */
+export type EmployeeStatus = 'Active' | 'Inactive'
+
 export interface Employee {
-  firstName: string
-  lastName: string
+  employeeId: string
+  name: string
   email: string
-  role: string
-  department: string
-  manager: string
+  designation: string
+  location: string
+  org: string
+  project: string
+  deliveryHead: string
+  deliveryManager: string
+  businessPartner: string
+  reportingManager: string
+  status: EmployeeStatus
 }
 
 export interface CycleSettings {
@@ -14,11 +26,40 @@ export interface CycleSettings {
   hrApprovalReleaseBy: string
 }
 
-export type CsvParseResult =
-  | { ok: true; employees: Employee[] }
-  | { ok: false; error: string }
+export interface RosterRowError {
+  line: number
+  message: string
+}
 
-export type RosterMergeResult = { added: number; duplicates: number; roster: Employee[] }
+/** One uploaded row whose employee_id is already stored — the admin decides
+    per row whether the stored employee is overwritten (Update) or kept. */
+export interface RosterConflict {
+  employeeId: string
+  existing: Employee
+  incoming: Employee
+  changedFields: string[]
+}
+
+export type RosterImportReport = {
+  importedCount: number
+  duplicatesSkipped: number
+  conflicts: RosterConflict[]
+  /** Every validated row; the client echoes the new ones back in the apply
+      call (rows the admin decided to keep simply stay out). */
+  employees: Employee[]
+}
+
+export type RosterImportResult =
+  | { ok: true; report: RosterImportReport }
+  | { ok: false; detail: string; code: string; rowErrors: RosterRowError[] }
+
+export type RosterApplyResult =
+  | { ok: true; importedCount: number; updatedCount: number }
+  | { ok: false; detail: string; code: string }
+
+export type EmployeeListResult =
+  | { ok: true; employees: Employee[] }
+  | { ok: false; detail: string; code: string }
 
 export interface CycleSettingsFieldErrors {
   submissionDeadline: string | null

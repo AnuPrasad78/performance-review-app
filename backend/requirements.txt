@@ -1,0 +1,17 @@
+# Runtime dependencies of performance-review-backend (Python >= 3.12).
+# Exact pins resolved from pyproject.toml's ranges on 2026-11-23 — pyproject.toml
+# stays the source of truth; update it first, then regenerate this file.
+# Install: python -m venv .venv && .venv/Scripts/pip install -r requirements.txt
+
+fastapi==0.129.0
+uvicorn[standard]==0.38.0
+
+# Validation / settings
+pydantic==2.14.4
+pydantic-settings==2.16.3
+python-multipart==0.0.34
+
+# Persistence
+sqlalchemy[asyncio]==2.0.44
+asyncpg==0.32.0
+alembic==1.17.2

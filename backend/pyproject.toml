@@ -10,6 +10,8 @@ dependencies = [
     # Validation / settings
     "pydantic>=2.13,<3",
     "pydantic-settings>=2.7,<3",
+    # multipart/form-data parsing for file uploads
+    "python-multipart==0.0.34",
     # Persistence
     "sqlalchemy[asyncio]==2.0.44",
     "asyncpg>=0.31,<1",

@@ -1,58 +1,30 @@
-import { seedRoster } from './seedRoster'
-import type { CycleSettings, Employee } from './types'
-
-interface AdminSnapshot {
-  employees: Employee[]
-  cycleSettings: CycleSettings | null
-}
+import type { CycleSettings } from './types'
 
 const STORAGE_KEY = 'performance-review.admin.v1'
 
-function employeeShape(value: unknown): Employee | null {
-  if (typeof value !== 'object' || value === null) return null
-  const candidate = value as Record<string, unknown>
-  if (typeof candidate.firstName !== 'string' || typeof candidate.lastName !== 'string') return null
-  if (typeof candidate.email !== 'string') return null
-  return {
-    firstName: candidate.firstName,
-    lastName: candidate.lastName,
-    email: candidate.email,
-    role: typeof candidate.role === 'string' ? candidate.role : '',
-    department: typeof candidate.department === 'string' ? candidate.department : '',
-    manager: typeof candidate.manager === 'string' ? candidate.manager : '',
-  }
-}
-
-function readSnapshot(): AdminSnapshot {
-  const fallback: AdminSnapshot = { employees: seedRoster, cycleSettings: null }
+function readSnapshot(): CycleSettings | null {
   let raw: string | null = null
   try {
     raw = window.localStorage.getItem(STORAGE_KEY)
   } catch {
-    return fallback
+    return null
   }
-  if (raw === null) return fallback
+  if (raw === null) return null
   let parsed: unknown
   try {
     parsed = JSON.parse(raw)
   } catch {
-    return fallback
+    return null
   }
-  if (typeof parsed !== 'object' || parsed === null) return fallback
+  if (typeof parsed !== 'object' || parsed === null) return null
   const snapshot = parsed as Record<string, unknown>
-  const employees = Array.isArray(snapshot.employees)
-    ? snapshot.employees.map(employeeShape).filter((e): e is Employee => e !== null)
-    : seedRoster
-  const cycleSettings =
-    snapshot.cycleSettings !== null && typeof snapshot.cycleSettings === 'object'
-      ? (snapshot.cycleSettings as CycleSettings)
-      : null
-  return { employees, cycleSettings }
+  return snapshot.cycleSettings !== null && typeof snapshot.cycleSettings === 'object'
+    ? (snapshot.cycleSettings as CycleSettings)
+    : null
 }
 
-function writeSnapshot(patch: Partial<AdminSnapshot>): void {
-  const current = readSnapshot()
-  const next: AdminSnapshot = { ...current, ...patch }
+function writeSnapshot(cycleSettings: CycleSettings | null): void {
+  const next = { cycleSettings }
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
   } catch {
@@ -60,14 +32,10 @@ function writeSnapshot(patch: Partial<AdminSnapshot>): void {
   }
 }
 
-export function loadAdminSnapshot(): AdminSnapshot {
+export function loadAdminSnapshot(): CycleSettings | null {
   return readSnapshot()
 }
 
-export function saveEmployees(employees: Employee[]): void {
-  writeSnapshot({ employees })
-}
-
 export function saveCycleSettings(cycleSettings: CycleSettings): void {
-  writeSnapshot({ cycleSettings })
+  writeSnapshot(cycleSettings)
 }

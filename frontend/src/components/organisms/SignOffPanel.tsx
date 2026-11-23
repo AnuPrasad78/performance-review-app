@@ -42,8 +42,8 @@ export function SignOffPanel({
 }: SignOffPanelProps) {
   const rows: readonly SignoffRow[] = [
     {
-      employee: `${employee.firstName} ${employee.lastName}`,
-      manager: '',
+      employee: employee.name,
+      manager: employee.reportingManager,
       date: formatIsoDate(signedAt ?? todayIsoDate()),
     },
   ]

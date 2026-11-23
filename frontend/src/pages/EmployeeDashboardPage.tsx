@@ -40,6 +40,11 @@ const QUESTION_LABELS: Record<AssessmentQuestionId, string> = {
   support: 'Q4',
 }
 
+/** The greeting uses the given name; `name` from the roster CSV is the full name. */
+function firstNameOf(name: string): string {
+  return name.split(' ')[0] ?? name
+}
+
 export function EmployeeDashboardPage() {
   const { cycleSettings } = useAdminStore()
   const [record, setRecord] = useState<SelfEvaluationRecord | null>(null)
@@ -69,7 +74,11 @@ export function EmployeeDashboardPage() {
 
   if (record === null) {
     return (
-      <DashboardTemplate eyebrow={HEAD_EYEBROW} title={`Hi ${MOCK_EMPLOYEE.firstName}`} lead={leadLine}>
+      <DashboardTemplate
+        eyebrow={HEAD_EYEBROW}
+        title={`Hi ${firstNameOf(MOCK_EMPLOYEE.name)}`}
+        lead={leadLine}
+      >
         <p className="muted">Loading your review.</p>
       </DashboardTemplate>
     )
@@ -113,7 +122,11 @@ export function EmployeeDashboardPage() {
   }
 
   return (
-    <DashboardTemplate eyebrow={HEAD_EYEBROW} title={`Hi ${MOCK_EMPLOYEE.firstName}`} lead={leadLine}>
+    <DashboardTemplate
+      eyebrow={HEAD_EYEBROW}
+      title={`Hi ${firstNameOf(MOCK_EMPLOYEE.name)}`}
+      lead={leadLine}
+    >
       <div className="page-stack">
         <ReviewProgressCard sectionsCompleted={completedSections(draft)} sectionsTotal={7} />
         <ReviewSectionHeading number={1} title="Employee & review details" />

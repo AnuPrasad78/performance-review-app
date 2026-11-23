@@ -385,3 +385,36 @@ a { color: var(--teal-deep); }
   .details-grid { grid-template-columns: 1fr; }
   .profile { align-items: flex-start; }
 }
+
+/* modal molecule — one overlay + one sharp-cornered surface with the gradient
+   top bar; resolve transition per docs/ui.md §3.6 (200-240ms, ease-resolve) */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(14, 14, 14, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 40;
+  opacity: 1;
+  transition: opacity 200ms var(--ease-resolve);
+}
+.modal-overlay--entering { opacity: 0; }
+
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--hairline-2);
+  width: min(720px, 100%);
+  max-height: min(84vh, 720px);
+  display: flex;
+  flex-direction: column;
+}
+.modal__bar { height: 4px; background: var(--grad); flex: none; }
+.modal__body { padding: 24px; overflow: auto; }
+.modal__actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding: 16px 24px 24px;
+}

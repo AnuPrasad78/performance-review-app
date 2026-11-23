@@ -11,35 +11,55 @@ wiring below turns that into the envelope, so routers never format errors
 by hand.
 """
 
+import json
 import logging
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 logger = logging.getLogger("app.errors")
 
 
 class AppError(Exception):
-    """One business-failure supertype for the app's exception hierarchy."""
+    """One business-failure supertype for the app's exception hierarchy.
+
+    `payload` is optional structured data the frontend can render (row-level
+    validation errors, for example); plain `{detail, code}` errors omit it.
+    """
 
     status_code: int = 400
 
-    def __init__(self, detail: str, *, code: str, status_code: int | None = None):
+    def __init__(
+        self,
+        detail: str,
+        *,
+        code: str,
+        status_code: int | None = None,
+        payload: BaseModel | None = None,
+    ):
         super().__init__(detail)
         self.detail = detail
         self.code = code
+        self.payload = payload
         if status_code is not None:
             self.status_code = status_code
+
+
+def envelope_body(exc: AppError) -> dict[str, object]:
+    body: dict[str, object] = {"detail": exc.detail, "code": exc.code}
+    if exc.payload is not None:
+        # Pydantic v2 ships its own JSON encoder; dumping by alias keeps the
+        # payload keys on the wire in camelCase like everything the client sees.
+        body.update(json.loads(exc.payload.model_dump_json(by_alias=True)))
+    return body
 
 
 def install_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(AppError)
     async def handle_app_error(_: Request, exc: AppError) -> JSONResponse:
-        return JSONResponse(
-            status_code=exc.status_code,
-            content={"detail": exc.detail, "code": exc.code},
-        )
+        return JSONResponse(status_code=exc.status_code, content=envelope_body(exc))
 
     @app.exception_handler(StarletteHTTPException)
     async def handle_http_error(_: Request, exc: StarletteHTTPException) -> JSONResponse:

@@ -14,35 +14,33 @@ interface ProfileField {
   value: string
 }
 
-function initialsOf(employee: SelfEvaluationEmployee): string {
-  const first = employee.firstName.charAt(0)
-  const last = employee.lastName.charAt(0)
-  return (first + last).toUpperCase()
+function initialsOf(name: string): string {
+  const tokens = name.split(/\s+/).filter((token) => token !== '')
+  const initials = tokens.slice(0, 2).map((token) => token.charAt(0))
+  return initials.join('').toUpperCase()
 }
 
 export function EmployeeProfileCard({ employee, readOnly, onChange }: EmployeeProfileCardProps) {
   const fields: readonly ProfileField[] = [
-    { key: 'firstName', label: 'First name', value: employee.firstName },
-    { key: 'lastName', label: 'Last name', value: employee.lastName },
+    { key: 'name', label: 'Name', value: employee.name },
     { key: 'employeeId', label: 'Employee ID', value: employee.employeeId },
-    { key: 'role', label: 'Position', value: employee.role },
-    { key: 'department', label: 'Department', value: employee.department },
+    { key: 'designation', label: 'Designation', value: employee.designation },
     { key: 'location', label: 'Location', value: employee.location },
-    { key: 'manager', label: 'Reporting manager', value: employee.manager },
-    { key: 'deliveryManager', label: 'DM', value: employee.deliveryManager },
-    { key: 'deliveryHead', label: 'DH/DP', value: employee.deliveryHead },
+    { key: 'org', label: 'Org', value: employee.org },
+    { key: 'project', label: 'Project', value: employee.project },
+    { key: 'reportingManager', label: 'Reporting manager', value: employee.reportingManager },
+    { key: 'deliveryManager', label: 'Delivery manager', value: employee.deliveryManager },
+    { key: 'deliveryHead', label: 'Delivery head', value: employee.deliveryHead },
   ]
 
   return (
     <Card>
       <div className="profile">
         <span className="avatar avatar--lg" aria-hidden="true">
-          {initialsOf(employee)}
+          {initialsOf(employee.name)}
         </span>
         <div className="profile__identity">
-          <h3 className="profile__name">
-            {employee.firstName} {employee.lastName}
-          </h3>
+          <h3 className="profile__name">{employee.name}</h3>
           <span className="profile__email muted">{employee.email}</span>
         </div>
       </div>

@@ -27,7 +27,7 @@ describe('EmployeeDashboardPage — shell', () => {
 
     expect(await screen.findByText('0/7')).toBeInTheDocument()
     expect(screen.getByRole('meter', { name: 'SECTIONS COMPLETED' })).toBeInTheDocument()
-    expect(screen.getByDisplayValue('Asha Nair')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('Asha Menon')).toBeInTheDocument()
   })
 
   it('renders the self-evaluation form below the details and highlights the due date', async () => {
@@ -73,7 +73,7 @@ describe('EmployeeDashboardPage — draft state', () => {
   it('keeps the rest of the draft when a different question is edited', async () => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
       draft: {
-        employee: { firstName: 'Asha', lastName: 'Nair', email: 'a@emids.com', role: 'Engineer', department: 'Quality', manager: 'Ravi Menon', employeeId: 'EMP-1001', location: 'Bengaluru', deliveryManager: 'Joseph Mathew', deliveryHead: 'Divya Prakash' },
+        employee: { employeeId: 'EMP-V001', name: 'Asha Menon', email: 'asha_menon@emids.com', designation: 'Software Engineer', location: 'India', org: 'Delivery', project: 'Cigna One', deliveryHead: 'Arumugam Thiraviam', deliveryManager: 'Priya Raghavan', businessPartner: 'John D', reportingManager: 'Priya Raghavan', status: 'Active' },
         questions: [
           { id: 'contribution', question: 'Q?', employeeResponse: 'Shipped the feature.', managerComment: null },
           { id: 'strengths', question: 'Q?', employeeResponse: '', managerComment: null },

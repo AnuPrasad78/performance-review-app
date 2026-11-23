@@ -1,10 +1,23 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
+import { vi } from 'vitest'
 import { AdminStoreProvider } from '../src/state/AdminContext'
 import { AuthProvider } from '../src/state/AuthContext'
 import { AppRoutes } from '../src/App'
 import type { AuthSession } from '../src/lib/authStore'
+import type { RosterImportResult } from '../src/lib/types'
+
+const { applyRosterImportMock, fetchEmployeesMock, importRosterCsvMock } = vi.hoisted(() => ({
+  applyRosterImportMock: vi.fn(),
+  fetchEmployeesMock: vi.fn(),
+  importRosterCsvMock: vi.fn(),
+}))
+vi.mock('../src/lib/api', () => ({
+  applyRosterImport: applyRosterImportMock,
+  fetchEmployees: fetchEmployeesMock,
+  importRosterCsv: importRosterCsvMock,
+}))
 
 const SESSION_KEY = 'performance-review.session.v1'
 const ADMIN_SESSION: AuthSession = {
@@ -48,6 +61,9 @@ function renderSignedInAsEmployee(initial: string[] = ['/']): React.ReactElement
 }
 
 describe('App — routed pages', () => {
+  beforeEach(() => {
+    fetchEmployeesMock.mockResolvedValue({ ok: true, employees: [] })
+  })
   it('lands on the Review form status page', () => {
     render(renderSignedInAsAdmin())
     expect(screen.getByRole('heading', { name: 'Review form status', level: 1 })).toBeInTheDocument()
@@ -92,7 +108,33 @@ describe('App — routed pages', () => {
     expect(screen.getByRole('heading', { name: 'Review form status', level: 1 })).toBeInTheDocument()
   })
 
-  it('keeps the store across routes — an import on Upload is visible on Users', async () => {
+  it('applies an upload and the Users page reads the roster straight from the API', async () => {
+    const priya = {
+      employeeId: 'EMP-V900',
+      name: 'Priya Raj',
+      email: 'priya.raj@emids.com',
+      designation: 'Engineer',
+      location: 'India',
+      org: 'Delivery',
+      project: 'Cigna One',
+      deliveryHead: 'Arumugam Thiraviam',
+      deliveryManager: 'Priya Raghavan',
+      businessPartner: 'John D',
+      reportingManager: 'Priya Raghavan',
+      status: 'Active',
+    } as const
+    importRosterCsvMock.mockResolvedValue({
+      ok: true,
+      report: {
+        importedCount: 1,
+        duplicatesSkipped: 0,
+        conflicts: [],
+        employees: [priya],
+      },
+    } satisfies RosterImportResult)
+    applyRosterImportMock.mockResolvedValue({ ok: true, importedCount: 1, updatedCount: 0 })
+    fetchEmployeesMock.mockResolvedValue({ ok: true, employees: [priya] })
+
     const { container } = render(renderSignedInAsAdmin())
     const user = userEvent.setup()
 
@@ -103,8 +145,7 @@ describe('App — routed pages', () => {
 
     const input = container.querySelector<HTMLInputElement>('input[type="file"]')
     if (!input) throw new Error('file input not found')
-    const csv = 'first_name,last_name,email,role,department,manager\nPriya,Raj,priya.raj@emids.com,Engineer,Delivery,Anika Rao\n'
-    await user.upload(input, new File([csv], 'roster.csv', { type: 'text/csv' }))
+    await user.upload(input, new File(['Employee Name,Employee ID,Email'], 'roster.csv', { type: 'text/csv' }))
     await screen.findByRole('status', {}, { timeout: 3000 })
 
     await user.click(screen.getByRole('button', { name: 'Open navigation' }))
@@ -112,7 +153,7 @@ describe('App — routed pages', () => {
     if (!(drawerBack instanceof HTMLElement)) throw new Error('drawer not found')
     await user.click(within(drawerBack).getByRole('link', { name: 'Users' }))
 
-    expect(await screen.findByText('Roster · 7 employees')).toBeInTheDocument()
+    expect(await screen.findByText('Roster · 1 employee')).toBeInTheDocument()
     expect(screen.getByText('priya.raj@emids.com')).toBeInTheDocument()
   })
 })

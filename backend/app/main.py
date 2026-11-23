@@ -20,6 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import Settings, get_settings
 from app.core.db import configure_engine, dispose_engine
 from app.core.errors import install_error_handlers
+from app.routers.employees import router as employees_router
 from app.routers.health import router as health_router
 
 
@@ -50,4 +51,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     install_error_handlers(app)
     app.include_router(health_router, prefix="/api")
+    app.include_router(employees_router, prefix="/api")
     return app

@@ -31,14 +31,10 @@ export interface ReviewStatusBoardProps {
 }
 
 const columns: readonly DataTableColumn<EmployeeReviewStatus>[] = [
-  {
-    key: 'name',
-    header: 'Name',
-    cell: (entry) => `${entry.employee.firstName} ${entry.employee.lastName}`,
-  },
+  { key: 'name', header: 'Name', cell: (entry) => entry.employee.name },
   { key: 'email', header: 'Email', cell: (entry) => entry.employee.email },
-  { key: 'department', header: 'Department', cell: (entry) => entry.employee.department },
-  { key: 'manager', header: 'Manager', cell: (entry) => entry.employee.manager },
+  { key: 'org', header: 'Org', cell: (entry) => entry.employee.org },
+  { key: 'reportingManager', header: 'Reporting manager', cell: (entry) => entry.employee.reportingManager },
   { key: 'status', header: 'Form status', cell: (entry) => <ReviewStatusPill status={entry.status} /> },
 ]
 

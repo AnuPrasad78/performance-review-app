@@ -16,16 +16,18 @@ export interface SelfEvaluationRecord {
 
 /** Mock identity for the employee persona until the backend supplies the session user. */
 export const MOCK_EMPLOYEE: SelfEvaluationEmployee = {
-  firstName: 'Asha',
-  lastName: 'Nair',
-  email: 'asha.nair@emids.com',
-  role: 'Engineer',
-  department: 'Quality',
-  manager: 'Ravi Menon',
-  employeeId: 'EMP-1001',
-  location: 'Bengaluru',
-  deliveryManager: 'Joseph Mathew',
-  deliveryHead: 'Divya Prakash',
+  employeeId: 'EMP-V001',
+  name: 'Asha Menon',
+  email: 'asha_menon@emids.com',
+  designation: 'Software Engineer',
+  location: 'India',
+  org: 'Delivery',
+  project: 'Cigna One',
+  deliveryHead: 'Arumugam Thiraviam',
+  deliveryManager: 'Priya Raghavan',
+  businessPartner: 'John D',
+  reportingManager: 'Priya Raghavan',
+  status: 'Active',
 }
 
 export function buildFreshDraft(): SelfEvaluationDraft {
