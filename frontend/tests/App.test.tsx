@@ -48,9 +48,9 @@ function renderSignedInAsEmployee(initial: string[] = ['/']): React.ReactElement
 }
 
 describe('App — routed pages', () => {
-  it('lands on the Users page', () => {
+  it('lands on the Review form status page', () => {
     render(renderSignedInAsAdmin())
-    expect(screen.getByRole('heading', { name: 'Employees', level: 1 })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Review form status', level: 1 })).toBeInTheDocument()
   })
 
   it('serves the employee side as a single page without a sidebar', async () => {
@@ -62,28 +62,34 @@ describe('App — routed pages', () => {
     expect(await screen.findByText('Q1. Key contributions and achievements')).toBeInTheDocument()
   })
 
-  it('navigates from Users to CSV upload and Cycle settings through the drawer', async () => {
+  it('navigates from Users to review status, the upload page and Cycle settings through the drawer', async () => {
     render(renderSignedInAsAdmin())
     const user = userEvent.setup()
 
     await user.click(screen.getByRole('button', { name: 'Open navigation' }))
     const drawer = document.querySelector('.drawer')
     if (!(drawer instanceof HTMLElement)) throw new Error('drawer not found')
-    expect(within(drawer).getAllByRole('link')).toHaveLength(3)
+    expect(within(drawer).getAllByRole('link')).toHaveLength(4)
 
-    await user.click(within(drawer).getByRole('link', { name: 'CSV upload' }))
-    expect(screen.getByRole('heading', { name: 'CSV upload' })).toBeInTheDocument()
+    await user.click(within(drawer).getByRole('link', { name: 'Review status' }))
+    expect(screen.getByRole('heading', { name: 'Review form status' })).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Open navigation' }))
     const drawerAgain = document.querySelector('.drawer')
     if (!(drawerAgain instanceof HTMLElement)) throw new Error('drawer not found')
-    await user.click(within(drawerAgain).getByRole('link', { name: 'Cycle settings' }))
+    await user.click(within(drawerAgain).getByRole('link', { name: 'Employee data upload' }))
+    expect(screen.getByRole('heading', { name: 'Employee data upload' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Open navigation' }))
+    const drawerThird = document.querySelector('.drawer')
+    if (!(drawerThird instanceof HTMLElement)) throw new Error('drawer not found')
+    await user.click(within(drawerThird).getByRole('link', { name: 'Cycle settings' }))
     expect(screen.getByRole('heading', { name: 'Review cycle settings', level: 1 })).toBeInTheDocument()
   })
 
-  it('redirects unknown paths to Users', () => {
+  it('redirects unknown paths to the admin home', () => {
     render(renderSignedInAsAdmin(['/nope']))
-    expect(screen.getByRole('heading', { name: 'Employees', level: 1 })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Review form status', level: 1 })).toBeInTheDocument()
   })
 
   it('keeps the store across routes — an import on Upload is visible on Users', async () => {
@@ -93,7 +99,7 @@ describe('App — routed pages', () => {
     await user.click(screen.getByRole('button', { name: 'Open navigation' }))
     const drawer = document.querySelector('.drawer')
     if (!(drawer instanceof HTMLElement)) throw new Error('drawer not found')
-    await user.click(within(drawer).getByRole('link', { name: 'CSV upload' }))
+    await user.click(within(drawer).getByRole('link', { name: 'Employee data upload' }))
 
     const input = container.querySelector<HTMLInputElement>('input[type="file"]')
     if (!input) throw new Error('file input not found')

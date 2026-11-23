@@ -9,7 +9,7 @@ import type { AuthRole } from '../lib/authUsers'
 import type { AuthResult } from '../lib/authUsers'
 
 export const ROLE_HOME: Record<AuthRole, string> = {
-  admin: '/users',
+  admin: '/review-status',
   employee: '/dashboard',
 }
 

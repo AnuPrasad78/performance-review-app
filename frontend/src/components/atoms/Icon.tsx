@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 
-export type IconName = 'menu' | 'close' | 'users' | 'upload' | 'calendar' | 'eye' | 'eye-off' | 'logout' | 'lock'
+export type IconName = 'menu' | 'close' | 'users' | 'upload' | 'calendar' | 'eye' | 'eye-off' | 'logout' | 'lock' | 'chart' | 'clock' | 'circle-check' | 'alert'
 
 const GLYPHS: Record<IconName, ReactNode> = {
   menu: <path d="M4 6h16M4 12h16M4 18h16" />,
@@ -56,17 +56,42 @@ const GLYPHS: Record<IconName, ReactNode> = {
       <path d="M12 14.5v2" />
     </>
   ),
+  chart: (
+    <>
+      <path d="M4 4v16h16" />
+      <path d="M9 16v-5M13 16v-8M17 16v-3" />
+    </>
+  ),
+  clock: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </>
+  ),
+  'circle-check': (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="m9 12 2 2 4-4" />
+    </>
+  ),
+  alert: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 8v4M12 16h.01" />
+    </>
+  ),
 }
 
 export interface IconProps {
   name: IconName
   size?: number
+  className?: string
 }
 
-export function Icon({ name, size = 16 }: IconProps) {
+export function Icon({ name, size = 16, className }: IconProps) {
   return (
     <svg
-      className="icon"
+      className={className !== undefined ? `${className} icon` : 'icon'}
       width={size}
       height={size}
       viewBox="0 0 24 24"

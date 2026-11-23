@@ -61,7 +61,7 @@ describe('LoginPage', () => {
     await user.type(screen.getByLabelText('Password'), 'Portal@2026')
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
-    expect(await screen.findByRole('heading', { name: 'Employees', level: 1 })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Review form status', level: 1 })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Open navigation' })).toBeInTheDocument()
   })
 

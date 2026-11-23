@@ -5,12 +5,14 @@ import { AuthProvider, useAuth } from './state/AuthContext'
 import { LoginPage, ROLE_HOME } from './pages/LoginPage'
 import { UsersPage } from './pages/UsersPage'
 import { UploadPage } from './pages/UploadPage'
+import { ReviewStatusPage } from './pages/ReviewStatusPage'
 import { CycleSettingsPage } from './pages/CycleSettingsPage'
 import { EmployeeDashboardPage } from './pages/EmployeeDashboardPage'
 import type { AuthRole } from './lib/authUsers'
 
 const ADMIN_NAV_SECTIONS: readonly NavSection[] = [
-  { to: '/upload', label: 'CSV upload', icon: 'upload' },
+  { to: '/review-status', label: 'Review status', icon: 'chart' },
+  { to: '/upload', label: 'Employee data upload', icon: 'upload' },
   { to: '/users', label: 'Users', icon: 'users' },
   { to: '/cycle-settings', label: 'Cycle settings', icon: 'calendar' },
 ]
@@ -57,6 +59,7 @@ export function AppRoutes() {
       <Route element={<RequireRole role="admin" />}>
         <Route element={<AdminLayout />}>
           <Route path="/users" element={<UsersPage />} />
+          <Route path="/review-status" element={<ReviewStatusPage />} />
           <Route path="/upload" element={<UploadPage />} />
           <Route path="/cycle-settings" element={<CycleSettingsPage />} />
         </Route>

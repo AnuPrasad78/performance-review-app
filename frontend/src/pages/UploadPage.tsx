@@ -7,7 +7,7 @@ export function UploadPage() {
   return (
     <AdminTemplate
       eyebrow="Admin · Upload"
-      title="CSV upload"
+      title="Employee data upload"
       lead="Load employees from a roster CSV. Duplicate emails are skipped, and the roster updates on the Users page."
     >
       <CsvImportCard inFlight={importInFlight} onFileSelected={importRoster} />

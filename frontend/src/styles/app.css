@@ -245,6 +245,62 @@ a { color: var(--teal-deep); }
 .bar-row__track { flex: 1; height: 10px; background: var(--canvas); border: 1px solid var(--hairline-2); }
 .bar-row__fill { height: 100%; background: var(--grad); transition: width 240ms var(--ease-resolve); }
 .bar-row__value { min-width: 44px; text-align: right; font-size: 11px; color: var(--ink-2); }
+/* page-top stat row: 2×2 tiles beside the completion pie */
+.stat-board { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 18px; align-items: stretch; }
+.tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.tile {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--hairline-2);
+  padding: 20px 22px;
+}
+.tile__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.tile__label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.tile__icon { color: var(--ink-3); flex: none; margin-top: -3px; }
+.tile__icon--positive { color: var(--green); }
+.tile__icon--negative { color: var(--red); } /* outline accent only; note text stays on --red-deep */
+.tile__value {
+  margin-top: 12px;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--black);
+  line-height: 1.1;
+}
+.tile__value { font-variant-numeric: tabular-nums; }
+.tile__note { margin-top: 4px; font-size: 12.5px; line-height: 1.55; color: var(--ink-2); }
+.tile__note--positive { color: #1f7a63; }
+.tile__note--negative { color: var(--red-deep); }
+@media (max-width: 900px) {
+  .stat-board { grid-template-columns: 1fr; }
+}
+@media (max-width: 600px) {
+  .tiles { grid-template-columns: 1fr; }
+}
+
+/* pie with a count legend (signal-color reads are relieved by the counts) */
+.pie-block {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  margin: 0;
+}
+.pie-block__chart { flex: none; }
+.pie-block__chart path:hover { opacity: 0.85; }
+.pie-legend { display: flex; flex-direction: column; gap: 9px; }
+.pie-legend__item { display: flex; align-items: center; gap: 9px; font-size: 12.5px; color: var(--ink-2); }
+.pie-legend__swatch { width: 10px; height: 10px; flex: none; border: 1px solid var(--hairline); }
+.pie-legend__count { margin-left: 4px; font-size: 11px; color: var(--ink-2); min-width: 16px; text-align: right; }
+@media (max-width: 600px) {
+  .pie-block { flex-direction: column; align-items: flex-start; gap: 20px; }
+}
 
 /* chip / segmented score picker (ui.md §4.1) */
 .seg { display: inline-flex; flex-wrap: wrap; gap: 8px; }
