@@ -9,7 +9,6 @@ export function LoginTemplate({ children }: { children: ReactNode }) {
       <section className="login__left">
         <header className="login__wordmark">
           <img src={logoUrl} alt="emids" className="login__wordmark-logo" />
-          <span className="login__program">Performance Review</span>
         </header>
         <div className="login__card">{children}</div>
       </section>
