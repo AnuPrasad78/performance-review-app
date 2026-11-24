@@ -2,24 +2,11 @@ import { useState } from 'react'
 import { Button } from '../atoms/Button'
 import { Modal } from '../molecules/Modal'
 import { SegmentedFilter } from '../molecules/SegmentedFilter'
+import { EMPLOYEE_FIELD_TITLES } from '../../lib/employeeTitles'
 import type { Employee, RosterConflict } from '../../lib/types'
 
-/** Wire field names the backend reports as changed (camelCase of
-    schemas.employee.ROSTER_ATTRIBUTES), with their display titles in roster
-    column order; new uploads only ever report these. */
-const FIELD_TITLES: Record<string, string> = {
-  name: 'Name',
-  email: 'Email',
-  designation: 'Designation',
-  location: 'Location',
-  org: 'Org',
-  project: 'Current Account / Project',
-  deliveryHead: 'Delivery Head',
-  deliveryManager: 'Delivery Manager',
-  businessPartner: 'Business Partner',
-  reportingManager: 'Reporting Manager',
-  status: 'Status',
-}
+/** Wire field names the backend reports as changed are the shared map's
+    keys (EMPLOYEE_FIELD_TITLES); a moved Employee ID arrives in there too. */
 
 type Decision = 'keep' | 'update'
 
@@ -39,7 +26,7 @@ export interface ImportConflictDialogProps {
 type ChangedRow = { title: string; from: string; to: string }
 
 function changedRows(conflict: RosterConflict): ChangedRow[] {
-  return Object.entries(FIELD_TITLES)
+  return Object.entries(EMPLOYEE_FIELD_TITLES)
     .filter(([field]) => conflict.changedFields.includes(field))
     .map(([field, title]) => ({
       title,
@@ -59,14 +46,14 @@ export function ImportConflictDialog({
 }: ImportConflictDialogProps) {
   const [decisions, setDecisions] = useState<Record<string, Decision>>({})
 
-  const updateCount = conflicts.filter((conflict) => decisions[conflict.employeeId] === 'update').length
+  const updateCount = conflicts.filter((conflict) => decisions[conflict.email] === 'update').length
   const allUpdate = conflicts.length > 0 && updateCount === conflicts.length
-  const decisionFor = (employeeId: string): Decision => decisions[employeeId] ?? 'keep'
+  const decisionFor = (email: string): Decision => decisions[email] ?? 'keep'
 
   function setAll(decision: Decision): void {
     const next: Record<string, Decision> = {}
     for (const conflict of conflicts) {
-      next[conflict.employeeId] = decision
+      next[conflict.email] = decision
     }
     setDecisions(next)
   }
@@ -74,7 +61,7 @@ export function ImportConflictDialog({
   function confirm(): void {
     onConfirm(
       conflicts
-        .filter((conflict) => decisionFor(conflict.employeeId) === 'update')
+        .filter((conflict) => decisionFor(conflict.email) === 'update')
         .map((conflict) => conflict.incoming),
     )
   }
@@ -96,11 +83,11 @@ export function ImportConflictDialog({
             {conflicts.map((conflict) => {
               const rows = changedRows(conflict)
               return (
-                <tr key={conflict.employeeId}>
+                <tr key={conflict.email}>
                   <td>
                     <div style={{ fontWeight: 700 }}>{conflict.incoming.name}</div>
                     <div className="mono" style={{ color: 'var(--ink-3)', fontSize: '10.5px' }}>
-                      {conflict.employeeId}
+                      {conflict.incoming.employeeId}
                     </div>
                   </td>
                   <td>
@@ -129,10 +116,10 @@ export function ImportConflictDialog({
                   <td>
                     <SegmentedFilter
                       ariaLabel={`Decision for ${conflict.incoming.name}`}
-                      value={decisionFor(conflict.employeeId)}
+                      value={decisionFor(conflict.email)}
                       options={DECISION_OPTIONS}
                       onChange={(decision) =>
-                        setDecisions((current) => ({ ...current, [conflict.employeeId]: decision }))
+                        setDecisions((current) => ({ ...current, [conflict.email]: decision }))
                       }
                     />
                   </td>
@@ -143,7 +130,7 @@ export function ImportConflictDialog({
         </table>
         <p style={{ marginTop: '12px', color: 'var(--ink-3)' }}>
           {conflicts.length === 0
-            ? 'Employees with the same employee ID stay exactly as they are.'
+            ? 'Employees whose email already matches stay exactly as they are.'
             : `${conflicts.length - updateCount} ${
                 conflicts.length - updateCount === 1 ? 'row stays' : 'rows stay'
               }, ${updateCount === 1 ? '1 employee is updated' : `${updateCount} employees are updated`}.`}

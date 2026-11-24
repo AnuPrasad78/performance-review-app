@@ -12,7 +12,7 @@ from app.models.employee import Employee
 from app.models.evaluation import Evaluation
 from app.models.review_cycle import ReviewCycle
 from app.repositories.evaluation_repository import get_evaluation_repository
-from app.repositories.employee_repository import get_employee_repository
+from app.repositories.employee_repository import RosterYearPage, get_employee_repository
 from app.repositories.review_cycle_repository import get_review_cycle_repository
 from app.schemas.employee import ROSTER_ATTRIBUTES
 
@@ -77,10 +77,16 @@ class _StubEmployeeRepository:
 
 
 class _RosterRepository:
-    """Board-side stub: many employees, list_all included."""
+    """Board-side stub: employees beside that year's evaluations, paged the
+    way the real repository slices (filter → order → offset/limit)."""
 
-    def __init__(self, employees: list[Employee]) -> None:
+    def __init__(
+        self,
+        employees: list[Employee],
+        rows: dict[str, Evaluation] | None = None,
+    ) -> None:
         self._stored = list(employees)
+        self._rows = rows or {}
 
     async def get(self, employee_id: str) -> Employee | None:
         return next(
@@ -92,8 +98,29 @@ class _RosterRepository:
             (one for one in self._stored if one.email == email.strip().lower()), None
         )
 
-    async def list_all(self) -> list[Employee]:
-        return list(self._stored)
+    async def roster_year_page(
+        self,
+        review_year: int,
+        statuses: list[str] | None,
+        page: int,
+        page_size: int,
+    ) -> RosterYearPage:
+        from app.services.self_evaluation import _board_status
+
+        pairs = [(one, self._rows.get(one.employee_id)) for one in self._stored]
+        counts: dict[str, int] = {}
+        for _, row in pairs:
+            word = _board_status(row)
+            counts[word] = counts.get(word, 0) + 1
+        if statuses is not None:
+            pairs = [pair for pair in pairs if _board_status(pair[1]) in set(statuses)]
+        pairs.sort(key=lambda pair: (pair[0].employee_name, pair[0].employee_id))
+        offset = (page - 1) * page_size
+        return RosterYearPage(
+            rows=pairs[offset : offset + page_size],
+            total=len(pairs),
+            status_counts=counts,
+        )
 
 
 class MutableEvaluationRepository:
@@ -124,11 +151,6 @@ class BoardEvaluationRepository:
 
     async def get_for_employee(self, employee_id: str, review_year: int) -> Evaluation | None:
         return self._rows.get(employee_id)
-
-    async def list_by_year(self, review_year: int) -> dict[str, Evaluation]:
-        if review_year != 2026:
-            return {}
-        return dict(self._rows)
 
 
 class _StubCycleRepository:
@@ -171,7 +193,9 @@ def make_board_client(
     )
     app = create_app(settings)
     app.dependency_overrides[get_settings] = lambda: settings
-    app.dependency_overrides[get_employee_repository] = lambda: _RosterRepository(employees)
+    app.dependency_overrides[get_employee_repository] = lambda: _RosterRepository(
+        employees, {row.employee_id: row for row in rows if row.review_year == 2026}
+    )
     app.dependency_overrides[get_evaluation_repository] = lambda: BoardEvaluationRepository(rows)
     app.dependency_overrides[get_review_cycle_repository] = lambda: _StubCycleRepository(cycle)
     return TestClient(app)

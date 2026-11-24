@@ -29,12 +29,18 @@ import datetime
 from app.core.auth import AuthUser
 from app.core.errors import AppError
 from app.models.employee import Employee
-from app.models.evaluation import Evaluation
+from app.models.evaluation import (
+    RESPONSE_TOPICS,
+    STATUS_IN_PROGRESS as _IN_PROGRESS,
+    STATUS_SUBMITTED as _SUBMITTED,
+    Evaluation,
+)
 from app.models.review_cycle import ReviewCycle
 from app.repositories.evaluation_repository import EvaluationRepository
 from app.repositories.employee_repository import EmployeeRepository
 from app.repositories.review_cycle_repository import ReviewCycleRepository
 from app.schemas.employee import RosterEmployeeOut
+from app.schemas.paging import Paging
 from app.schemas.self_evaluation import (
     BoardStatus,
     ForwardCommitmentOut,
@@ -45,18 +51,6 @@ from app.schemas.self_evaluation import (
     SelfEvaluationPatch,
 )
 from app.services.roster_mapping import to_row
-
-#: (topic id, employee column, manager column) — positional order is fixed by
-#: the 2026 form; employee columns are write targets, manager columns read-only.
-RESPONSE_TOPICS: tuple[tuple[str, str, str], ...] = (
-    ("contribution", "q1_employee_response", "q1_manager_comments"),
-    ("strengths", "q2_employee_response", "q2_manager_comments"),
-    ("development", "q3_employee_response", "q3_manager_comments"),
-    ("support", "q4_employee_response", "q4_manager_comments"),
-)
-
-_IN_PROGRESS = "IN_PROGRESS"
-_SUBMITTED = "SUBMITTED"
 
 
 def deadline_passed(cycle: ReviewCycle) -> bool:
@@ -361,23 +355,41 @@ def _board_status(evaluation: Evaluation | None) -> BoardStatus:
     return "submitted"
 
 
+#: The admin filter nouns and the derived words they stand for. `pending`
+#: reviews in flight, `completed` the submitted family — the same bucketing
+#: the frontend's filtering chips render (lib/reviewStatusStore).
+FILTER_STATUS_WORDS: dict[str, frozenset[str]] = {
+    "all": frozenset(),
+    "pending": frozenset({"not_started", "in_progress"}),
+    "completed": frozenset({"submitted", "signed_off"}),
+}
+
+
 async def list_review_statuses(
     employee_repository: EmployeeRepository,
-    evaluation_repository: EvaluationRepository,
     cycle_repository: ReviewCycleRepository,
+    paging: Paging,
+    status_filter: str,
 ) -> ReviewStatusList:
     cycle = await cycle_repository.current()
     if cycle is None:
         raise AppError(
             "No review cycle is configured yet.", code="cycle_missing", status_code=404
         )
-    rows = await evaluation_repository.list_by_year(cycle.review_year)
-    roster = await employee_repository.list_all()
+    words = FILTER_STATUS_WORDS[status_filter]
+    page_slice = await employee_repository.roster_year_page(
+        cycle.review_year,
+        statuses=words if words else None,
+        page=paging.page,
+        page_size=paging.page_size,
+    )
     return ReviewStatusList(
         reviews=[
-            ReviewStatusEntry(
-                employee=to_row(employee), status=_board_status(rows.get(employee.employee_id))
-            )
-            for employee in roster
+            ReviewStatusEntry(employee=to_row(employee), status=_board_status(evaluation))
+            for employee, evaluation in page_slice.rows
         ],
+        total=page_slice.total,
+        page=paging.page,
+        page_size=paging.page_size,
+        status_counts=page_slice.status_counts,
     )

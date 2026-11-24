@@ -35,12 +35,6 @@ class EvaluationRepository:
         )
         return await self._session.scalar(statement)
 
-    async def list_by_year(self, review_year: int) -> dict[str, Evaluation]:
-        result = await self._session.scalars(
-            select(Evaluation).where(Evaluation.review_year == review_year)
-        )
-        return {row.employee_id: row for row in result}
-
     async def add(self, evaluation: Evaluation) -> None:
         # Flush so the unique (employee, year) constraint surfaces inside the
         # request instead of at commit time, where it would bypass the

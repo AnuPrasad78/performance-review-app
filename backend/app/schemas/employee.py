@@ -38,10 +38,11 @@ class RosterRowErrors(ApiModel):
 
 
 class RosterConflict(ApiModel):
-    """One upload row whose employee_id is already stored — the admin must
-    decide per row whether the stored employee is overwritten or kept."""
+    """One upload row whose email identity is already stored (case-insensitive
+    match) — the admin must decide per row whether the stored employee is
+    overwritten or kept."""
 
-    employee_id: str
+    email: str
     existing: RosterEmployeeOut
     incoming: RosterEmployeeOut
     changed_fields: list[str]
@@ -67,18 +68,24 @@ class RosterApplyReport(ApiModel):
     updated_count: int
 
 
-class RosterConflictIds(ApiModel):
-    employee_ids: list[str]
+class RosterConflictEmails(ApiModel):
+    emails: list[str]
 
 
 class EmployeeList(ApiModel):
     employees: list[RosterEmployeeOut]
+    total: int
+    page: int
+    page_size: int
 
 
 #: (RosterEmployeeOut field, employees column) pairs, including the identities.
-#: employee_id — the primary key — is deliberately excluded: it identifies a
-#: row, it is never part of a value copy-over. Plain strings, so this contract
-#: table stays importable from every layer without reaching into models.
+#: employee_id — the primary key — is deliberately excluded from the copy-over
+#: loop: it identifies a row, never a copied value. roster_mapping diffs it
+#: separately (changed_wire_fields) so an ID move still previews as a change;
+#: roster_apply carries it as the updated row's (possibly new) PK. Plain
+#: strings, so this contract table stays importable from every layer without
+#: reaching into models.
 ROSTER_ATTRIBUTES: tuple[tuple[str, str], ...] = (
     ("name", "employee_name"),
     ("email", "email"),

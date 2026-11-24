@@ -5,14 +5,17 @@ import type {
   EmployeeListResult,
   RosterApplyResult,
   RosterImportResult,
+  RawReviewStatus,
+  ReviewBoardPage,
+  ReviewBoardResult,
   ReviewStatus,
-  ReviewStatusResult,
   ReviewStatusWire,
   SelfEvaluationApiResult,
   SelfEvaluationPartial,
   SelfEvaluationWire,
   SessionApiResult,
   SessionWire,
+  StatusFilter,
   TopicResponses,
 } from './types'
 import { isIsoInstant } from './dates'
@@ -254,9 +257,10 @@ export async function importRosterCsv(file: File): Promise<RosterImportResult> {
         const existing = employeeFrom(conflict.existing)
         const incoming = employeeFrom(conflict.incoming)
         if (existing === null || incoming === null) return []
+        if (typeof conflict.email !== 'string') return []
         return [
           {
-            employeeId: incoming.employeeId,
+            email: conflict.email,
             existing,
             incoming,
             changedFields: (Array.isArray(conflict.changedFields)
@@ -298,46 +302,68 @@ export async function applyRosterImport(payload: {
   return { ok: true, importedCount: parsed.importedCount, updatedCount: parsed.updatedCount }
 }
 
-type BoardWireStatus = 'not_started' | 'in_progress' | 'submitted' | 'signed_off'
-
 const BOARD_STATUSES = ['not_started', 'in_progress', 'submitted', 'signed_off'] as const
 
 function reviewStatusFrom(value: unknown): ReviewStatusWire | null {
   if (!isRecord(value)) return null
   const employee = employeeFrom(value.employee)
   if (employee === null) return null
-  const wireStatus = value.status as BoardWireStatus
+  const wireStatus = value.status as RawReviewStatus
   if (!BOARD_STATUSES.includes(wireStatus)) return null
   const status: ReviewStatus = wireStatus === 'signed_off' ? 'submitted' : wireStatus
   return { employee, status }
 }
 
-export async function fetchReviewStatuses(): Promise<ReviewStatusResult> {
-  let response: Response
-  try {
-    response = await fetch(`${API_BASE}/api/evaluations`, { headers: identityHeaders() })
-  } catch {
-    return { ok: false, detail: NETWORK_UNAVAILABLE.detail, code: NETWORK_UNAVAILABLE.code }
-  }
-  const parsed = await envelopeOf(response)
-  if (parsed === null) {
-    return { ok: false, detail: REVIEW_UNAVAILABLE.detail, code: REVIEW_UNAVAILABLE.code }
-  }
-  if (!response.ok) return { ok: false, ...envelopeFields(parsed) }
-  if (!Array.isArray(parsed.reviews)) {
-    return { ok: false, detail: REVIEW_UNAVAILABLE.detail, code: REVIEW_UNAVAILABLE.code }
+export type BoardQuery = { page: number; status: StatusFilter }
+
+function boardPageFrom(parsed: Record<string, unknown>): ReviewBoardPage | null {
+  if (!Array.isArray(parsed.reviews)) return null
+  const isCount = (value: unknown): value is number => typeof value === 'number'
+  const counts: Partial<Record<RawReviewStatus, number>> = {}
+  if (isRecord(parsed.statusCounts)) {
+    for (const [key, value] of Object.entries(parsed.statusCounts)) {
+      const word = key as RawReviewStatus
+      if (BOARD_STATUSES.includes(word) && isCount(value)) counts[word] = value
+    }
   }
   const reviews = parsed.reviews.flatMap((entry: unknown) => {
     const review = reviewStatusFrom(entry)
     return review !== null ? [review] : []
   })
-  return { ok: true, reviews }
+  if (!isCount(parsed.total) || !isCount(parsed.page) || !isCount(parsed.pageSize)) return null
+  return {
+    reviews,
+    total: parsed.total,
+    page: parsed.page,
+    pageSize: parsed.pageSize,
+    statusCounts: counts,
+  }
 }
 
-export async function fetchEmployees(): Promise<EmployeeListResult> {
+export async function fetchReviewBoard(query: BoardQuery): Promise<ReviewBoardResult> {
   let response: Response
   try {
-    response = await fetch(`${API_BASE}/api/employees`)
+    const params = `page=${query.page}&status=${query.status}`
+    response = await fetch(`${API_BASE}/api/evaluations?${params}`, { headers: identityHeaders() })
+  } catch {
+    return { ok: false, detail: NETWORK_UNAVAILABLE.detail, code: NETWORK_UNAVAILABLE.code }
+  }
+  const parsed = await envelopeOf(response)
+  if (parsed === null) {
+    return { ok: false, detail: REVIEW_UNAVAILABLE.detail, code: REVIEW_UNAVAILABLE.code }
+  }
+  if (!response.ok) return { ok: false, ...envelopeFields(parsed) }
+  const board = boardPageFrom(parsed)
+  if (board === null) {
+    return { ok: false, detail: REVIEW_UNAVAILABLE.detail, code: REVIEW_UNAVAILABLE.code }
+  }
+  return { ok: true, board }
+}
+
+export async function fetchEmployees(page = 1): Promise<EmployeeListResult> {
+  let response: Response
+  try {
+    response = await fetch(`${API_BASE}/api/employees?page=${page}`)
   } catch {
     return { ok: false, detail: NETWORK_UNAVAILABLE.detail, code: NETWORK_UNAVAILABLE.code }
   }
@@ -346,10 +372,10 @@ export async function fetchEmployees(): Promise<EmployeeListResult> {
     return { ok: false, detail: UNSUPPORTED_ENV_ERROR.detail, code: 'unsupported_environment' }
   }
   if (!response.ok) return { ok: false, ...envelopeFields(parsed) }
-  if (!Array.isArray(parsed.employees)) {
+  if (!Array.isArray(parsed.employees) || typeof parsed.total !== 'number' || typeof parsed.page !== 'number' || typeof parsed.pageSize !== 'number') {
     return { ok: false, detail: UNSUPPORTED_ENV_ERROR.detail, code: 'unsupported_environment' }
   }
-  return { ok: true, employees: employeesFrom(parsed.employees) }
+  return { ok: true, employees: employeesFrom(parsed.employees), total: parsed.total, page: parsed.page, pageSize: parsed.pageSize }
 }
 
 export async function fetchSession(email: string): Promise<SessionApiResult> {

@@ -32,8 +32,11 @@ def to_employee(row: RosterEmployeeOut) -> Employee:
 
 def copy_row(employee: Employee, row: RosterEmployeeOut) -> None:
     """Write every rostered attribute of `row` onto `employee` — used for
-    updates, where only a full overwrite decided by the admin is correct."""
-    employee.employee_id = row.employee_id
+    updates, where only a full overwrite decided by the admin is correct.
+    employee_id is the model's own key and stays out of the loop; the apply
+    step carries it as the row's (possibly new) PK next to the stored one.
+    email is copied verbatim — matches are made case-insensitively, so this
+    only normalizes the stored casing."""
     for schema_field, column in ROSTER_ATTRIBUTES:
         setattr(employee, column, getattr(row, schema_field))
 
@@ -47,9 +50,12 @@ def to_row(employee: Employee) -> RosterEmployeeOut:
 
 def changed_wire_fields(existing: Employee, incoming: RosterEmployeeOut) -> list[str]:
     """Wire (camelCase) names of the fields where the stored employee differs
-    from the incoming row — the preview table shows exactly those."""
+    from the incoming row — the preview table shows exactly those. employee_id
+    is diffed as a value change even though copy_row leaves it alone: email
+    anchors the match, the CSV may still move the ID onto an updated employee."""
+    diffed: tuple[tuple[str, str], ...] = (("employee_id", "employee_id"),) + ROSTER_ATTRIBUTES
     return [
         wire_field(schema_field)
-        for schema_field, column in ROSTER_ATTRIBUTES
+        for schema_field, column in diffed
         if (getattr(existing, column) or "") != getattr(incoming, schema_field)
     ]

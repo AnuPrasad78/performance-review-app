@@ -46,6 +46,69 @@ def test_board_joins_roster_rows_with_evaluation_states() -> None:
         "EMP-V003",
         "EMP-V004",
     ]
+    # The whole-roster distribution rides along for the tiles and pie.
+    assert payload["total"] == 4
+    assert payload["page"] == 1
+    assert payload["pageSize"] == 10
+    assert payload["statusCounts"] == {
+        "not_started": 2,
+        "in_progress": 1,
+        "submitted": 1,
+    }
+
+
+def test_board_pages_the_roster_in_roster_order() -> None:
+    members = [
+        roster_employee("EMP-V001", "Asha Menon"),
+        roster_employee("EMP-V002", "Bilal Khan"),
+        roster_employee("EMP-V003", "Cara Fernandes"),
+        roster_employee("EMP-V004", "Devika Nair"),
+        roster_employee("EMP-V005", "Eshan Gupta"),
+    ]
+    client = make_board_client(members, [], admin_emails=[ASHA_EMAIL])
+
+    second_page = (
+        client.get(
+            "/api/evaluations",
+            params={"page": 2, "pageSize": 2},
+            headers={"X-Stub-User": ASHA_EMAIL},
+        )
+    ).json()
+
+    assert second_page["total"] == 5
+    assert second_page["page"] == 2
+    assert second_page["pageSize"] == 2
+    assert [entry["employee"]["employeeId"] for entry in second_page["reviews"]] == [
+        "EMP-V003",
+        "EMP-V004",
+    ]
+    # Counts cover the whole roster, not the page.
+    assert second_page["statusCounts"]["not_started"] == 5
+
+
+def test_board_filter_narrows_rows_and_total_not_counts() -> None:
+    asha = roster_employee("EMP-V001", "Asha Menon")
+    bilal = roster_employee("EMP-V002", "Bilal Khan")
+    cara = roster_employee("EMP-V003", "Cara Fernandes")
+    rows = [
+        evaluation("IN_PROGRESS", employee_id="EMP-V001", q1_employee_response="An answer."),
+        evaluation("SUBMITTED", employee_id="EMP-V003"),
+    ]
+    client = make_board_client([asha, bilal, cara], rows, admin_emails=[ASHA_EMAIL])
+
+    pending = (
+        client.get("/api/evaluations", params={"status": "pending"}, headers={"X-Stub-User": ASHA_EMAIL})
+    ).json()
+    completed = (
+        client.get("/api/evaluations", params={"status": "completed"}, headers={"X-Stub-User": ASHA_EMAIL})
+    ).json()
+
+    assert [entry["status"] for entry in pending["reviews"]] == ["in_progress", "not_started"]
+    assert pending["total"] == 2
+    assert pending["statusCounts"]["submitted"] == 1
+    assert [entry["status"] for entry in completed["reviews"]] == ["submitted"]
+    assert completed["total"] == 1
+    assert completed["statusCounts"]["not_started"] == 1
 
 
 def test_employee_signature_means_signed_off() -> None:

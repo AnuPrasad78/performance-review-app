@@ -3,41 +3,20 @@ import userEvent from '@testing-library/user-event'
 import { vi } from 'vitest'
 import { AdminStoreProvider } from '../../src/state/AdminContext'
 import { ReviewStatusPage } from '../../src/pages/ReviewStatusPage'
-import type { ReviewStatus } from '../../src/lib/types'
+import type { ReviewBoardPage, ReviewStatusWire } from '../../src/lib/types'
 
-const { fetchReviewStatusesMock } = vi.hoisted(() => ({ fetchReviewStatusesMock: vi.fn() }))
+const { fetchReviewBoardMock } = vi.hoisted(() => ({ fetchReviewBoardMock: vi.fn() }))
 vi.mock('../../src/lib/api', () => ({
-  fetchReviewStatuses: fetchReviewStatusesMock,
+  fetchReviewBoard: fetchReviewBoardMock,
   setApiIdentity: vi.fn(),
 }))
 
-/** Statuses come from the backend now, so the fixture states them outright:
-    1 not started, 1 in progress, 6 submitted over an eight-person roster. */
-const SEED: readonly { email: string; status: ReviewStatus }[] = [
-  { email: 'bilal_khan@emids.com', status: 'not_started' },
-  { email: 'asha_menon@emids.com', status: 'in_progress' },
-  { email: 'cara_fernandes@emids.com', status: 'submitted' },
-  { email: 'devika_nair@emids.com', status: 'submitted' },
-  { email: 'eshan_gupta@emids.com', status: 'submitted' },
-  { email: 'farah_sheikh@emids.com', status: 'submitted' },
-  { email: 'gaurav_bhatt@emids.com', status: 'submitted' },
-  { email: 'heena_roy@emids.com', status: 'submitted' },
-]
-
-function page(): React.ReactElement {
-  return (
-    <AdminStoreProvider>
-      <ReviewStatusPage />
-    </AdminStoreProvider>
-  )
-}
-
-function wireReview(seed: { email: string; status: ReviewStatus }, index: number) {
+function wireReview(email: string, name: string, status: ReviewStatusWire['status'], index: number): ReviewStatusWire {
   return {
     employee: {
       employeeId: `EMP-V00${index + 1}`,
-      name: `Employee ${index + 1}`,
-      email: seed.email,
+      name,
+      email,
       designation: 'Engineer',
       location: 'India',
       org: 'Delivery',
@@ -48,40 +27,58 @@ function wireReview(seed: { email: string; status: ReviewStatus }, index: number
       reportingManager: 'Priya Raghavan',
       status: 'Active',
     },
-    status: seed.status,
+    status,
   }
+}
+
+/** Two board pages (pageSize 2) over an eight-person roster: row slices the
+    server decided, so the test only states what the endpoint returns. */
+const PAGE_ONE: ReviewBoardPage = {
+  reviews: [
+    wireReview('asha_menon@emids.com', 'Asha Menon', 'in_progress', 0),
+    wireReview('bilal_khan@emids.com', 'Bilal Khan', 'not_started', 1),
+  ],
+  total: 6,
+  page: 1,
+  pageSize: 2,
+  statusCounts: { not_started: 4, in_progress: 2, submitted: 2, signed_off: 0 },
+}
+const PAGE_TWO: ReviewBoardPage = {
+  reviews: [
+    wireReview('cara_fernandes@emids.com', 'Cara Fernandes', 'submitted', 2),
+    wireReview('devika_nair@emids.com', 'Devika Nair', 'submitted', 3),
+  ],
+  total: 2,
+  page: 2,
+  pageSize: 2,
+  statusCounts: { not_started: 4, in_progress: 2, submitted: 2, signed_off: 0 },
+}
+
+function page(): React.ReactElement {
+  return (
+    <AdminStoreProvider>
+      <ReviewStatusPage />
+    </AdminStoreProvider>
+  )
 }
 
 beforeEach(() => {
   window.localStorage.clear()
-  fetchReviewStatusesMock.mockReset()
-  fetchReviewStatusesMock.mockResolvedValue({
-    ok: true,
-    reviews: SEED.map((seed, index) => wireReview(seed, index)),
-  })
+  fetchReviewBoardMock.mockReset()
+  fetchReviewBoardMock.mockResolvedValue({ ok: true, board: PAGE_ONE })
 })
 
-function dataRows(): HTMLElement[] {
-  const table = screen.getByRole('table')
-  const body = within(table).getAllByRole('rowgroup')[1]
-  return within(body ?? table).queryAllByRole('row')
-}
-
 describe('ReviewStatusPage', () => {
-  it('shows every employee with their form status and a completion meter per status', async () => {
-    const user = userEvent.setup()
+  it('renders the whole-roster tiles and pie from the server counts', async () => {
     render(page())
     await screen.findByRole('table')
-
-    // Pending opens the board by default; All reveals the full roster.
-    await user.click(screen.getByRole('button', { name: 'All' }))
 
     expect(screen.getByRole('heading', { name: 'Review form status' })).toBeInTheDocument()
     expect(
       screen.getByRole('img', { name: 'Review completion split by status' }),
     ).toBeInTheDocument()
     const titles = [...document.querySelectorAll('.pie-block__chart title')].map((t) => t.textContent)
-    // Every slice of this fixture is non-zero.
+    // Pie slices come from the collapse of the server's four words.
     expect(titles).toHaveLength(3)
     expect(titles.every((title) => title?.includes(' of 8 ('))).toBe(true)
     const tiles = [...document.querySelectorAll('.tile')].map((tile) => tile.textContent)
@@ -89,44 +86,40 @@ describe('ReviewStatusPage', () => {
     for (const label of ['Total employees', 'Completed', 'In progress', 'Not started']) {
       expect(tiles.some((text) => text?.includes(label))).toBe(true)
     }
-    for (const status of ['Not started', 'In progress', 'Submitted']) {
-      expect(dataRows().some((row) => within(row).queryByText(status))).toBe(true)
-    }
-    expect(screen.getByText('Employees · 8 of 8')).toBeInTheDocument()
   })
 
-  it('filters the roster to pending reviews when Pending is selected', async () => {
-    const user = userEvent.setup()
+  it('opens on Pending — the filtered total for the page heading counts', async () => {
     render(page())
     await screen.findByRole('table')
 
-    expect(screen.getByText('Employees · 2 of 8')).toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: 'Pending' }))
-
-    expect(screen.getByText('Employees · 2 of 8')).toBeInTheDocument()
-    const statuses = dataRows().map((row) => row.textContent)
-    expect(statuses.some((text) => text?.includes('Not started'))).toBe(true)
-    expect(statuses.some((text) => text?.includes('In progress'))).toBe(true)
-    expect(statuses.some((text) => text?.includes('Submitted'))).toBe(false)
-  })
-
-  it('filters the roster to completed reviews when Completed is selected', async () => {
-    const user = userEvent.setup()
-    render(page())
-    await screen.findByRole('table')
-
-    await user.click(screen.getByRole('button', { name: 'Completed' }))
-
+    expect(fetchReviewBoardMock).toHaveBeenCalledWith({ page: 1, status: 'pending' })
     expect(screen.getByText('Employees · 6 of 8')).toBeInTheDocument()
-    const statuses = dataRows().map((row) => row.textContent)
-    expect(statuses.some((text) => text?.includes('Submitted'))).toBe(true)
-    expect(statuses.some((text) => text?.includes('Not started'))).toBe(false)
-    expect(statuses.some((text) => text?.includes('In progress'))).toBe(false)
+    // Tile label, pie legend, and this page's pill share each label;
+    // submitted rows are absent under the pending filter.
+    expect(screen.getAllByText('In progress')).toHaveLength(3)
+    expect(screen.getAllByText('Not started')).toHaveLength(3)
+    const table = screen.getByRole('table')
+    expect(within(table).queryByText('Submitted')).not.toBeInTheDocument()
   })
 
-  it('states the failure when the status endpoint cannot be reached', async () => {
-    fetchReviewStatusesMock.mockResolvedValue({
+  it('pager walks server pages and the filter re-opens on page one', async () => {
+    render(page())
+    const user = userEvent.setup()
+    await screen.findByRole('table')
+
+    fetchReviewBoardMock.mockResolvedValue({ ok: true, board: PAGE_TWO })
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    expect(fetchReviewBoardMock).toHaveBeenLastCalledWith({ page: 2, status: 'pending' })
+    expect(await screen.findByText('Cara Fernandes')).toBeInTheDocument()
+
+    fetchReviewBoardMock.mockResolvedValue({ ok: true, board: { ...PAGE_TWO, total: 8, page: 1, reviews: PAGE_ONE.reviews } })
+    await user.click(screen.getByRole('button', { name: 'All' }))
+    expect(fetchReviewBoardMock).toHaveBeenLastCalledWith({ page: 1, status: 'all' })
+    expect(await screen.findByText('Bilal Khan')).toBeInTheDocument()
+  })
+
+  it('states the failure when the board endpoint cannot be reached', async () => {
+    fetchReviewBoardMock.mockResolvedValue({
       ok: false,
       detail: 'Could not reach the review API.',
       code: 'network_error',
@@ -137,7 +130,10 @@ describe('ReviewStatusPage', () => {
   })
 
   it('shows the empty-roster next move when no employees are loaded', async () => {
-    fetchReviewStatusesMock.mockResolvedValue({ ok: true, reviews: [] })
+    fetchReviewBoardMock.mockResolvedValue({
+      ok: true,
+      board: { reviews: [], total: 0, page: 1, pageSize: 10, statusCounts: {} },
+    })
     render(page())
 
     expect(

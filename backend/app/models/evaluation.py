@@ -32,6 +32,20 @@ from app.models.base import Base
 from app.models.employee import Employee
 from app.models.review_cycle import ReviewCycle
 
+#: (topic id, employee column, manager column) — positional order is fixed by
+#: the 2026 form; employee columns are write targets, manager columns read-only.
+#: Lives beside the storage columns it names so every layer shares one table.
+RESPONSE_TOPICS: tuple[tuple[str, str, str], ...] = (
+    ("contribution", "q1_employee_response", "q1_manager_comments"),
+    ("strengths", "q2_employee_response", "q2_manager_comments"),
+    ("development", "q3_employee_response", "q3_manager_comments"),
+    ("support", "q4_employee_response", "q4_manager_comments"),
+)
+
+#: The stored workflow words behind the status column.
+STATUS_IN_PROGRESS = "IN_PROGRESS"
+STATUS_SUBMITTED = "SUBMITTED"
+
 
 class Evaluation(Base):
     __tablename__ = "evaluations"
@@ -55,7 +69,8 @@ class Evaluation(Base):
         BigInteger, Identity(always=True), primary_key=True
     )
     employee_id: Mapped[str] = mapped_column(
-        ForeignKey("employees.employee_id"), nullable=False
+        ForeignKey("employees.employee_id", ondelete="RESTRICT", onupdate="CASCADE"),
+        nullable=False,
     )
     review_year: Mapped[int]
     status: Mapped[str] = mapped_column(String(30))

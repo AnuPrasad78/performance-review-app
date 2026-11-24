@@ -9,18 +9,18 @@ import type { SelfEvaluationWire, SessionApiResult, SessionWire } from '../../sr
 
 const {
   fetchEmployeesMock,
-  fetchReviewStatusesMock,
+  fetchReviewBoardMock,
   fetchSelfEvaluationMock,
   fetchSessionMock,
 } = vi.hoisted(() => ({
   fetchEmployeesMock: vi.fn(),
-  fetchReviewStatusesMock: vi.fn(),
+  fetchReviewBoardMock: vi.fn(),
   fetchSelfEvaluationMock: vi.fn(),
   fetchSessionMock: vi.fn(),
 }))
 vi.mock('../../src/lib/api', () => ({
   fetchEmployees: fetchEmployeesMock,
-  fetchReviewStatuses: fetchReviewStatusesMock,
+  fetchReviewBoard: fetchReviewBoardMock,
   fetchSelfEvaluation: fetchSelfEvaluationMock,
   fetchSession: fetchSessionMock,
   saveSelfEvaluation: vi.fn(),
@@ -68,13 +68,16 @@ beforeEach(() => {
   fetchSelfEvaluationMock.mockReset()
   fetchSessionMock.mockReset()
   fetchEmployeesMock.mockReset()
-  fetchReviewStatusesMock.mockReset()
+  fetchReviewBoardMock.mockReset()
   fetchSelfEvaluationMock.mockResolvedValue({
     ok: true,
     data: openEvaluation('Asha Menon', 'asha_menon@emids.com'),
   })
-  fetchEmployeesMock.mockResolvedValue({ ok: true, employees: [] })
-  fetchReviewStatusesMock.mockResolvedValue({ ok: true, reviews: [] })
+  fetchEmployeesMock.mockResolvedValue({ ok: true, employees: [], total: 0, page: 1, pageSize: 10 })
+  fetchReviewBoardMock.mockResolvedValue({
+    ok: true,
+    board: { reviews: [], total: 0, page: 1, pageSize: 10, statusCounts: {} },
+  })
 })
 
 function renderApp(): React.ReactElement {

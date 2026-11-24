@@ -71,25 +71,47 @@ async def test_insert_get_update_list_round_trip(
     assert fetched[spawned.employee_id].employee_name == "Round Trip"
 
     spawned.employee_name = "Renamed"
-    updated = await repository.update_many([spawned])
+    updated = await repository.update_many([(spawned.employee_id, spawned)])
     assert updated == {spawned.employee_id}
 
-    listing = await repository.list_all()
+    listing, listing_total = await repository.paged(1, 50)
+    assert listing_total >= 1
     renamed = next(one for one in listing if one.employee_id == spawned.employee_id)
     assert renamed.employee_name == "Renamed"
 
 
 @requires_database
-async def test_diff_reports_existing_ids_as_conflicts(
+async def test_update_moves_employee_id(repository: EmployeeRepository) -> None:
+    spawned = _test_employee("Id Mover")
+    await repository.insert_many([spawned])
+
+    moved = _test_employee("Id Mover")
+    moved.email = spawned.email
+    updated = await repository.update_many([(spawned.employee_id, moved)])
+    assert updated == {moved.employee_id}
+    # The identity map re-keys at commit, so the move is asserted against the
+    # table itself: only the row under the new key remains.
+    rows = await repository.get_many([spawned.employee_id, moved.employee_id])
+    assert rows.keys() == {moved.employee_id}
+    assert rows[moved.employee_id].employee_name == "Id Mover"
+
+
+@requires_database
+async def test_diff_reports_existing_emails_as_conflicts(
     repository: EmployeeRepository,
 ) -> None:
     stored = _test_employee("Diff Source")
     await repository.insert_many([stored])
 
-    incoming = fixture_rows()[0].model_copy(update={"employee_id": stored.employee_id})
+    incoming = fixture_rows()[0].model_copy(
+        update={"employee_id": "PRFIX-1", "email": stored.email}
+    )
     report = await diff_roster(
         ParsedRoster(rows=[incoming], duplicates_skipped=0), repository
     )
     assert report.imported_count == 0
-    assert [conflict.employee_id for conflict in report.conflicts] == [stored.employee_id]
-    assert set(report.conflicts[0].changed_fields) >= {"email", "name"}
+    assert [conflict.email for conflict in report.conflicts] == [stored.email]
+    # The conflict renders by email identity, so the email itself is never a
+    # reported change; a moved ID is a value change (see changed_wire_fields),
+    # and this fixture does move one.
+    assert set(report.conflicts[0].changed_fields) == {"employeeId", "name"}
