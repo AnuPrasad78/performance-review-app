@@ -1,30 +1,35 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { HeroHeader, type HeroSectionProgress } from '../components/organisms/HeroHeader'
+import { EmployeeProfileCard } from '../components/organisms/EmployeeProfileCard'
+import { RatingReferencePanel } from '../components/organisms/RatingReferencePanel'
 import { ReviewQuestionPanel } from '../components/organisms/ReviewQuestionPanel'
 import { OverallRatingPanel } from '../components/organisms/OverallRatingPanel'
 import { ForwardCommitmentsPanel } from '../components/organisms/ForwardCommitmentsPanel'
 import { SignOffPanel } from '../components/organisms/SignOffPanel'
 import { Button } from '../components/atoms/Button'
 import { Card } from '../components/atoms/Card'
-import { todayIsoDate } from '../lib/dates'
-import { validateSelfEvaluation } from '../lib/selfEvaluationValidation'
+import { saveSelfEvaluation, submitSelfEvaluation, fetchSelfEvaluation } from '../lib/api'
 import {
-  buildFreshDraft,
-  getSelfEvaluation,
-  saveSelfEvaluation,
+  commitmentsPayloadFromDraft,
+  loadResumeIndices,
+  mergeRecordFromApi,
+  payloadFromDraft,
+  recordFromApi,
+  saveResumeIndices,
   type SelfEvaluationRecord,
 } from '../lib/selfEvaluationStore'
+import { validateSelfEvaluation } from '../lib/selfEvaluationValidation'
+import { useAutoSave } from '../hooks/useAutoSave'
 import type {
   AssessmentQuestionId,
   ForwardCommitment,
   RatingValue,
-  ReviewSaveResult,
   SelfEvaluationDraft,
   SelfEvaluationValidation,
 } from '../lib/types'
 
 const RATING_VALUES: readonly RatingValue[] = [1, 2, 3, 4, 5]
-const AUTOSAVE_DEBOUNCE_MS = 800
+const AUTO_SAVE_DELAY_MS = 1200
 
 const QUESTION_LABELS: Record<AssessmentQuestionId, string> = {
   contribution: 'Q1',
@@ -68,53 +73,93 @@ const STEPS: readonly WizardStep[] = [
 
 export function EmployeeDashboardPage() {
   const [record, setRecord] = useState<SelfEvaluationRecord | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
   const [validation, setValidation] = useState<SelfEvaluationValidation | null>(null)
-  const [notice, setNotice] = useState<ReviewSaveResult | null>(null)
-  const [saving, setSaving] = useState(false)
   const [sectionIndex, setSectionIndex] = useState(0)
   const [questionIndex, setQuestionIndex] = useState(0)
-  const lastPersistedRef = useRef('')
+  const lastResumeRef = useRef('')
+
+  // The hook reads the payload through this ref, so its closures stay stable
+  // while page state moves; the mirror is one effect behind the state.
+  const recordRef = useRef<SelfEvaluationRecord | null>(null)
+  useEffect(() => {
+    recordRef.current = record
+  }, [record])
+
+  const autoSave = useAutoSave({
+    delayMs: AUTO_SAVE_DELAY_MS,
+    currentPayload: () => {
+      const current = recordRef.current
+      if (current === null) return {}
+      // Post-submit saves may only carry commitments — the server rejects
+      // every other member with the freeze envelope.
+      return current.submittedAt === null
+        ? payloadFromDraft(current.draft)
+        : commitmentsPayloadFromDraft(current.draft)
+    },
+    perform: saveSelfEvaluation,
+    onSaved: (result) => {
+      const wasOpen = recordRef.current?.submittedAt === null
+      setRecord((current) =>
+        current === null ? current : mergeRecordFromApi(current, result.data),
+      )
+      setNotice(wasOpen ? 'Draft saved.' : 'Commitments saved.')
+    },
+    onError: (detail) => setNotice(detail),
+  })
 
   useEffect(() => {
     let cancelled = false
-    void getSelfEvaluation().then((loaded) => {
+    void fetchSelfEvaluation().then((result) => {
       if (cancelled) return
-      const resumedSection =
-        typeof loaded.lastStepIndex === 'number'
-          ? Math.min(Math.max(loaded.lastStepIndex, 0), STEPS.length - 1)
-          : 0
-      const resumedQuestion =
-        typeof loaded.lastQuestionIndex === 'number'
-          ? Math.min(Math.max(loaded.lastQuestionIndex, 0), 3)
-          : 0
-      const initial = stampSignature({ ...loaded, lastStepIndex: resumedSection, lastQuestionIndex: resumedQuestion })
-      lastPersistedRef.current = JSON.stringify(initial)
-      setSectionIndex(resumedSection)
-      setQuestionIndex(resumedQuestion)
-      setRecord(initial)
+      if (result.ok) {
+        const initial = recordFromApi(result.data)
+        const resume = loadResumeIndices()
+        const resumedSection =
+          resume.lastStepIndex === null
+            ? 0
+            : Math.min(Math.max(resume.lastStepIndex, 0), STEPS.length - 1)
+        const resumedQuestion =
+          resume.lastQuestionIndex === null
+            ? 0
+            : Math.min(Math.max(resume.lastQuestionIndex, 0), 3)
+        setSectionIndex(resumedSection)
+        setQuestionIndex(resumedQuestion)
+        setRecord(initial)
+      } else {
+        setLoadError(result.detail)
+      }
     })
     return () => {
       cancelled = true
     }
   }, [])
 
-  /** Edits and page changes persist on their own after a short pause. */
+  /** The wizard's position is a pure view concern: it persists to local
+      storage only, never into the record the server keeps. */
   useEffect(() => {
     if (record === null) return
-    const next = stampSignature({ ...record, lastStepIndex: sectionIndex, lastQuestionIndex: questionIndex })
-    const json = JSON.stringify(next)
-    if (json === lastPersistedRef.current) return
-    const timer = setTimeout(() => {
-      lastPersistedRef.current = json
-      void saveSelfEvaluation(next).then((savedResult) => {
-        if (!savedResult.ok) return
-        if (next.employeeSignedAt !== record.employeeSignedAt) setRecord(next)
-      })
-    }, AUTOSAVE_DEBOUNCE_MS)
-    return () => {
-      clearTimeout(timer)
-    }
+    const indices = { lastStepIndex: sectionIndex, lastQuestionIndex: questionIndex }
+    const json = JSON.stringify(indices)
+    if (json === lastResumeRef.current) return
+    lastResumeRef.current = json
+    saveResumeIndices(indices)
   }, [record, sectionIndex, questionIndex])
+
+  if (loadError !== null) {
+    return (
+      <div className="hero-page">
+        <div className="hero-card brand-frame">
+          <HeroHeader sectionProgress={[]} />
+          <div className="hero-card__body">
+            <p className="muted">{loadError}</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   if (record === null) {
     return (
@@ -122,30 +167,33 @@ export function EmployeeDashboardPage() {
         <div className="hero-card brand-frame">
           <HeroHeader sectionProgress={[]} />
           <div className="hero-card__body">
-            <p className="muted">Loading your review.</p>
+            <p className="muted" role="status">
+              Loading your review.
+            </p>
           </div>
         </div>
       </div>
     )
   }
 
-  const readOnly = record.submittedAt !== null
-  const draft = record.draft ?? buildFreshDraft()
+  const draft = record.draft
+  const answersEditable = record.submittedAt === null
+  const busy = autoSave.saving || submitting
   const errorFor = (questionId: AssessmentQuestionId): string | null =>
     validation?.fieldErrors.questionErrors[questionId] ?? null
 
+  /** Edits land in local state; the hook decides when they go to the API. */
   const updateDraft = (mutate: (draft: SelfEvaluationDraft) => SelfEvaluationDraft): void => {
-    setRecord((current) => {
-      if (current === null) return current
-      const nextDraft = current.draft ?? buildFreshDraft()
-      return { ...current, draft: mutate(nextDraft) }
-    })
+    setRecord((current) =>
+      current === null ? current : { ...current, draft: mutate(current.draft) },
+    )
+    autoSave.requestSave()
   }
 
   const step = STEPS[Math.min(Math.max(sectionIndex, 0), STEPS.length - 1)]
   if (step === undefined) return null
   const isQuestionsSection = sectionIndex === 0
-  const isLastSection = sectionIndex === STEPS.length - 1
+  const isLastSection = step.key === 'signoff'
   const stepQuestion = draft.questions[questionIndex]
   const questionLabel = `Question ${questionIndex + 1} of ${draft.questions.length}`
 
@@ -175,9 +223,11 @@ export function EmployeeDashboardPage() {
   }
 
   const showPrevious = !(isQuestionsSection && questionIndex === 0)
-  const showNext = !isLastSection || isQuestionsSection
-  const showSubmit = isLastSection && !readOnly
+  const showNext = !isLastSection
+  const showSubmit = isLastSection && answersEditable
 
+  /** Save immediately, then submit — an un-flushed draft would submit
+      incomplete even though the form looks complete locally. */
   const submit = (): void => {
     const outcome = validateSelfEvaluation(draft)
     setValidation(outcome)
@@ -196,29 +246,29 @@ export function EmployeeDashboardPage() {
       } else if (outcome.fieldErrors.commitments !== null) {
         setSectionIndex(2)
       }
-      setNotice({ ok: false, error: 'Complete the flagged fields before submitting.' })
+      setNotice('Complete the flagged fields before submitting.')
       return
     }
-    const submittedRecord = stampSignature({
-      ...record,
-      draft,
-      submittedAt: todayIsoDate(),
-      lastStepIndex: sectionIndex,
-      lastQuestionIndex: questionIndex,
-    })
-    setSaving(true)
-    lastPersistedRef.current = JSON.stringify(submittedRecord)
-    void saveSelfEvaluation(submittedRecord).then((savedResult) => {
-      setNotice(savedResult.ok ? null : savedResult)
-      if (savedResult.ok) setRecord(submittedRecord)
-      setSaving(false)
-    })
+    setSubmitting(true)
+    void autoSave
+      .flush()
+      .then(() => submitSelfEvaluation())
+      .then((result) => {
+        if (result.ok) {
+          setRecord(mergeRecordFromApi(recordRef.current ?? record, result.data))
+          setNotice('Submitted.')
+        } else {
+          setNotice(result.detail)
+        }
+      })
+      .finally(() => setSubmitting(false))
   }
 
   /** A section counts as done only when every field in it is filled. */
   const questionsDone = draft.questions.every((q) => q.employeeResponse.trim() !== '')
   const overallDone = draft.overallRating !== null && draft.overallSummary.trim() !== ''
-  const commitmentDone = draft.commitments[0]?.commitment.trim() !== '' && draft.commitments[0]?.support.trim() !== ''
+  const commitmentDone =
+    draft.commitments[0]?.commitment.trim() !== '' && draft.commitments[0]?.support.trim() !== ''
   const signed = record.employeeSignedAt !== null
   const sectionsDone =
     (questionsDone ? 1 : 0) + (overallDone ? 1 : 0) + (commitmentDone ? 1 : 0) + (signed ? 1 : 0)
@@ -229,129 +279,136 @@ export function EmployeeDashboardPage() {
   return (
     <div className="hero-page">
       <div className="hero-card brand-frame">
-      <HeroHeader sectionProgress={sectionProgress} />
-      <div className="hero-card__body">
-      <div className="page-stack">
-        <nav className="steps-nav" aria-label="Review sections">
-          {STEPS.map((stepEntry, index) => {
-            const classes = [
-              'steps-nav__step',
-              index === sectionIndex ? 'is-active' : '',
-            ]
-              .filter(Boolean)
-              .join(' ')
-            return (
-              <button
-                key={stepEntry.key}
-                type="button"
-                className={classes}
-                aria-current={index === sectionIndex ? 'step' : undefined}
-                onClick={() => goToSection(index)}
-              >
-                <span className="steps-nav__num mono" aria-hidden="true">
-                  {index + 1}
-                </span>
-                <span className="steps-nav__label">{stepEntry.title}</span>
-              </button>
-            )
-          })}
-        </nav>
-        {isQuestionsSection ? (
-          <p className="steps-question-count muted mono">{questionLabel}</p>
-        ) : null}
-        {isQuestionsSection && stepQuestion !== undefined ? (
-          <ReviewQuestionPanel
-            key={stepQuestion.id}
-            question={stepQuestion}
-            label={QUESTION_LABELS[stepQuestion.id]}
-            readOnly={readOnly}
-            error={errorFor(stepQuestion.id)}
-            onResponseChange={(questionId, value) =>
-              updateDraft((current) => updateQuestion(current, questionId, value))
-            }
-          />
-        ) : null}
-        {!isQuestionsSection && step.key === 'overall' ? (
-          <OverallRatingPanel
-            ratingValues={RATING_VALUES}
-            overallRating={draft.overallRating}
-            overallSummary={draft.overallSummary}
-            readOnly={readOnly}
-            ratingError={validation?.fieldErrors.overallRating ?? null}
-            summaryError={validation?.fieldErrors.overallSummary ?? null}
-            onRatingSelect={(rating) => updateDraft((current) => ({ ...current, overallRating: rating }))}
-            onSummaryChange={(summary) => updateDraft((current) => ({ ...current, overallSummary: summary }))}
-          />
-        ) : null}
-        {step.key === 'commitments' ? (
-          <ForwardCommitmentsPanel
-            commitments={draft.commitments}
-            readOnly={readOnly}
-            error={validation?.fieldErrors.commitments ?? null}
-            onCommitmentChange={(id, field, value) =>
-              updateDraft((current) => updateCommitment(current, id, field, value))
-            }
-            onAdd={() => updateDraft(addCommitment)}
-            onRemove={(id) => updateDraft((current) => removeCommitment(current, id))}
-          />
-        ) : null}
-        {step.key === 'signoff' ? (
-          <SignOffPanel
-            employee={draft.employee}
-            acknowledged={draft.acknowledged}
-            signedAt={record.employeeSignedAt}
-            readOnly={readOnly}
-            onAcknowledgeChange={(acknowledged) => updateDraft((current) => ({ ...current, acknowledged }))}
-          />
-        ) : null}
-        {readOnly && isLastSection ? (
-          <Card caption="Submitted" captionAccent>
-            <p className="muted">
-              Your self-evaluation was submitted on {record.submittedAt}. The form is read-only now.
-            </p>
-          </Card>
-        ) : null}
-        <div className="form-actions wizard-actions">
-          {showPrevious ? (
-            <Button variant="ghost" onClick={goToPrevious}>
-              Previous
-            </Button>
-          ) : null}
-          {showNext ? (
-            <Button onClick={goToNext}>Next</Button>
-          ) : showSubmit ? (
-            <Button busy={saving} onClick={submit}>
-              Submit
-            </Button>
-          ) : null}
+        <HeroHeader sectionProgress={sectionProgress} />
+        <div className="hero-card__body">
+          <div className="page-stack">
+            <EmployeeProfileCard employee={draft.employee} readOnly />
+            <nav className="steps-nav" aria-label="Review sections">
+              {STEPS.map((stepEntry, index) => {
+                const classes = ['steps-nav__step', index === sectionIndex ? 'is-active' : '']
+                  .filter(Boolean)
+                  .join(' ')
+                return (
+                  <button
+                    key={stepEntry.key}
+                    type="button"
+                    className={classes}
+                    aria-current={index === sectionIndex ? 'step' : undefined}
+                    onClick={() => goToSection(index)}
+                  >
+                    <span className="steps-nav__num mono" aria-hidden="true">
+                      {index + 1}
+                    </span>
+                    <span className="steps-nav__label">{stepEntry.title}</span>
+                  </button>
+                )
+              })}
+            </nav>
+            <p className="steps-question-count muted">{step.description}</p>
+            {isQuestionsSection ? (
+              <p className="steps-question-count muted mono">{questionLabel}</p>
+            ) : null}
+            {isQuestionsSection && stepQuestion !== undefined ? (
+              <ReviewQuestionPanel
+                key={stepQuestion.id}
+                question={stepQuestion}
+                label={QUESTION_LABELS[stepQuestion.id]}
+                readOnly={!answersEditable}
+                error={errorFor(stepQuestion.id)}
+                onResponseChange={(questionId, value) =>
+                  updateDraft((current) => updateQuestion(current, questionId, value))
+                }
+              />
+            ) : null}
+            {step.key === 'overall' ? (
+              <RatingReferencePanel />
+            ) : null}
+            {step.key === 'overall' ? (
+              <OverallRatingPanel
+                ratingValues={RATING_VALUES}
+                overallRating={draft.overallRating}
+                overallSummary={draft.overallSummary}
+                readOnly={!answersEditable}
+                ratingError={validation?.fieldErrors.overallRating ?? null}
+                summaryError={validation?.fieldErrors.overallSummary ?? null}
+                onRatingSelect={(rating) => updateDraft((current) => ({ ...current, overallRating: rating }))}
+                onSummaryChange={(summary) => updateDraft((current) => ({ ...current, overallSummary: summary }))}
+              />
+            ) : null}
+            {step.key === 'commitments' ? (
+              <ForwardCommitmentsPanel
+                commitments={draft.commitments}
+                readOnly={!record.commitmentsEditable}
+                error={validation?.fieldErrors.commitments ?? null}
+                onCommitmentChange={(id, field, value) =>
+                  updateDraft((current) => updateCommitment(current, id, field, value))
+                }
+                onAdd={() => updateDraft(addCommitment)}
+                onRemove={(id) => updateDraft((current) => removeCommitment(current, id))}
+              />
+            ) : null}
+            {step.key === 'signoff' ? (
+              <SignOffPanel
+                employee={draft.employee}
+                acknowledged={draft.acknowledged}
+                signedAt={record.employeeSignedAt}
+                readOnly
+              />
+            ) : null}
+            {!answersEditable ? (
+              record.commitmentsEditable ? (
+                <Card caption="Submitted — commitments stay open" captionAccent>
+                  <p className="muted">
+                    Your self-evaluation is read-only now. The forward commitments stay
+                    editable until the manager review window closes.
+                  </p>
+                </Card>
+              ) : (
+                <Card caption="Submitted" captionAccent>
+                  <p className="muted">Your self-evaluation was submitted. The form is read-only now.</p>
+                </Card>
+              )
+            ) : null}
+            <div className="form-actions wizard-actions">
+              {showPrevious ? (
+                <Button variant="ghost" onClick={goToPrevious}>
+                  Previous
+                </Button>
+              ) : null}
+              {showNext ? (
+                <Button onClick={goToNext}>Next</Button>
+              ) : null}
+              {answersEditable ? (
+                <Button variant="ghost" busy={busy} onClick={() => void autoSave.flush()}>
+                  Save draft
+                </Button>
+              ) : null}
+              {!answersEditable && record.commitmentsEditable ? (
+                <Button variant="ghost" busy={busy} onClick={() => void autoSave.flush()}>
+                  Save commitments
+                </Button>
+              ) : null}
+              {showSubmit ? (
+                <Button busy={busy} onClick={submit}>
+                  Submit
+                </Button>
+              ) : null}
+            </div>
+            <SaveNotice notice={notice} />
+          </div>
         </div>
-        <SaveNotice notice={notice} />
-      </div>
-      </div>
       </div>
     </div>
   )
 }
 
-
-function SaveNotice({ notice }: { notice: ReviewSaveResult | null }): ReactNode {
+function SaveNotice({ notice }: { notice: string | null }): ReactNode {
   if (notice === null) return null
-  if (notice.ok) {
-    return <p className="muted" role="status">Draft saved.</p>
-  }
   return (
-    <p className="field__error" role="alert">
-      {notice.error}
+    <p className="muted" role="status">
+      {notice}
     </p>
   )
-}
-
-/** A confirmed sign-off is stamped by the app at save time — never hand-edited. */
-function stampSignature(record: SelfEvaluationRecord): SelfEvaluationRecord {
-  if (record.draft?.acknowledged === true && record.employeeSignedAt === null) {
-    return { ...record, employeeSignedAt: todayIsoDate() }
-  }
-  return record
 }
 
 function updateQuestion(

@@ -1,5 +1,10 @@
-/** Directory of portal sign-in accounts, sourced from the 2026 roster CSV plus
-    the standing admin credential. Mock layer — the backend owns real credentials. */
+/** Sign-in over the backend's stub-identity endpoint (backend routers/auth.py).
+    The form keeps its password field untouched so the SSO hand-off later is
+    invisible, but nothing here verifies a password: confidently claiming who
+    you are against the roster is exactly the seam this release ships. The
+    IdP, not this app, owns secrets. */
+
+import { fetchSession } from './api'
 
 import type { SelfEvaluationEmployee } from './types'
 
@@ -14,46 +19,30 @@ export interface LoginAccount {
   email: string
   name: string
   role: AuthRole
-  /** Inactive accounts exist on the portal but cannot sign in. */
-  active: boolean
 }
-
-/** One shared portal password until the backend introduces per-user hashing. */
-export const PORTAL_PASSWORD = 'Portal@2026'
-
-export const LOGIN_DIRECTORY: readonly LoginAccount[] = [
-  { email: 'admin@emids.com', name: 'Review Administrator', role: 'admin', active: true },
-  { email: 'asha_menon@emids.com', name: 'Asha Menon', role: 'employee', active: true },
-  { email: 'bilal_khan@emids.com', name: 'Bilal Khan', role: 'employee', active: true },
-  { email: 'cara_fernandes@emids.com', name: 'Cara Fernandes', role: 'employee', active: true },
-  { email: 'devika_nair@emids.com', name: 'Devika Nair', role: 'employee', active: true },
-  { email: 'eshan_gupta@emids.com', name: 'Eshan Gupta', role: 'employee', active: true },
-  { email: 'farah_sheikh@emids.com', name: 'Farah Sheikh', role: 'employee', active: true },
-  { email: 'gaurav_bhatt@emids.com', name: 'Gaurav Bhatt', role: 'employee', active: false },
-  { email: 'heena_roy@emids.com', name: 'Heena Roy', role: 'employee', active: true },
-]
 
 export type AuthResult = { ok: true; account: LoginAccount } | { ok: false; error: string }
 
-export function authenticate(email: string, password: string): AuthResult {
-  const candidate = email.trim().toLowerCase()
-  if (candidate === '' || password === '') {
+export async function authenticate(email: string): Promise<AuthResult> {
+  if (email.trim() === '') {
     return { ok: false, error: 'Enter your email and password to sign in.' }
   }
-  const account = LOGIN_DIRECTORY.find((entry) => entry.email === candidate)
-  if (account === undefined) {
-    return { ok: false, error: 'This email is not on the portal roster.' }
+  const result = await fetchSession(email.trim().toLowerCase())
+  if (!result.ok) {
+    const message =
+      result.code === 'network_error'
+        ? 'Could not reach the review API. Check that the backend is running.'
+        : result.detail
+    return { ok: false, error: message }
   }
-  if (!account.active) {
-    return {
-      ok: false,
-      error: 'This account is inactive. Contact your business partner for help.',
-    }
+  return {
+    ok: true,
+    account: {
+      email: result.session.email,
+      name: result.session.name,
+      role: result.session.role,
+    },
   }
-  if (password !== PORTAL_PASSWORD) {
-    return { ok: false, error: 'Incorrect password. Try again or reset with your business partner.' }
-  }
-  return { ok: true, account }
 }
 
 /** Monogram for avatar tiles — first two word initials, uppercase. */
@@ -62,93 +51,108 @@ export function initialsOf(name: string): string {
   return (words[0] ?? '').charAt(0).concat((words[1] ?? '').charAt(0)).toUpperCase()
 }
 
-/** Per-account employee details for the session popover. Mock data keyed by the
-    sign-in email; the admin account has no employee record. The backend seam will
-    supply the real profile with the session. */
+/** Per-account employee details for the session popover, keyed by the
+    sign-in email; the admin account has no employee record. Shapes mirror the
+    roster wire (the full Employee contract) until the session endpoint
+    carries the profile itself. */
 const SESSION_PROFILES: Readonly<Record<string, SelfEvaluationEmployee>> = {
   'asha_menon@emids.com': {
-    firstName: 'Asha',
-    lastName: 'Menon',
-    email: 'asha_menon@emids.com',
-    role: 'Engineer',
-    department: 'Quality',
-    manager: 'Ravi Menon',
     employeeId: 'EMP-1001',
+    name: 'Asha Menon',
+    email: 'asha_menon@emids.com',
+    designation: 'Engineer',
     location: 'Bengaluru',
-    deliveryManager: 'Joseph Mathew',
+    org: 'Quality',
+    project: 'Cigna One',
     deliveryHead: 'Divya Prakash',
+    deliveryManager: 'Joseph Mathew',
+    businessPartner: 'John D',
+    reportingManager: 'Ravi Menon',
+    status: 'Active',
   },
   'bilal_khan@emids.com': {
-    firstName: 'Bilal',
-    lastName: 'Khan',
-    email: 'bilal_khan@emids.com',
-    role: 'Senior Engineer',
-    department: 'Delivery',
-    manager: 'Ravi Menon',
     employeeId: 'EMP-1002',
+    name: 'Bilal Khan',
+    email: 'bilal_khan@emids.com',
+    designation: 'Senior Engineer',
     location: 'Bengaluru',
-    deliveryManager: 'Joseph Mathew',
+    org: 'Delivery',
+    project: 'Cigna One',
     deliveryHead: 'Divya Prakash',
+    deliveryManager: 'Joseph Mathew',
+    businessPartner: 'John D',
+    reportingManager: 'Ravi Menon',
+    status: 'Active',
   },
   'cara_fernandes@emids.com': {
-    firstName: 'Cara',
-    lastName: 'Fernandes',
-    email: 'cara_fernandes@emids.com',
-    role: 'Business Analyst',
-    department: 'Analytics',
-    manager: 'Anika Rao',
     employeeId: 'EMP-1003',
+    name: 'Cara Fernandes',
+    email: 'cara_fernandes@emids.com',
+    designation: 'Business Analyst',
     location: 'Chennai',
-    deliveryManager: 'Anika Rao',
+    org: 'Analytics',
+    project: 'Cigna One',
     deliveryHead: 'Divya Prakash',
+    deliveryManager: 'Anika Rao',
+    businessPartner: 'John D',
+    reportingManager: 'Anika Rao',
+    status: 'Active',
   },
   'devika_nair@emids.com': {
-    firstName: 'Devika',
-    lastName: 'Nair',
-    email: 'devika_nair@emids.com',
-    role: 'Engineer',
-    department: 'Quality',
-    manager: 'Anika Rao',
     employeeId: 'EMP-1004',
+    name: 'Devika Nair',
+    email: 'devika_nair@emids.com',
+    designation: 'Engineer',
     location: 'Pune',
-    deliveryManager: 'Anika Rao',
+    org: 'Quality',
+    project: 'Cigna One',
     deliveryHead: 'Divya Prakash',
+    deliveryManager: 'Anika Rao',
+    businessPartner: 'John D',
+    reportingManager: 'Anika Rao',
+    status: 'Active',
   },
   'eshan_gupta@emids.com': {
-    firstName: 'Eshan',
-    lastName: 'Gupta',
-    email: 'eshan_gupta@emids.com',
-    role: 'Team Lead',
-    department: 'Delivery',
-    manager: 'Joseph Mathew',
     employeeId: 'EMP-1005',
+    name: 'Eshan Gupta',
+    email: 'eshan_gupta@emids.com',
+    designation: 'Team Lead',
     location: 'Bengaluru',
-    deliveryManager: 'Joseph Mathew',
+    org: 'Delivery',
+    project: 'Cigna One',
     deliveryHead: 'Divya Prakash',
+    deliveryManager: 'Joseph Mathew',
+    businessPartner: 'John D',
+    reportingManager: 'Joseph Mathew',
+    status: 'Active',
   },
   'farah_sheikh@emids.com': {
-    firstName: 'Farah',
-    lastName: 'Sheikh',
-    email: 'farah_sheikh@emids.com',
-    role: 'Analyst',
-    department: 'Analytics',
-    manager: 'Anika Rao',
     employeeId: 'EMP-1006',
+    name: 'Farah Sheikh',
+    email: 'farah_sheikh@emids.com',
+    designation: 'Analyst',
     location: 'Chennai',
-    deliveryManager: 'Anika Rao',
+    org: 'Analytics',
+    project: 'Cigna One',
     deliveryHead: 'Divya Prakash',
+    deliveryManager: 'Anika Rao',
+    businessPartner: 'John D',
+    reportingManager: 'Anika Rao',
+    status: 'Active',
   },
   'heena_roy@emids.com': {
-    firstName: 'Heena',
-    lastName: 'Roy',
-    email: 'heena_roy@emids.com',
-    role: 'Engineer',
-    department: 'Quality',
-    manager: 'Joseph Mathew',
     employeeId: 'EMP-1007',
+    name: 'Heena Roy',
+    email: 'heena_roy@emids.com',
+    designation: 'Engineer',
     location: 'Pune',
-    deliveryManager: 'Joseph Mathew',
+    org: 'Quality',
+    project: 'Cigna One',
     deliveryHead: 'Divya Prakash',
+    deliveryManager: 'Joseph Mathew',
+    businessPartner: 'John D',
+    reportingManager: 'Joseph Mathew',
+    status: 'Active',
   },
 }
 

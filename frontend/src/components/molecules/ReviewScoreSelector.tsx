@@ -10,6 +10,9 @@ export interface ReviewScoreSelectorProps {
   tooltips?: readonly string[]
 }
 
+/** Deliberately not the shared SegmentedFilter: selection must be toggled off
+    (null on a second click) and the per-value tooltip needs its own chip DOM,
+    so this keeps its own chip rendering (ui.md §4.1 pill styling). */
 export function ReviewScoreSelector({
   values,
   value,

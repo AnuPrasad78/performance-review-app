@@ -11,8 +11,9 @@ export interface OverallRatingPanelProps {
   readOnly: boolean
   ratingError?: string | null
   summaryError?: string | null
-  onRatingSelect: (rating: RatingValue | null) => void
-  onSummaryChange: (summary: string) => void
+  /** Absent on display-only renders; null deselects the active chip. */
+  onRatingSelect?: (rating: RatingValue | null) => void
+  onSummaryChange?: (summary: string) => void
 }
 
 /** Per-rating guidance revealed on hover or keyboard focus, one chip at a time. */
@@ -51,7 +52,7 @@ export function OverallRatingPanel({
               values={ratingValues}
               value={overallRating}
               disabled={false}
-              onChange={(value) => onRatingSelect(value === null ? null : (value as RatingValue))}
+              onChange={(value) => onRatingSelect?.(value === null ? null : (value as RatingValue))}
               ariaLabel="Overall self-rating from 1 to 5"
               tooltips={tooltips}
             />
@@ -67,7 +68,7 @@ export function OverallRatingPanel({
             id="overall-summary"
             value={overallSummary}
             disabled={readOnly}
-            onChange={(event) => onSummaryChange(event.target.value)}
+            onChange={(event) => onSummaryChange?.(event.target.value)}
           />
         </FormField>
       </div>

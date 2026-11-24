@@ -1,4 +1,5 @@
 import { Card } from '../atoms/Card'
+import { FormField } from '../molecules/FormField'
 import { Icon } from '../atoms/Icon'
 import { Textarea } from '../atoms/Textarea'
 import type { ForwardCommitment } from '../../lib/types'
@@ -6,11 +7,12 @@ import type { ForwardCommitment } from '../../lib/types'
 export interface ForwardCommitmentsPanelProps {
   commitments: readonly ForwardCommitment[]
   readOnly: boolean
-  /** The first commitment is required; rendering its error makes that explicit. */
-  error?: string | null
-  onCommitmentChange: (id: number, field: 'commitment' | 'support', value: string) => void
   onAdd: () => void
   onRemove: (id: number) => void
+  /** Absent on display-only renders. */
+  onCommitmentChange?: (id: number, field: 'commitment' | 'support', value: string) => void
+  /** The first commitment is required; rendering its error makes that explicit. */
+  error?: string | null
 }
 
 export function ForwardCommitmentsPanel({
@@ -45,22 +47,26 @@ export function ForwardCommitmentsPanel({
                   aria-label={`Commitment ${index + 1}`}
                   value={commitment.commitment}
                   disabled={readOnly}
-                  onChange={(event) => onCommitmentChange(commitment.id, 'commitment', event.target.value)}
+                  onChange={(event) =>
+                    onCommitmentChange?.(commitment.id, 'commitment', event.target.value)
+                  }
                 />
                 {index === 0 && error != null ? (
                   <span className="field__error" role="alert">{error}</span>
                 ) : null}
               </div>
-              <div className="field">
+              <FormField id={`commitment-support-${commitment.id}`} label="Agreed support / conditions">
                 <Textarea
                   id={`commitment-support-${commitment.id}`}
                   aria-label="Agreed support / conditions"
                   placeholder="Agreed support / conditions"
                   value={commitment.support}
                   disabled={readOnly}
-                  onChange={(event) => onCommitmentChange(commitment.id, 'support', event.target.value)}
+                  onChange={(event) =>
+                    onCommitmentChange?.(commitment.id, 'support', event.target.value)
+                  }
                 />
-              </div>
+              </FormField>
             </div>
           </div>
         ))}

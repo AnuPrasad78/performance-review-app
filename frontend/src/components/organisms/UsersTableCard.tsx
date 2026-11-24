@@ -7,15 +7,13 @@ export interface UsersTableCardProps {
 }
 
 const columns: readonly DataTableColumn<Employee>[] = [
-  {
-    key: 'name',
-    header: 'Name',
-    cell: (employee) => `${employee.firstName} ${employee.lastName}`,
-  },
+  { key: 'name', header: 'Name', cell: (employee) => employee.name },
+  { key: 'employeeId', header: 'Employee ID', cell: (employee) => employee.employeeId },
   { key: 'email', header: 'Email', cell: (employee) => employee.email },
-  { key: 'role', header: 'Role', cell: (employee) => employee.role },
-  { key: 'department', header: 'Department', cell: (employee) => employee.department },
-  { key: 'manager', header: 'Manager', cell: (employee) => employee.manager },
+  { key: 'designation', header: 'Designation', cell: (employee) => employee.designation },
+  { key: 'location', header: 'Location', cell: (employee) => employee.location },
+  { key: 'reportingManager', header: 'Reporting manager', cell: (employee) => employee.reportingManager },
+  { key: 'status', header: 'Status', cell: (employee) => employee.status },
 ]
 
 export function UsersTableCard({ employees }: UsersTableCardProps) {

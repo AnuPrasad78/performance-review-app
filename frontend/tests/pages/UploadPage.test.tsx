@@ -1,74 +1,177 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { vi, beforeEach } from 'vitest'
 import { AdminStoreProvider } from '../../src/state/AdminContext'
 import { AuthProvider } from '../../src/state/AuthContext'
 import { UploadPage } from '../../src/pages/UploadPage'
+import { applyRosterImport, importRosterCsv } from '../../src/lib/api'
+import type { Employee, RosterConflict, RosterImportResult } from '../../src/lib/types'
 
-const ROSTER_CSV = `first_name,last_name,email,role,department,manager
-Asha,Nair,asha.nair@emids.com,Engineer,Quality,Ravi Menon
-Priya,Raj,priya.raj@emids.com,Engineer,Delivery,Anika Rao
-`
+const { applyRosterImportMock, fetchEmployeesMock, importRosterCsvMock } = vi.hoisted(() => ({
+  applyRosterImportMock: vi.fn(),
+  fetchEmployeesMock: vi.fn(),
+  importRosterCsvMock: vi.fn(),
+}))
+vi.mock('../../src/lib/api', () => ({
+  applyRosterImport: applyRosterImportMock,
+  fetchEmployees: fetchEmployeesMock,
+  importRosterCsv: importRosterCsvMock,
+  setApiIdentity: vi.fn(),
+}))
 
-const BROKEN_HEADER_CSV = `name,email
-Priya,Raj,priya.raj@emids.com
-`
+function employee(employeeId: string, name: string, email: string): Employee {
+  return {
+    employeeId,
+    name,
+    email,
+    designation: 'Engineer',
+    location: 'India',
+    org: 'Delivery',
+    project: 'Cigna One',
+    deliveryHead: 'Arumugam Thiraviam',
+    deliveryManager: 'Priya Raghavan',
+    businessPartner: 'John D',
+    reportingManager: 'Priya Raghavan',
+    status: 'Active',
+  }
+}
 
-const STORAGE_KEY = 'performance-review.admin.v1'
+const PRIYA = employee('EMP-V900', 'Priya Raj', 'priya.raj@emids.com')
+const ASHA = employee('EMP-V001', 'Asha Menon', 'asha_menon@emids.com')
+
+function importResult(rec: Omit<Extract<RosterImportResult, { ok: true }>['report'], 'conflicts'> & {
+  conflicts?: RosterConflict[]
+}): RosterImportResult {
+  return { ok: true, report: { conflicts: rec.conflicts ?? [], ...rec } }
+}
+
+const IMPORTS_ALL_NEW = importResult({
+  importedCount: 1,
+  duplicatesSkipped: 0,
+  employees: [PRIYA],
+})
+
+const ASHA_INCOMING = employee('EMP-V001', 'Asha Menon', 'asha.new@emids.com')
+const IMPORTS_ONE_CONFLICT = importResult({
+  importedCount: 1,
+  duplicatesSkipped: 0,
+  employees: [ASHA],
+  conflicts: [
+    {
+      employeeId: ASHA.employeeId,
+      existing: ASHA,
+      incoming: ASHA_INCOMING,
+      changedFields: [],
+    },
+  ],
+})
+
+const UPLOAD_RESULT_BAD_HEADER: RosterImportResult = {
+  ok: false,
+  detail: 'The header row must list: Employee Name, Employee ID, Email.',
+  code: 'roster_header_invalid',
+  rowErrors: [],
+}
 
 function page(): React.ReactElement {
   return (
     <AdminStoreProvider>
-          <AuthProvider>
-      <UploadPage />
-    </AuthProvider>
-        </AdminStoreProvider>
+      <AuthProvider>
+        <UploadPage />
+      </AuthProvider>
+    </AdminStoreProvider>
   )
 }
 
-async function uploadCsv(content: string): Promise<void> {
+async function uploadCsv() {
+  const user = userEvent.setup()
   const input = document.querySelector<HTMLInputElement>('input[type="file"]')
   if (!input) throw new Error('file input not found')
-  const file = new File([content], 'roster.csv', { type: 'text/csv' })
-  const user = userEvent.setup()
-  await user.upload(input, file)
+  await user.upload(input, new File(['Employee Name,Employee ID,Email'], 'roster.csv', { type: 'text/csv' }))
+  return user
 }
 
 beforeEach(() => {
   window.localStorage.clear()
+  vi.mocked(importRosterCsv).mockReset()
+  vi.mocked(applyRosterImport).mockReset()
+  fetchEmployeesMock.mockReset()
+  fetchEmployeesMock.mockResolvedValue({ ok: true, employees: [] })
 })
 
 describe('UploadPage', () => {
-  it('shows the roster readout before and after a successful import', async () => {
+  it('applies a conflict-free import straight away and reads back the stored roster', async () => {
+    importRosterCsvMock.mockResolvedValue(IMPORTS_ALL_NEW)
+    applyRosterImportMock.mockResolvedValue({ ok: true, importedCount: 1, updatedCount: 0 })
+    fetchEmployeesMock.mockResolvedValueOnce({ ok: true, employees: [] }).mockResolvedValueOnce({
+      ok: true,
+      employees: [PRIYA],
+    })
     render(page())
-    expect(screen.getByText('ROSTER NOW · 6 EMPLOYEES')).toBeInTheDocument()
-    await uploadCsv(ROSTER_CSV)
+
+    expect(await screen.findByText('ROSTER NOW · 0 EMPLOYEES')).toBeInTheDocument()
+    await uploadCsv()
 
     expect(await screen.findByRole('status', {}, { timeout: 3000 })).toHaveTextContent(
-      '1 employee loaded — 1 duplicate email skipped.',
+      'Roster updated: 1 employee added.',
     )
-    expect(screen.getByText('ROSTER NOW · 7 EMPLOYEES')).toBeInTheDocument()
-    expect(JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? '{}').employees).toHaveLength(7)
+    expect(applyRosterImportMock).toHaveBeenCalledWith({ inserts: [PRIYA], updates: [] })
+    expect(await screen.findByText('ROSTER NOW · 1 EMPLOYEE')).toBeInTheDocument()
   })
 
-  it('rejects a CSV with the wrong header and leaves the roster readout unchanged', async () => {
+  it('pops every validation error in a dialog and changes nothing', async () => {
+    importRosterCsvMock.mockResolvedValue(UPLOAD_RESULT_BAD_HEADER)
     render(page())
-    await uploadCsv(BROKEN_HEADER_CSV)
+    await uploadCsv()
 
+    const dialog = await screen.findByRole('dialog', { name: 'Import failed' }, { timeout: 3000 })
+    expect(dialog).toHaveTextContent('The header row must list')
+    expect(fetchEmployeesMock).toHaveBeenCalledTimes(1)
+    expect(applyRosterImportMock).not.toHaveBeenCalled()
+  })
+
+  it('previews collided rows and applies only the decided updates', async () => {
+    importRosterCsvMock.mockResolvedValue(IMPORTS_ONE_CONFLICT)
+    applyRosterImportMock.mockResolvedValue({ ok: true, importedCount: 1, updatedCount: 1 })
+    render(page())
+    const user = await uploadCsv()
+
+    const dialog = await screen.findByRole('dialog', { name: 'Employees already exist' })
+    expect(dialog).toHaveTextContent('1 new employee will be added')
+    expect(dialog).toHaveTextContent('1 employee already exists')
+
+    await user.click(screen.getByRole('button', { name: 'Apply changes' }))
+    // Keep is the default decision, so nothing was sent for update.
+    expect(applyRosterImportMock).toHaveBeenCalledWith({ inserts: [], updates: [] })
+  })
+
+  it('sends the update decision only for rows the admin flipped to Update', async () => {
+    importRosterCsvMock.mockResolvedValue(IMPORTS_ONE_CONFLICT)
+    applyRosterImportMock.mockResolvedValue({ ok: true, importedCount: 0, updatedCount: 1 })
+    render(page())
+    const user = await uploadCsv()
+
+    await screen.findByRole('dialog', { name: 'Employees already exist' })
+    await user.click(screen.getByRole('button', { name: 'Update' }))
+    expect(await screen.findByText('0 rows stay, 1 employee is updated.')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Apply changes' }))
+    await vi.waitFor(() => {
+      expect(applyRosterImportMock).toHaveBeenCalledWith({ inserts: [], updates: [ASHA_INCOMING] })
+    })
     expect(await screen.findByRole('status', {}, { timeout: 3000 })).toHaveTextContent(
-      'The header row must list: first_name, last_name, email, role, department, manager.',
+      'Roster updated: 1 employee updated.',
     )
-    expect(screen.getByText('ROSTER NOW · 6 EMPLOYEES')).toBeInTheDocument()
   })
 
   it('keeps the button disabled with the in-flight label while the import runs', async () => {
+    importRosterCsvMock.mockReturnValue(new Promise(() => undefined))
     render(page())
-    const button = screen.getByRole('button', { name: 'Choose CSV file' })
     const input = document.querySelector<HTMLInputElement>('input[type="file"]')
     if (!input) throw new Error('file input not found')
-    const file = new File([ROSTER_CSV], 'roster.csv', { type: 'text/csv' })
-    await userEvent.upload(input, file)
+    const user = userEvent.setup()
+    await user.upload(input, new File(['Employee Name,Employee ID,Email'], 'roster.csv', { type: 'text/csv' }))
 
     expect(await screen.findByRole('button', { name: 'Loading roster' })).toBeDisabled()
-    expect(button.textContent).toContain('Loading roster')
   })
 })

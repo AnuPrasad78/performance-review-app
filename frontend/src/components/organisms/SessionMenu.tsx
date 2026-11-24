@@ -15,13 +15,12 @@ export function SessionMenu() {
     profile === null
       ? []
       : [
-          { key: 'first', label: 'First name', value: profile.firstName },
-          { key: 'last', label: 'Last name', value: profile.lastName },
+          { key: 'name', label: 'Name', value: profile.name },
           { key: 'id', label: 'Employee ID', value: profile.employeeId },
-          { key: 'role', label: 'Position', value: profile.role },
-          { key: 'dept', label: 'Department', value: profile.department },
+          { key: 'role', label: 'Position', value: profile.designation },
+          { key: 'dept', label: 'Department', value: profile.org },
           { key: 'loc', label: 'Location', value: profile.location },
-          { key: 'mgr', label: 'Reporting manager', value: profile.manager },
+          { key: 'mgr', label: 'Reporting manager', value: profile.reportingManager },
           { key: 'dm', label: 'DM', value: profile.deliveryManager },
           { key: 'dh', label: 'DH/DP', value: profile.deliveryHead },
         ]

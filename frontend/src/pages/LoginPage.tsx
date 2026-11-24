@@ -9,9 +9,11 @@ import type { AuthRole } from '../lib/authUsers'
 import type { AuthResult } from '../lib/authUsers'
 
 export const ROLE_HOME: Record<AuthRole, string> = {
-  admin: '/users',
+  admin: '/review-status',
   employee: '/dashboard',
 }
+
+const SSO_NOT_WIRED = 'SSO is not enabled for this release — sign in with your email.'
 
 function guardedFrom(locationState: unknown): string | null {
   if (typeof locationState !== 'object' || locationState === null || !('from' in locationState)) {
@@ -59,7 +61,7 @@ export function LoginPage() {
         <h1 className="login__title">Sign in</h1>
         <p className="login__lead">Access your performance review workspace.</p>
 
-        <button type="button" className="login__ms-btn" disabled>
+        <button type="button" className="login__ms-btn" onClick={() => setError(SSO_NOT_WIRED)}>
           <MicrosoftLogo />
           Sign in with Microsoft
         </button>
