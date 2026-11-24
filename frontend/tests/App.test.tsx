@@ -29,11 +29,13 @@ const {
 }))
 vi.mock('../src/lib/api', () => ({
   applyRosterImport: applyRosterImportMock,
+  fetchCycleSettings: vi.fn().mockResolvedValue({ ok: false, detail: 'No review cycle is configured yet.', code: 'cycle_missing' }),
   fetchEmployees: fetchEmployeesMock,
   fetchReviewStatuses: fetchReviewStatusesMock,
   fetchSelfEvaluation: fetchSelfEvaluationMock,
   fetchSession: fetchSessionMock,
   importRosterCsv: importRosterCsvMock,
+  saveCycleSettings: vi.fn().mockResolvedValue({ ok: false, detail: 'save not used in this test', code: 'request_failed' }),
   saveSelfEvaluation: saveSelfEvaluationMock,
   submitSelfEvaluation: submitSelfEvaluationMock,
   setApiIdentity: vi.fn(),
@@ -56,7 +58,8 @@ const OPEN_EVALUATION: SelfEvaluationWire = {
     status: 'Active',
   },
   reviewYear: 2026,
-  submissionDeadline: '2027-01-15',
+  submissionDeadline: '2027-01-15T10:00:00+00:00',
+  deadlinePassed: false,
   submittedAt: null,
   employeeSignedAt: null,
   responses: { contribution: 'Delivered the intake rewrite.', strengths: '', development: '', support: '' },

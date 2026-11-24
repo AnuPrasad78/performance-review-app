@@ -1,4 +1,6 @@
 import type {
+  CycleSettings,
+  CycleSettingsResult,
   Employee,
   EmployeeListResult,
   RosterApplyResult,
@@ -12,6 +14,7 @@ import type {
   SessionWire,
   TopicResponses,
 } from './types'
+import { isIsoInstant } from './dates'
 
 /** Same-origin /api by default (Vite dev proxy in dev); VITE_API_URL points at
     a direct, absolute API base where the frontend is served separately. */
@@ -32,6 +35,11 @@ const UNSUPPORTED_ENV_ERROR = {
 
 const REVIEW_UNAVAILABLE = {
   detail: 'Your review is only available where the review API is running.',
+  code: 'unsupported_environment',
+}
+
+const SUPPORT_UNAVAILABLE = {
+  detail: 'Cycle settings are only available where the review API is running.',
   code: 'unsupported_environment',
 }
 
@@ -118,9 +126,11 @@ function selfEvaluationFrom(value: unknown): SelfEvaluationWire | null {
   const managerComments = topicResponsesFrom(value.managerComments)
   if (responses === null || managerComments === null) return null
   if (typeof value.commitmentsEditable !== 'boolean') return null
+  if (typeof value.deadlinePassed !== 'boolean') return null
   if (typeof value.reviewYear !== 'number' || typeof value.submissionDeadline !== 'string') {
     return null
   }
+  if (!isIsoInstant(value.submissionDeadline)) return null
   if (typeof value.overallSummary !== 'string') return null
   if (!(value.overallRating === null || typeof value.overallRating === 'number')) return null
   if (!(value.submittedAt === null || typeof value.submittedAt === 'string')) return null
@@ -129,6 +139,7 @@ function selfEvaluationFrom(value: unknown): SelfEvaluationWire | null {
     employee,
     reviewYear: value.reviewYear,
     submissionDeadline: value.submissionDeadline,
+    deadlinePassed: value.deadlinePassed,
     submittedAt: value.submittedAt,
     employeeSignedAt: value.employeeSignedAt,
     responses,
@@ -397,4 +408,72 @@ export async function submitSelfEvaluation(): Promise<SelfEvaluationApiResult> {
     return { ok: false, detail: NETWORK_UNAVAILABLE.detail, code: NETWORK_UNAVAILABLE.code }
   }
   return selfEvaluationResponse(response)
+}
+
+const CYCLE_DATE_KEYS = [
+  'submissionDeadline',
+  'managerReviewStart',
+  'managerReviewEnd',
+  'hrApprovalReleaseBy',
+] as const
+
+function cycleSettingsFrom(value: unknown): CycleSettings | null {
+  if (!isRecord(value)) return null
+  if (typeof value.reviewYear !== 'number') return null
+  const dateField = (key: (typeof CYCLE_DATE_KEYS)[number]): string =>
+    typeof value[key] === 'string' ? (value[key] as string) : ''
+  if (CYCLE_DATE_KEYS.some((key) => dateField(key) === '')) return null
+  const submissionDeadline = dateField('submissionDeadline')
+  if (!isIsoInstant(submissionDeadline)) return null
+  return {
+    reviewYear: value.reviewYear,
+    submissionDeadline,
+    managerReviewStart: dateField('managerReviewStart'),
+    managerReviewEnd: dateField('managerReviewEnd'),
+    hrApprovalReleaseBy: dateField('hrApprovalReleaseBy'),
+  }
+}
+
+export async function fetchCycleSettings(): Promise<CycleSettingsResult> {
+  let response: Response
+  try {
+    response = await fetch(`${API_BASE}/api/cycle-settings`, { headers: identityHeaders() })
+  } catch {
+    return { ok: false, detail: NETWORK_UNAVAILABLE.detail, code: NETWORK_UNAVAILABLE.code }
+  }
+  const parsed = await envelopeOf(response)
+  if (parsed === null) {
+    return { ok: false, detail: SUPPORT_UNAVAILABLE.detail, code: SUPPORT_UNAVAILABLE.code }
+  }
+  if (!response.ok) return { ok: false, ...envelopeFields(parsed) }
+  const settings = cycleSettingsFrom(parsed)
+  if (settings === null) {
+    return { ok: false, detail: SUPPORT_UNAVAILABLE.detail, code: SUPPORT_UNAVAILABLE.code }
+  }
+  return { ok: true, settings }
+}
+
+export async function saveCycleSettings(
+  settings: CycleSettings,
+): Promise<CycleSettingsResult> {
+  let response: Response
+  try {
+    response = await fetch(`${API_BASE}/api/cycle-settings`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...identityHeaders() },
+      body: JSON.stringify(settings),
+    })
+  } catch {
+    return { ok: false, detail: NETWORK_UNAVAILABLE.detail, code: NETWORK_UNAVAILABLE.code }
+  }
+  const parsed = await envelopeOf(response)
+  if (parsed === null) {
+    return { ok: false, detail: SUPPORT_UNAVAILABLE.detail, code: SUPPORT_UNAVAILABLE.code }
+  }
+  if (!response.ok) return { ok: false, ...envelopeFields(parsed) }
+  const saved = cycleSettingsFrom(parsed)
+  if (saved === null) {
+    return { ok: false, detail: SUPPORT_UNAVAILABLE.detail, code: SUPPORT_UNAVAILABLE.code }
+  }
+  return { ok: true, settings: saved }
 }

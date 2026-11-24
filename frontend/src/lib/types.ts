@@ -19,8 +19,24 @@ export interface Employee {
   status: EmployeeStatus
 }
 
+/** One cycle's settings as the admin API serves them (GET/PUT /api/cycle-settings).
+    The submission deadline is an explicit-offset instant (UTC on the wire);
+    the windows stay plain dates because those phases operate on whole days. */
 export interface CycleSettings {
+  reviewYear: number
   submissionDeadline: string
+  managerReviewStart: string
+  managerReviewEnd: string
+  hrApprovalReleaseBy: string
+}
+
+/** The admin form's editable view of CycleSettings: the deadline split into a
+    date and a (UTC) time input, the year kept as text until validation turns
+    it into the wire's number. */
+export interface CycleSettingsDraft {
+  reviewYear: string
+  deadlineDate: string
+  deadlineTime: string
   managerReviewStart: string
   managerReviewEnd: string
   hrApprovalReleaseBy: string
@@ -62,11 +78,17 @@ export type EmployeeListResult =
   | { ok: false; detail: string; code: string }
 
 export type CycleSettingsFieldErrors = {
-  submissionDeadline: string | null
+  reviewYear: string | null
+  deadlineDate: string | null
+  deadlineTime: string | null
   managerReviewStart: string | null
   managerReviewEnd: string | null
   hrApprovalReleaseBy: string | null
 }
+
+export type CycleSettingsResult =
+  | { ok: true; settings: CycleSettings }
+  | { ok: false; detail: string; code: string }
 
 export type CycleSettingsValidation = {
   fieldErrors: CycleSettingsFieldErrors
@@ -161,11 +183,15 @@ export interface TopicResponses {
 
 /** Wire mirror of GET/PATCH/POST(/submit) responses: one payload mixing
     profile, the evaluation row, and cycle settings. Dates are ISO
-    yyyy-mm-dd or null. */
+    yyyy-mm-dd or null; the summary deadline is an ISO instant (with offset).
+    `deadlinePassed` is the server's own "form is closed" verdict — the UI
+    renders the closed state and the countdown from the pair, never its own
+    clock math for open/closed decisions. */
 export interface SelfEvaluationWire {
   employee: Employee
   reviewYear: number
   submissionDeadline: string
+  deadlinePassed: boolean
   submittedAt: string | null
   employeeSignedAt: string | null
   responses: TopicResponses

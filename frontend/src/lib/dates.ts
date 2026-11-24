@@ -15,3 +15,23 @@ export function formatIsoDate(isoDate: string): string {
   const day = String(parsed.getDate()).padStart(2, '0')
   return `${day}-${MONTHS[parsed.getMonth()]}-${parsed.getFullYear()}`
 }
+
+/** Whole days left before the deadline instant, UTC-clock based so every
+    timezone sees the same number. `nowUtc` is injected so the caller (and
+    tests) control the reading; the clock hook supplies a live value. A
+    deadline later today still rounds up to 1 — "the form will close in
+    0 days" is never a useful sentence, and open-vs-closed comes from the
+    server's deadlinePassed flag, not this number. */
+export function daysUntilDeadlineUtc(deadlineInstant: string, nowUtc: Date): number {
+  const deadline = new Date(deadlineInstant)
+  if (Number.isNaN(deadline.getTime())) return 0
+  const msRemaining = deadline.getTime() - nowUtc.getTime()
+  if (msRemaining <= 0) return 0
+  return Math.max(1, Math.ceil(msRemaining / 86_400_000))
+}
+
+/** Wire acceptance: the deadline must be an instant with a time part, not a
+    bare date — a bare date is a legacy/unparsed value, not a close moment. */
+export function isIsoInstant(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}T\d{2}/.test(value) && !Number.isNaN(new Date(value).getTime())
+}

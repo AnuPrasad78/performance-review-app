@@ -62,7 +62,8 @@ function openWire(overrides: Record<string, unknown> = {}): Record<string, unkno
   return {
     employee: profileWire(),
     reviewYear: 2026,
-    submissionDeadline: '2027-01-15',
+    submissionDeadline: '2027-01-15T10:00:00+00:00',
+    deadlinePassed: false,
     submittedAt: null,
     employeeSignedAt: null,
     // Open-review wires default to an answerable form: the wizard's forward
@@ -417,8 +418,7 @@ describe('EmployeeDashboardPage — submit gate', () => {
   })
 })
 
-describe('EmployeeDashboardPage — forward commitments', () => {
-  it('adds and removes optional commitments but never leaves the list empty', async () => {
+describe('EmployeeDashboardPage — forward commitments', () => {  it('adds and removes optional commitments but never leaves the list empty', async () => {
     const user = userEvent.setup()
     vi.stubGlobal('fetch', apiReturning(openWire()))
 
@@ -457,5 +457,57 @@ describe('EmployeeDashboardPage — forward commitments', () => {
     const commitments = screen.getAllByDisplayValue('Own the intake rewrite')
     expect(commitments).toHaveLength(1)
     expect(screen.getByRole('button', { name: 'Save commitments' })).toBeInTheDocument()
+  })
+})
+
+describe('EmployeeDashboardPage — submission deadline', () => {
+  it('shows the closing countdown in the hero while the open form is days from closing', async () => {
+    vi.stubGlobal(
+      'fetch',
+      apiReturning(openWire({ submissionDeadline: '2199-02-01T10:00:00+00:00' })),
+    )
+
+    render(page())
+
+    expect(
+      await screen.findByText(/^The form will close in \d+ days\. Fill it up soon\.$/),
+    ).toBeInTheDocument()
+  })
+
+  it('does not show the countdown once the review is submitted', async () => {
+    vi.stubGlobal(
+      'fetch',
+      apiReturning(openWire({ submittedAt: '2027-01-10', commitmentsEditable: true })),
+    )
+
+    render(page())
+    await screen.findByText(/Your self-evaluation is read-only now\./)
+
+    expect(screen.queryByText(/The form will close in/)).not.toBeInTheDocument()
+  })
+
+  it('replaces the whole wizard with the closed state once the deadline passes', async () => {
+    vi.stubGlobal('fetch', apiReturning(openWire({ deadlinePassed: true })))
+
+    render(page())
+
+    expect(await screen.findByText('ops time passed')).toBeInTheDocument()
+    expect(screen.queryByText('Question 1 of 4')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Next' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Submit' })).not.toBeInTheDocument()
+  })
+
+  it('keeps the submitted review readable after the deadline — no closed state', async () => {
+    vi.stubGlobal(
+      'fetch',
+      apiReturning(
+        openWire({ deadlinePassed: true, submittedAt: '2027-01-10', commitmentsEditable: false }),
+      ),
+    )
+
+    render(page())
+
+    expect(await screen.findByText(/Your self-evaluation was submitted\. The form is read-only now\./)).toBeInTheDocument()
+    expect(screen.queryByText('ops time passed')).not.toBeInTheDocument()
   })
 })
