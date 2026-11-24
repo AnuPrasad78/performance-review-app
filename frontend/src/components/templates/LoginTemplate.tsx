@@ -3,10 +3,10 @@ import { Icon, type IconName } from '../atoms/Icon'
 import logoUrl from '../../assets/emids-logo.svg'
 
 const FEATURES: ReadonlyArray<{ icon: IconName; label: string }> = [
-  { icon: 'user', label: 'Write and submit self-evaluations' },
+  { icon: 'user', label: 'Write and submit self-assessments' },
   { icon: 'chart', label: 'Track your review progress' },
   { icon: 'users', label: 'Reviewer feedback and sign-off' },
-  { icon: 'lock', label: 'Enterprise-grade confidentiality' },
+  { icon: 'lock', label: 'Confidential and secure workspace' },
 ]
 
 /** Sign-in layout: dark program panel on the left, light pane with the form
@@ -43,9 +43,9 @@ export function LoginTemplate({ children }: { children: ReactNode }) {
             <span className="login__program">Performance Review</span>
           </header>
           <h2 className="login__title">
-            Your performance review,
+            Elevate your
             <br />
-            <span className="login__title-accent">made a career conversation.</span>
+            <span className="login__title-accent">impact.</span>
           </h2>
           <ul className="login__features">
             {FEATURES.map((feature) => (

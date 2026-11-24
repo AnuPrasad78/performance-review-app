@@ -60,8 +60,17 @@ export function LoginPage() {
   return (
     <LoginTemplate>
       <div className="login__form-stack">
-        <h1 className="login__heading">Welcome back</h1>
+        <h1 className="login__heading">Welcome</h1>
         <p className="login__lead">Sign in to your performance review account.</p>
+
+        <button type="button" className="login__sso-btn" onClick={() => setError(SSO_NOT_WIRED)}>
+          <MicrosoftLogo />
+          Sign in with Emids SSO
+        </button>
+
+        <div className="login__divider" role="separator">
+          <span>or sign in with your email</span>
+        </div>
 
         <form onSubmit={handleSubmit} noValidate>
           <div className="field">
@@ -76,7 +85,7 @@ export function LoginPage() {
                 id="login-email"
                 type="email"
                 autoComplete="username"
-                placeholder="xyz@emids.com"
+                placeholder="firstname.lastname@emids.com"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 disabled={busy}
@@ -128,15 +137,6 @@ export function LoginPage() {
             Sign in
           </Button>
         </form>
-
-        <div className="login__divider" role="separator">
-          <span>or continue with</span>
-        </div>
-
-        <button type="button" className="login__sso-btn" onClick={() => setError(SSO_NOT_WIRED)}>
-          <MicrosoftLogo />
-          Sign in with Emids SSO
-        </button>
       </div>
     </LoginTemplate>
   )
