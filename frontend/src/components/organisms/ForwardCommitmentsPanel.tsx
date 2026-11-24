@@ -6,7 +6,8 @@ import type { ForwardCommitment } from '../../lib/types'
 export interface ForwardCommitmentsPanelProps {
   commitments: readonly ForwardCommitment[]
   readOnly: boolean
-  onCommitmentChange: (id: number, field: 'commitment' | 'support', value: string) => void
+  /** Absent on display-only renders. */
+  onCommitmentChange?: (id: number, field: 'commitment' | 'support', value: string) => void
 }
 
 const COMMITMENT_HINT = 'Say what will be true by the end of 2027, with the measurable version of it.'
@@ -28,14 +29,18 @@ export function ForwardCommitmentsPanel({
                 aria-label={`Commitment ${index + 1}`}
                 value={commitment.commitment}
                 disabled={readOnly}
-                onChange={(event) => onCommitmentChange(commitment.id, 'commitment', event.target.value)}
+                onChange={(event) =>
+                  onCommitmentChange?.(commitment.id, 'commitment', event.target.value)
+                }
               />
               <FormField id={`commitment-support-${commitment.id}`} label="Agreed support / conditions">
                 <Textarea
                   id={`commitment-support-${commitment.id}`}
                   value={commitment.support}
                   disabled={readOnly}
-                  onChange={(event) => onCommitmentChange(commitment.id, 'support', event.target.value)}
+                  onChange={(event) =>
+                    onCommitmentChange?.(commitment.id, 'support', event.target.value)
+                  }
                 />
               </FormField>
             </div>

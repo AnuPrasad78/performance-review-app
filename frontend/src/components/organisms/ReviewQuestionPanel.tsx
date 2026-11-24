@@ -9,7 +9,8 @@ export interface ReviewQuestionPanelProps {
   label: string
   readOnly: boolean
   error?: string | null
-  onResponseChange: (questionId: AssessmentQuestion['id'], value: string) => void
+  /** Absent on display-only renders (backend-served answer states). */
+  onResponseChange?: (questionId: AssessmentQuestion['id'], value: string) => void
 }
 
 const NO_MANAGER_COMMENT = 'No manager comment yet. Your manager will comment after submission.'
@@ -47,7 +48,7 @@ export function ReviewQuestionPanel({
               <Textarea
                 id={`response-${question.id}`}
                 value={question.employeeResponse}
-                onChange={(event) => onResponseChange(question.id, event.target.value)}
+                onChange={(event) => onResponseChange?.(question.id, event.target.value)}
               />
             )}
           </FormField>

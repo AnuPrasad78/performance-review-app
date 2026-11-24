@@ -6,7 +6,10 @@ import { UsersPage } from '../../src/pages/UsersPage'
 import type { Employee } from '../../src/lib/types'
 
 const { fetchEmployeesMock } = vi.hoisted(() => ({ fetchEmployeesMock: vi.fn() }))
-vi.mock('../../src/lib/api', () => ({ fetchEmployees: fetchEmployeesMock }))
+vi.mock('../../src/lib/api', () => ({
+  fetchEmployees: fetchEmployeesMock,
+  setApiIdentity: vi.fn(),
+}))
 
 function employee(employeeId: string, name: string, email: string): Employee {
   return {

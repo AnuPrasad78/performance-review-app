@@ -20,8 +20,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import Settings, get_settings
 from app.core.db import configure_engine, dispose_engine
 from app.core.errors import install_error_handlers
+from app.routers.auth import router as auth_router
 from app.routers.employees import router as employees_router
 from app.routers.health import router as health_router
+from app.routers.self_evaluations import router as self_evaluations_router
 
 
 @asynccontextmanager
@@ -46,10 +48,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_origins=resolved.cors_origins,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE"],
-        allow_headers=["Authorization", "Content-Type"],
+        allow_headers=["Authorization", "Content-Type", resolved.stub_user_header],
     )
 
     install_error_handlers(app)
     app.include_router(health_router, prefix="/api")
+    app.include_router(auth_router, prefix="/api")
     app.include_router(employees_router, prefix="/api")
+    app.include_router(self_evaluations_router, prefix="/api")
     return app

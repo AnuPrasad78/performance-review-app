@@ -10,7 +10,7 @@ from collections.abc import AsyncIterator, Sequence
 from typing import Annotated
 
 from fastapi import Depends
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session
@@ -21,6 +21,18 @@ from app.schemas.employee import ROSTER_ATTRIBUTES
 class EmployeeRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
+
+    async def get(self, employee_id: str) -> Employee | None:
+        return await self._session.get(Employee, employee_id)
+
+    async def get_by_email(self, email: str) -> Employee | None:
+        # Case-insensitive on purpose: roster emails are not normalized
+        # upstream, and sign-in must match the stored address as typed or not
+        # at all — both layers agree on the lower-cased form here.
+        statement = select(Employee).where(
+            func.lower(Employee.email) == email.strip().lower()
+        )
+        return await self._session.scalar(statement)
 
     async def get_many(self, employee_ids: Sequence[str]) -> dict[str, Employee]:
         statement = select(Employee).where(Employee.employee_id.in_(employee_ids))

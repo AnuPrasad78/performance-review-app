@@ -1,46 +1,44 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { clearSession, saveSession, loadSession, type AuthSession } from '../lib/authStore'
 import { authenticate, type AuthResult } from '../lib/authUsers'
+import { setApiIdentity } from '../lib/api'
 
 interface AuthState {
   session: AuthSession | null
+  /** The password parameter stays in the contract (and its field in the form)
+      so the SSO swap later touches no page code; the backend ignores it in
+      this stub phase. */
   signIn: (email: string, password: string) => Promise<AuthResult>
   signOut: () => void
 }
 
 const AuthContext = createContext<AuthState | null>(null)
 
-const FAKE_HANDSHAKE_MS = 450
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<AuthSession | null>(loadSession)
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // One effect owns the API identity for every phase of the session:
+  // restored-on-reload, freshly signed-in, and signed-out (null clears it).
   useEffect(() => {
-    return () => {
-      if (timer.current !== null) clearTimeout(timer.current)
-    }
-  }, [])
+    setApiIdentity(session?.email ?? null)
+  }, [session])
 
   const value = useMemo<AuthState>(
     () => ({
       session,
-      signIn: (email, password) =>
-        new Promise<AuthResult>((resolve) => {
-          timer.current = setTimeout(() => {
-            const result = authenticate(email, password)
-            if (result.ok) {
-              const next: AuthSession = {
-                email: result.account.email,
-                name: result.account.name,
-                role: result.account.role,
-              }
-              saveSession(next)
-              setSession(next)
-            }
-            resolve(result)
-          }, FAKE_HANDSHAKE_MS)
-        }),
+      signIn: async (email) => {
+        const result = await authenticate(email)
+        if (result.ok) {
+          const next: AuthSession = {
+            email: result.account.email,
+            name: result.account.name,
+            role: result.account.role,
+          }
+          saveSession(next)
+          setSession(next)
+        }
+        return result
+      },
       signOut: () => {
         clearSession()
         setSession(null)

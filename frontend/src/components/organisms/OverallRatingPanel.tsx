@@ -11,8 +11,9 @@ export interface OverallRatingPanelProps {
   readOnly: boolean
   ratingError?: string | null
   summaryError?: string | null
-  onRatingSelect: (rating: RatingValue) => void
-  onSummaryChange: (summary: string) => void
+  /** Absent on display-only renders. */
+  onRatingSelect?: (rating: RatingValue) => void
+  onSummaryChange?: (summary: string) => void
 }
 
 const NO_MANAGER_RATING = 'Not decided yet. Your manager sets this after the discussion.'
@@ -43,7 +44,7 @@ export function OverallRatingPanel({
               values={ratingValues}
               value={overallRating}
               disabled={false}
-              onChange={(value) => onRatingSelect(value as RatingValue)}
+              onChange={(value) => onRatingSelect?.(value as RatingValue)}
               ariaLabel="Overall self-rating from 1 to 5"
             />
           )}
@@ -62,7 +63,7 @@ export function OverallRatingPanel({
             id="overall-summary"
             value={overallSummary}
             disabled={readOnly}
-            onChange={(event) => onSummaryChange(event.target.value)}
+            onChange={(event) => onSummaryChange?.(event.target.value)}
           />
         </FormField>
         <div className="field">
