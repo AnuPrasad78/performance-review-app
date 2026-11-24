@@ -12,7 +12,7 @@ type FailureState = { detail: string; rowErrors: RosterRowError[] } | null
 
 export function UploadPage() {
   const { notify } = useAdminStore()
-  const { employees, refresh } = useEmployees()
+  const roster = useEmployees(1)
   const [analyzing, setAnalyzing] = useState(false)
   const [applying, setApplying] = useState(false)
   const [failure, setFailure] = useState<FailureState>(null)
@@ -29,9 +29,9 @@ export function UploadPage() {
       setFailure({ detail: result.detail, rowErrors: result.rowErrors })
       return
     }
-    const conflictIds = new Set(result.report.conflicts.map((conflict) => conflict.employeeId))
+    const conflictEmails = new Set(result.report.conflicts.map((conflict) => conflict.email))
     const inserts = result.report.employees.filter(
-      (employee) => !conflictIds.has(employee.employeeId),
+      (employee) => !conflictEmails.has(employee.email),
     )
     if (result.report.conflicts.length > 0) {
       setPendingConflicts(result.report)
@@ -53,7 +53,7 @@ export function UploadPage() {
       setFailure({ detail: result.detail, rowErrors: [] })
       return
     }
-    refresh()
+    roster.refresh()
     notify('success', describeImport(result.importedCount, result.updatedCount, report.duplicatesSkipped))
   }
 
@@ -61,14 +61,14 @@ export function UploadPage() {
     <AdminTemplate
       eyebrow="Admin · Upload"
       title="Employee data upload"
-      lead="Load employees from a roster CSV. Rows whose employee ID already exists are shown next to the stored record so you can update or keep each one."
+      lead="Load employees from a roster CSV. Rows whose email already matches a stored employee (case-insensitive) are shown next to the stored record so you can update or keep each one."
     >
       <CsvImportCard
         inFlight={analyzing || applying}
         onFileSelected={(file) => void analyzeFile(file)}
       />
       <p className="mono muted" style={{ fontSize: '11px', letterSpacing: '0.08em' }}>
-        ROSTER NOW · {employees.length} {employees.length === 1 ? 'EMPLOYEE' : 'EMPLOYEES'}
+        ROSTER NOW · {roster.total} {roster.total === 1 ? 'EMPLOYEE' : 'EMPLOYEES'}
       </p>
       <ImportErrorDialog
         open={failure !== null}

@@ -18,18 +18,28 @@ class StubEmployeeRepository:
     def __init__(self, stored: list[Employee] | None = None) -> None:
         self._stored = {one.employee_id: one for one in stored or []}
         self.inserted: list[str] = []
-        self.updated: list[str] = []
+        self.updated_from: list[str] = []
+        self.updated_to: list[str] = []
 
-    async def get_many(self, employee_ids: list[str]) -> dict[str, Employee]:
-        return {key: self._stored[key] for key in employee_ids if key in self._stored}
+    async def get_many_by_email(self, emails: list[str]) -> dict[str, Employee]:
+        lowered = {email.lower() for email in emails}
+        return {
+            one.email.lower(): one
+            for one in self._stored.values()
+            if one.email.lower() in lowered
+        }
 
     async def insert_many(self, employees: list[Employee]) -> None:
         self.inserted = [one.employee_id for one in employees]
         self._stored |= {one.employee_id: one for one in employees}
 
-    async def update_many(self, employees: list[Employee]) -> set[str]:
-        self.updated = [one.employee_id for one in employees]
-        return {one.employee_id for one in employees}
+    async def update_many(self, updates: list[tuple[str, Employee]]) -> set[str]:
+        for stored_pk, employee in updates:
+            self.updated_from.append(stored_pk)
+            self.updated_to.append(employee.employee_id)
+            self._stored.pop(stored_pk, None)
+            self._stored[employee.employee_id] = employee
+        return set(self.updated_to)
 
 
 def fixture_rows() -> list[RosterEmployeeOut]:
@@ -46,7 +56,7 @@ async def test_apply_inserts_every_declared_new_row() -> None:
     assert report.imported_count == 2
     assert report.updated_count == 0
     assert repository.inserted == [one.employee_id for one in rows[:2]]
-    assert repository.updated == []
+    assert repository.updated_to == []
 
 
 async def test_apply_updates_chosen_rows_only() -> None:
@@ -56,10 +66,25 @@ async def test_apply_updates_chosen_rows_only() -> None:
         RosterApplyPayload(inserts=[], updates=[rows[0]]), repository
     )
     assert report.updated_count == 1
-    assert repository.updated == [rows[0].employee_id]
+    assert repository.updated_from == [rows[0].employee_id]
+    assert repository.updated_to == [rows[0].employee_id]
 
 
-async def test_apply_refuses_insert_when_id_already_stored() -> None:
+async def test_apply_moves_employee_id_of_updated_row() -> None:
+    """An updated row whose CSV employee_id differs from the stored one: the
+    stored row is keyed by its email and re-keyed onto the incoming ID."""
+    rows = fixture_rows()
+    repository = StubEmployeeRepository([to_employee(rows[0])])
+    moved = rows[0].model_copy(update={"employee_id": "EMP-Moved"})
+    report = await apply_roster(
+        RosterApplyPayload(inserts=[], updates=[moved]), repository
+    )
+    assert report.updated_count == 1
+    assert repository.updated_from == [rows[0].employee_id]
+    assert repository.updated_to == ["EMP-Moved"]
+
+
+async def test_apply_refuses_insert_when_email_already_stored() -> None:
     rows = fixture_rows()
     repository = StubEmployeeRepository([to_employee(rows[0])])
     with pytest.raises(AppError) as excinfo:
@@ -68,7 +93,19 @@ async def test_apply_refuses_insert_when_id_already_stored() -> None:
     assert excinfo.value.status_code == 409
 
 
-async def test_apply_refuses_update_when_id_vanished() -> None:
+async def test_apply_match_is_case_insensitive() -> None:
+    rows = fixture_rows()
+    stored = to_employee(rows[0])
+    stored.email = rows[0].email.upper()
+    repository = StubEmployeeRepository([stored])
+    report = await apply_roster(
+        RosterApplyPayload(inserts=[], updates=[rows[0]]), repository
+    )
+    assert report.updated_count == 1
+    assert repository.updated_to == [stored.employee_id]
+
+
+async def test_apply_refuses_update_when_email_vanished() -> None:
     rows = fixture_rows()
     repository = StubEmployeeRepository()
     with pytest.raises(AppError) as excinfo:

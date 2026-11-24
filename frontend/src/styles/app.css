@@ -139,6 +139,13 @@ a { color: var(--teal-deep); }
 
 /* data table */
 .table-toolbar { display: flex; justify-content: flex-end; margin-bottom: 12px; }
+.pager { display: flex; align-items: center; justify-content: center; gap: 12px; padding-top: 14px; }
+.pager__status {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--ink-2);
+}
 .table { width: 100%; border-collapse: collapse; }
 .table th {
   font-family: var(--mono);
@@ -161,6 +168,8 @@ a { color: var(--teal-deep); }
   vertical-align: middle;
 }
 .table tbody tr:hover { background: var(--teal-wash); }
+.table tbody tr.table__row--selectable { cursor: pointer; }
+.table tbody tr.table__row--active { background: var(--teal-light); }
 .table__empty { text-align: center; padding: 32px; color: var(--ink-3); }
 @media (max-width: 600px) {
   .table .col-desktop { display: none; }
@@ -429,6 +438,9 @@ a { color: var(--teal-deep); }
   border-top: 1px solid var(--hairline-2);
   padding-top: 18px;
 }
+/* the users table's row-reveal popup: text values instead of inputs */
+.employee-detail-grid { margin-top: 18px; text-align: left; }
+.employee-detail__value { font-size: 14px; line-height: 1.5; color: var(--ink); }
 
 /* review question panels */
 .question-panel { display: flex; flex-direction: column; gap: 14px; }

@@ -45,23 +45,26 @@ function importResult(rec: Omit<Extract<RosterImportResult, { ok: true }>['repor
   return { ok: true, report: { conflicts: rec.conflicts ?? [], ...rec } }
 }
 
+const ASHA_INCOMING = employee('EMP-V002', 'Asha M. Menon', 'asha_menon@emids.com')
+
 const IMPORTS_ALL_NEW = importResult({
   importedCount: 1,
   duplicatesSkipped: 0,
   employees: [PRIYA],
 })
 
-const ASHA_INCOMING = employee('EMP-V001', 'Asha Menon', 'asha.new@emids.com')
+/** Stored vs incoming row: the email is the identity, so it matches on both
+    sides — only value fields may differ. */
 const IMPORTS_ONE_CONFLICT = importResult({
   importedCount: 1,
   duplicatesSkipped: 0,
   employees: [ASHA],
   conflicts: [
     {
-      employeeId: ASHA.employeeId,
+      email: ASHA.email,
       existing: ASHA,
       incoming: ASHA_INCOMING,
-      changedFields: [],
+      changedFields: ['name', 'employeeId'],
     },
   ],
 })
@@ -96,17 +99,16 @@ beforeEach(() => {
   vi.mocked(importRosterCsv).mockReset()
   vi.mocked(applyRosterImport).mockReset()
   fetchEmployeesMock.mockReset()
-  fetchEmployeesMock.mockResolvedValue({ ok: true, employees: [] })
+  fetchEmployeesMock.mockResolvedValue({ ok: true, employees: [], total: 0, page: 1, pageSize: 10 })
 })
 
 describe('UploadPage', () => {
   it('applies a conflict-free import straight away and reads back the stored roster', async () => {
     importRosterCsvMock.mockResolvedValue(IMPORTS_ALL_NEW)
     applyRosterImportMock.mockResolvedValue({ ok: true, importedCount: 1, updatedCount: 0 })
-    fetchEmployeesMock.mockResolvedValueOnce({ ok: true, employees: [] }).mockResolvedValueOnce({
-      ok: true,
-      employees: [PRIYA],
-    })
+    fetchEmployeesMock
+      .mockResolvedValueOnce({ ok: true, employees: [], total: 0, page: 1, pageSize: 10 })
+      .mockResolvedValueOnce({ ok: true, employees: [PRIYA], total: 1, page: 1, pageSize: 10 })
     render(page())
 
     expect(await screen.findByText('ROSTER NOW · 0 EMPLOYEES')).toBeInTheDocument()

@@ -5,9 +5,9 @@ get_admin_user on top (role gate in core/auth.py). Routers stay thin by rule:
 the use cases — read, partial save, submit, board — live in the service.
 """
 
-from typing import Annotated
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from app.core.auth import AuthUser, get_admin_user, get_roster_user
 from app.repositories.evaluation_repository import (
@@ -19,6 +19,7 @@ from app.repositories.review_cycle_repository import (
     ReviewCycleRepository,
     get_review_cycle_repository,
 )
+from app.schemas.paging import Paging, paging
 from app.schemas.self_evaluation import (
     ReviewStatusList,
     SelfEvaluationOut,
@@ -38,13 +39,15 @@ router = APIRouter(tags=["self-evaluations"])
 async def list_review_form_statuses(
     _admin: Annotated[AuthUser, Depends(get_admin_user)],
     employee_repository: Annotated[EmployeeRepository, Depends(get_employee_repository)],
-    evaluation_repository: Annotated[EvaluationRepository, Depends(get_evaluation_repository)],
     cycle_repository: Annotated[ReviewCycleRepository, Depends(get_review_cycle_repository)],
+    bounds: Annotated[Paging, Depends(paging)],
+    status: Annotated[Literal["all", "pending", "completed"], Query()] = "all",
 ) -> ReviewStatusList:
     return await list_review_statuses(
         employee_repository=employee_repository,
-        evaluation_repository=evaluation_repository,
         cycle_repository=cycle_repository,
+        paging=bounds,
+        status_filter=status,
     )
 
 

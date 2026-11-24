@@ -49,8 +49,11 @@ export interface RosterRowError {
 
 /** One uploaded row whose employee_id is already stored — the admin decides
     per row whether the stored employee is overwritten (Update) or kept. */
+/** One uploaded row whose email identity is already stored (case-insensitive
+    match) — the admin decides per row whether the stored employee is
+    overwritten (Update) or kept. */
 export interface RosterConflict {
-  employeeId: string
+  email: string
   existing: Employee
   incoming: Employee
   changedFields: string[]
@@ -74,7 +77,7 @@ export type RosterApplyResult =
   | { ok: false; detail: string; code: string }
 
 export type EmployeeListResult =
-  | { ok: true; employees: Employee[] }
+  | { ok: true; employees: readonly Employee[]; total: number; page: number; pageSize: number }
   | { ok: false; detail: string; code: string }
 
 export type CycleSettingsFieldErrors = {
@@ -107,6 +110,11 @@ export interface RatingScaleEntry {
 
 /** Maps onto the fixed pill vocabulary: submitted → pending visuals, not_started → cancelled visuals. */
 export type ReviewStatus = 'not_started' | 'in_progress' | 'submitted'
+
+/** The backend's board vocabulary carries one extra word — signed_off — which
+    the client's display vocabulary collapses into submitted (see
+    lib/reviewStatusStore.displayCounts). */
+export type RawReviewStatus = ReviewStatus | 'signed_off'
 
 export type AssessmentQuestionId = 'contribution' | 'strengths' | 'development' | 'support'
 
@@ -227,6 +235,21 @@ export interface ReviewStatusWire {
   status: ReviewStatus
 }
 
-export type ReviewStatusResult =
-  | { ok: true; reviews: ReviewStatusWire[] }
+/** One server page of the admin board. `total` counts the rows under the
+    applied status filter; `statusCounts` is the whole-roster distribution in
+    the backend's four-word vocabulary (snake_case to match `status`). The
+    client's display vocabulary collapses signed_off into submitted. */
+export interface ReviewBoardPage {
+  readonly reviews: readonly ReviewStatusWire[]
+  readonly total: number
+  readonly page: number
+  readonly pageSize: number
+  readonly statusCounts: Partial<Record<RawReviewStatus, number>>
+}
+
+export type ReviewBoardResult =
+  | { ok: true; board: ReviewBoardPage }
   | { ok: false; detail: string; code: string }
+
+/** The board's server-side filter noun; the chips vocabulary renders it. */
+export type StatusFilter = 'all' | 'pending' | 'completed'

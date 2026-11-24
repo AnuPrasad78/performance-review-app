@@ -40,17 +40,20 @@ class _StubEmployeeRepository:
     def __init__(self, stored: list[Employee]) -> None:
         self._stored = {one.employee_id: one for one in stored}
 
-    async def get_many(self, employee_ids: list[str]) -> dict[str, Employee]:
-        return {key: self._stored[key] for key in employee_ids if key in self._stored}
-
-    async def list_all(self) -> list[Employee]:
-        return list(self._stored.values())
+    async def get_many_by_email(self, emails: list[str]) -> dict[str, Employee]:
+        lowered = {email.lower() for email in emails}
+        return {
+            email: one
+            for one in self._stored.values()
+            if one.email.lower() in lowered
+            for email in (one.email.lower(),)
+        }
 
     async def insert_many(self, employees: list[Employee]) -> None:
         self._stored |= {one.employee_id: one for one in employees}
 
-    async def update_many(self, employees: list[Employee]) -> set[str]:
-        return {one.employee_id for one in employees}
+    async def update_many(self, updates: list[tuple[str, Employee]]) -> set[str]:
+        return {employee.employee_id for _stored_pk, employee in updates}
 
 
 def upload(client: TestClient, text: str) -> Any:
@@ -80,7 +83,7 @@ def test_valid_roster_reports_new_rows_no_conflicts() -> None:
     assert report["conflicts"] == []
 
 
-def test_existing_employee_ids_are_reported_as_conflicts() -> None:
+def test_existing_emails_are_reported_as_conflicts() -> None:
     stored = to_employee(parsed_valid_rows()[0])
     stored.location = "Bengaluru"  # type: ignore[assignment]
     response = upload(make_client([stored]), valid_roster_text())
@@ -88,10 +91,30 @@ def test_existing_employee_ids_are_reported_as_conflicts() -> None:
     report = response.json()
     assert report["importedCount"] == 7
     conflict = report["conflicts"][0]
-    assert conflict["employeeId"] == stored.employee_id
+    assert conflict["email"] == stored.email
     assert conflict["changedFields"] == ["location"]
     assert conflict["existing"]["location"] == "Bengaluru"
     assert conflict["incoming"]["location"] == "India"
+
+
+def test_employee_id_change_is_reported_as_a_changed_field() -> None:
+    stored = to_employee(parsed_valid_rows()[0])
+    text = valid_roster_text().replace("EMP-V001", "EMP-V200", 1)
+    response = upload(make_client([stored]), text)
+    assert response.status_code == 200
+    (conflict,) = response.json()["conflicts"]
+    assert conflict["changedFields"] == ["employeeId"]
+    assert conflict["existing"]["employeeId"] == "EMP-V001"
+    assert conflict["incoming"]["employeeId"] == "EMP-V200"
+
+
+def test_email_match_is_case_insensitive() -> None:
+    stored = to_employee(parsed_valid_rows()[0])
+    stored.email = stored.email.upper()
+    response = upload(make_client([stored]), valid_roster_text())
+    report = response.json()
+    assert report["importedCount"] == 7
+    assert report["conflicts"][0]["email"] == stored.email.lower()
 
 
 def test_header_rejection_keeps_envelope_and_code() -> None:

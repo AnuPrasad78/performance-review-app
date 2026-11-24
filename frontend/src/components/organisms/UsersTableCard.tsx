@@ -1,11 +1,18 @@
+import { useState } from 'react'
 import { Card } from '../atoms/Card'
 import { Button } from '../atoms/Button'
 import { DataTable, type DataTableColumn } from '../molecules/DataTable'
+import { Pager } from '../molecules/Pager'
+import { EmployeeDetailCard } from './EmployeeDetailCard'
 import { downloadCsv } from '../../lib/csvDownload'
+import { ROSTER_CSV_HEADERS, employeeCsvRow } from '../../lib/rosterCsv'
 import type { Employee } from '../../lib/types'
 
 export interface UsersTableCardProps {
   employees: readonly Employee[]
+  page: number
+  pageCount: number
+  onPage: (page: number) => void
 }
 
 const columns: readonly DataTableColumn<Employee>[] = [
@@ -23,20 +30,18 @@ const columns: readonly DataTableColumn<Employee>[] = [
   { key: 'status', header: 'Status', cell: (employee) => employee.status, hideOnMobile: true },
 ]
 
-export function UsersTableCard({ employees }: UsersTableCardProps) {
+export function UsersTableCard({ employees, page, pageCount, onPage }: UsersTableCardProps) {
+  const [selectedEmail, setSelectedEmail] = useState<string | null>(null)
+  const selected: Employee | null =
+    selectedEmail === null
+      ? null
+      : (employees.find((employee) => employee.email === selectedEmail) ?? null)
+
   const downloadRoster = () => {
     downloadCsv(
       'employee-roster.csv',
-      ['Name', 'Employee ID', 'Email', 'Designation', 'Location', 'Reporting manager', 'Status'],
-      employees.map((employee) => [
-        employee.name,
-        employee.employeeId,
-        employee.email,
-        employee.designation,
-        employee.location,
-        employee.reportingManager,
-        employee.status,
-      ]),
+      ROSTER_CSV_HEADERS,
+      employees.map(employeeCsvRow),
     )
   }
   return (
@@ -51,7 +56,11 @@ export function UsersTableCard({ employees }: UsersTableCardProps) {
         rows={employees}
         rowKey={(employee) => employee.email}
         emptyMessage="No employees loaded. Upload a roster CSV to get started."
+        onRowClick={(employee) => setSelectedEmail(employee.email)}
+        activeRowKey={selected?.email ?? null}
       />
+      <Pager page={page} pageCount={pageCount} onPage={onPage} />
+      {selected !== null ? <EmployeeDetailCard employee={selected} onClose={() => setSelectedEmail(null)} /> : null}
     </Card>
   )
 }

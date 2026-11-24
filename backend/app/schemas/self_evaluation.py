@@ -62,7 +62,15 @@ class ReviewStatusEntry(ApiModel):
 
 
 class ReviewStatusList(ApiModel):
+    """One board page plus the roster-wide facts the tiles and pie render:
+    `total` counts the filtered vocabulary, `statusCounts` the whole roster
+    (its words are the stored BoardStatus values, never camelCase)."""
+
     reviews: list[ReviewStatusEntry]
+    total: int
+    page: int
+    page_size: int
+    status_counts: dict[str, int]
 
 
 class SelfEvaluationPatch(ApiModel):

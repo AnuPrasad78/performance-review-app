@@ -1,19 +1,13 @@
-import { useMemo, useState } from 'react'
 import { Card } from '../atoms/Card'
 import { DataTable, type DataTableColumn } from '../molecules/DataTable'
+import { Pager } from '../molecules/Pager'
 import { PieChart } from '../molecules/PieChart'
 import { ReviewStatusPill } from '../molecules/ReviewStatusPill'
 import { SegmentedFilter } from '../molecules/SegmentedFilter'
 import { StatTile } from '../molecules/StatTile'
 import { REVIEW_STATUS_LABELS } from '../../lib/selfEvaluationStore'
-import {
-  COMPLETION_FILTERS,
-  countReviewStatuses,
-  filterEntries,
-  type CompletionFilter,
-  type EmployeeReviewStatus,
-} from '../../lib/reviewStatusStore'
-import type { ReviewStatus } from '../../lib/types'
+import { COMPLETION_FILTERS, displayCounts, type CompletionFilter, type EmployeeReviewStatus } from '../../lib/reviewStatusStore'
+import type { RawReviewStatus, ReviewStatus } from '../../lib/types'
 
 const STATUS_ORDER: readonly ReviewStatus[] = ['not_started', 'in_progress', 'submitted']
 
@@ -23,10 +17,6 @@ const STATUS_COLORS: Record<ReviewStatus, string> = {
   not_started: 'var(--ink-3)',
   in_progress: 'var(--blue)',
   submitted: 'var(--teal-deep)',
-}
-
-export interface ReviewStatusBoardProps {
-  entries: readonly EmployeeReviewStatus[]
 }
 
 const columns: readonly DataTableColumn<EmployeeReviewStatus>[] = [
@@ -46,11 +36,32 @@ function percentOf(count: number, total: number): string {
   return total === 0 ? '0.0' : ((count / total) * 100).toFixed(1)
 }
 
-export function ReviewStatusBoard({ entries }: ReviewStatusBoardProps) {
-  const [filter, setFilter] = useState<CompletionFilter>('pending')
-  const counts = useMemo(() => countReviewStatuses(entries), [entries])
-  const shown = useMemo(() => filterEntries(entries, filter), [entries, filter])
-  const total = entries.length
+export interface ReviewStatusBoardProps {
+  /** This page's rows (server-sliced); distribution numbers come from the
+      server's whole-roster counts, never from client-side re-counting. */
+  entries: readonly EmployeeReviewStatus[]
+  statusCounts: Partial<Record<RawReviewStatus, number>>
+  /** Rows matching the current server filter. */
+  total: number
+  page: number
+  pageCount: number
+  filter: CompletionFilter
+  onFilterChange: (filter: CompletionFilter) => void
+  onPageChange: (page: number) => void
+}
+
+export function ReviewStatusBoard({
+  entries,
+  statusCounts,
+  total,
+  page,
+  pageCount,
+  filter,
+  onFilterChange,
+  onPageChange,
+}: ReviewStatusBoardProps) {
+  const counts = displayCounts(statusCounts)
+  const rosterTotal = counts.not_started + counts.in_progress + counts.submitted
   const completed = counts.submitted
 
   return (
@@ -59,14 +70,14 @@ export function ReviewStatusBoard({ entries }: ReviewStatusBoardProps) {
         <div className="tiles">
           <StatTile
             label="Total employees"
-            value={String(total)}
+            value={String(rosterTotal)}
             note="Roster for this cycle"
             icon="users"
           />
           <StatTile
             label="Completed"
             value={String(completed)}
-            note={`${percentOf(completed, total)}% completion`}
+            note={`${percentOf(completed, rosterTotal)}% completion`}
             noteTone="positive"
             icon="circle-check"
             iconTone="positive"
@@ -74,13 +85,13 @@ export function ReviewStatusBoard({ entries }: ReviewStatusBoardProps) {
           <StatTile
             label="In progress"
             value={String(counts.in_progress)}
-            note={`${percentOf(counts.in_progress, total)}% of employees`}
+            note={`${percentOf(counts.in_progress, rosterTotal)}% of employees`}
             icon="clock"
           />
           <StatTile
             label="Not started"
             value={String(counts.not_started)}
-            note={`${percentOf(counts.not_started, total)}% of employees`}
+            note={`${percentOf(counts.not_started, rosterTotal)}% of employees`}
             noteTone="negative"
             icon="alert"
             iconTone="negative"
@@ -100,23 +111,26 @@ export function ReviewStatusBoard({ entries }: ReviewStatusBoardProps) {
       <SegmentedFilter
         options={COMPLETION_FILTERS}
         value={filter}
-        onChange={setFilter}
+        onChange={onFilterChange}
         ariaLabel="Filter employees by review completion"
       />
       <Card
-        caption={`Employees · ${shown.length} of ${total}`}
+        caption={`Employees · ${total} of ${rosterTotal}`}
         captionAccent
       >
         <DataTable
           columns={columns}
-          rows={shown}
+          rows={entries}
           rowKey={(entry) => entry.employee.email}
           emptyMessage={
-            total === 0
+            rosterTotal === 0
               ? 'No employees loaded. Upload a roster CSV on the Employee data upload page.'
-              : 'No employees match this filter.'
+              : total === 0
+                ? 'No employees match this filter.'
+                : 'No employees on this page.'
           }
         />
+        <Pager page={page} pageCount={pageCount} onPage={onPageChange} />
       </Card>
     </>
   )

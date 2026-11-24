@@ -12,7 +12,7 @@ import type { RosterImportResult, SelfEvaluationWire } from '../src/lib/types'
 const {
   applyRosterImportMock,
   fetchEmployeesMock,
-  fetchReviewStatusesMock,
+  fetchReviewBoardMock,
   fetchSelfEvaluationMock,
   fetchSessionMock,
   fetchCycleSettingsMock,
@@ -22,7 +22,7 @@ const {
 } = vi.hoisted(() => ({
   applyRosterImportMock: vi.fn(),
   fetchEmployeesMock: vi.fn(),
-  fetchReviewStatusesMock: vi.fn(),
+  fetchReviewBoardMock: vi.fn(),
   fetchSelfEvaluationMock: vi.fn(),
   fetchSessionMock: vi.fn(),
   fetchCycleSettingsMock: vi.fn(),
@@ -34,7 +34,7 @@ const {
 vi.mock('../src/lib/api', () => ({
   applyRosterImport: applyRosterImportMock,
   fetchEmployees: fetchEmployeesMock,
-  fetchReviewStatuses: fetchReviewStatusesMock,
+  fetchReviewBoard: fetchReviewBoardMock,
   fetchSelfEvaluation: fetchSelfEvaluationMock,
   fetchSession: fetchSessionMock,
   fetchCycleSettings: fetchCycleSettingsMock,
@@ -123,8 +123,11 @@ function renderSignedInAsEmployee(initial: string[] = ['/']): React.ReactElement
 }
 
 beforeEach(() => {
-  fetchEmployeesMock.mockResolvedValue({ ok: true, employees: [] })
-  fetchReviewStatusesMock.mockResolvedValue({ ok: true, reviews: [] })
+  fetchEmployeesMock.mockResolvedValue({ ok: true, employees: [], total: 0, page: 1, pageSize: 10 })
+  fetchReviewBoardMock.mockResolvedValue({
+    ok: true,
+    board: { reviews: [], total: 0, page: 1, pageSize: 10, statusCounts: {} },
+  })
   fetchSelfEvaluationMock.mockResolvedValue({ ok: true, data: OPEN_EVALUATION })
   fetchSessionMock.mockResolvedValue({
     ok: true,
@@ -202,7 +205,7 @@ describe('App — routed pages', () => {
       },
     } satisfies RosterImportResult)
     applyRosterImportMock.mockResolvedValue({ ok: true, importedCount: 1, updatedCount: 0 })
-    fetchEmployeesMock.mockResolvedValue({ ok: true, employees: [priya] })
+    fetchEmployeesMock.mockResolvedValue({ ok: true, employees: [priya], total: 1, page: 1, pageSize: 10 })
 
     const { container } = render(renderSignedInAsAdmin())
     const user = userEvent.setup()

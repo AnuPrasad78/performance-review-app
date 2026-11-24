@@ -20,6 +20,7 @@ from app.schemas.employee import (
     RosterApplyReport,
     RosterImportReport,
 )
+from app.schemas.paging import Paging, paging
 from app.services.roster_apply import apply_roster
 from app.services.roster_diff import diff_roster
 from app.services.roster_import import parse_roster_csv
@@ -49,6 +50,12 @@ async def confirm_roster_import(
 @router.get("/employees", response_model=EmployeeList)
 async def list_employees(
     repository: Annotated[EmployeeRepository, Depends(get_employee_repository)],
+    bounds: Annotated[Paging, Depends(paging)],
 ) -> EmployeeList:
-    stored = await repository.list_all()
-    return EmployeeList(employees=[to_row(one) for one in stored])
+    stored, total = await repository.paged(bounds.page, bounds.page_size)
+    return EmployeeList(
+        employees=[to_row(one) for one in stored],
+        total=total,
+        page=bounds.page,
+        page_size=bounds.page_size,
+    )
