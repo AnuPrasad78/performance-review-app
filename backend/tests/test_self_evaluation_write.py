@@ -189,6 +189,29 @@ def test_submit_after_the_deadline_is_refused() -> None:
     assert response.json()["code"] == "submission_deadline_passed"
 
 
+def test_patch_of_an_open_review_after_the_deadline_is_refused() -> None:
+    client, evaluations = make_client(cycle=PASSED_CYCLE, evaluation_row=complete_row())
+    response = save(client, {"responses": full_answers()})
+
+    assert response.status_code == 403
+    assert response.json()["code"] == "submission_deadline_passed"
+    # The refusal precedes every write: the stub keeps the untouched row.
+    assert evaluations.row.q1_employee_response == full_answers()["contribution"]
+    assert evaluations.row.employee_overall_comments == "Strong year."
+
+
+def test_get_after_the_deadline_stays_readable_for_the_closed_screen() -> None:
+    from tests.evaluation_fixtures import read
+
+    client, _ = make_client(cycle=PASSED_CYCLE, evaluation_row=complete_row())
+    response = read(client)
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["deadlinePassed"] is True
+    assert payload["commitmentsEditable"] is False
+
+
 def test_cycle_reference_stays_shared() -> None:
     # The window variants come from one source so the rule tests and read
     # tests cannot drift apart.

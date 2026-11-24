@@ -26,7 +26,7 @@ class ReviewCycle(Base):
             name="review_cycles_promotion_period_check",
         ),
         CheckConstraint(
-            "submission_deadline <= manager_review_start",
+            "(submission_deadline AT TIME ZONE 'UTC')::date <= manager_review_start",
             name="review_cycles_deadline_order_check",
         ),
         CheckConstraint(
@@ -45,7 +45,12 @@ class ReviewCycle(Base):
     review_year: Mapped[int]
     promotion_period_start: Mapped[datetime.date | None]
     promotion_period_end: Mapped[datetime.date | None]
-    submission_deadline: Mapped[datetime.date]
+    #: The exact close moment (UTC) of the employee form; users span
+    #: timezones, so the anchor is an aware UTC timestamp, never a
+    #: server-local wall time.
+    submission_deadline: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True)
+    )
     manager_review_start: Mapped[datetime.date]
     manager_review_end: Mapped[datetime.date]
     hr_approval_release_by: Mapped[datetime.date]

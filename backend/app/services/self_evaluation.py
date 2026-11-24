@@ -58,6 +58,18 @@ RESPONSE_TOPICS: tuple[tuple[str, str, str], ...] = (
 _IN_PROGRESS = "IN_PROGRESS"
 _SUBMITTED = "SUBMITTED"
 
+
+def deadline_passed(cycle: ReviewCycle) -> bool:
+    """The single definition of "the form is closed" for the whole view:
+    render (the closed screen's flag), save, and submit all read this one
+    function — never copy the comparison elsewhere. A naive value surfacing
+    from the driver is normalized as UTC so the comparison can never raise."""
+    now = datetime.datetime.now(datetime.timezone.utc)
+    moment = cycle.submission_deadline
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=datetime.timezone.utc)
+    return now > moment
+
 #: Mirrors the DB's valid_forward_commitments check (array ≤ 3); migration A8
 #: is the change that raises both together — never this alone.
 COMMITMENT_CAP = 3
@@ -103,7 +115,10 @@ def _signed_at(evaluation: Evaluation | None) -> datetime.date | None:
 
 def _commitments_editable(evaluation: Evaluation | None, cycle: ReviewCycle) -> bool:
     if evaluation is None or evaluation.status == _IN_PROGRESS:
-        return True
+        # The open review's commitments live inside the submission window:
+        # once the deadline passes, the PATCH guard refuses them all, so the
+        # flag must say the same thing.
+        return not deadline_passed(cycle)
     return cycle.manager_review_end >= datetime.date.today()
 
 
@@ -114,6 +129,7 @@ def _render(
         employee=to_row(employee),
         review_year=cycle.review_year,
         submission_deadline=cycle.submission_deadline,
+        deadline_passed=deadline_passed(cycle),
         submitted_at=_submitted_at(evaluation),
         employee_signed_at=_signed_at(evaluation),
         responses=QuestionResponses(**_topic_values(evaluation, column_index=1)),
@@ -240,6 +256,12 @@ async def save_self_evaluation(
                 code="review_frozen",
                 status_code=409,
             )
+    if evaluation.status == _IN_PROGRESS and deadline_passed(cycle):
+        raise AppError(
+            "The submission deadline has passed.",
+            code="submission_deadline_passed",
+            status_code=403,
+        )
     if patch.forward_commitments is not None and not _commitments_editable(
         evaluation, cycle
     ):
@@ -302,7 +324,7 @@ async def submit_self_evaluation(
             code="already_submitted",
             status_code=409,
         )
-    if datetime.date.today() > cycle.submission_deadline:
+    if deadline_passed(cycle):
         raise AppError(
             "The submission deadline has passed.",
             code="submission_deadline_passed",

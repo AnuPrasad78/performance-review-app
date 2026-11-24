@@ -37,7 +37,11 @@ class ForwardCommitmentOut(ApiModel):
 class SelfEvaluationOut(ApiModel):
     employee: RosterEmployeeOut
     review_year: int
-    submission_deadline: datetime.date
+    submission_deadline: datetime.datetime
+    #: Server-computed: now(UTC) > submission_deadline. The client renders the
+    #: closed state and the countdown from this pair and never re-derives the
+    #: calendar math — same ownership rule as commitments_editable below.
+    deadline_passed: bool
     submitted_at: datetime.date | None
     employee_signed_at: datetime.date | None
     responses: QuestionResponses

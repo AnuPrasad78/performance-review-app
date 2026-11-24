@@ -22,7 +22,8 @@ def test_no_evaluation_row_reads_as_an_empty_open_form() -> None:
     assert response.status_code == 200
     payload = response.json()
     assert payload["reviewYear"] == 2026
-    assert payload["submissionDeadline"] == "2027-01-15"
+    assert payload["submissionDeadline"].startswith("2027-01-15")
+    assert payload["deadlinePassed"] is False
     assert payload["submittedAt"] is None
     assert payload["employeeSignedAt"] is None
     assert payload["responses"] == {
