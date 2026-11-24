@@ -5,6 +5,7 @@ import type {
   EmployeeListResult,
   RosterApplyResult,
   RosterImportResult,
+  ReviewStatus,
   ReviewStatusResult,
   ReviewStatusWire,
   SelfEvaluationApiResult,
@@ -297,14 +298,17 @@ export async function applyRosterImport(payload: {
   return { ok: true, importedCount: parsed.importedCount, updatedCount: parsed.updatedCount }
 }
 
+type BoardWireStatus = 'not_started' | 'in_progress' | 'submitted' | 'signed_off'
+
 const BOARD_STATUSES = ['not_started', 'in_progress', 'submitted', 'signed_off'] as const
 
 function reviewStatusFrom(value: unknown): ReviewStatusWire | null {
   if (!isRecord(value)) return null
   const employee = employeeFrom(value.employee)
   if (employee === null) return null
-  const status = value.status as ReviewStatusWire['status']
-  if (!BOARD_STATUSES.includes(status)) return null
+  const wireStatus = value.status as BoardWireStatus
+  if (!BOARD_STATUSES.includes(wireStatus)) return null
+  const status: ReviewStatus = wireStatus === 'signed_off' ? 'submitted' : wireStatus
   return { employee, status }
 }
 

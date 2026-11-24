@@ -15,7 +15,7 @@ import {
 } from '../../lib/reviewStatusStore'
 import type { ReviewStatus } from '../../lib/types'
 
-const STATUS_ORDER: readonly ReviewStatus[] = ['not_started', 'in_progress', 'submitted', 'signed_off']
+const STATUS_ORDER: readonly ReviewStatus[] = ['not_started', 'in_progress', 'submitted']
 
 /** Theme signal tokens on white; submitted wears `--teal-deep` (not the pill pair's
     blue) because validated in a pie next to in-progress blue. */
@@ -23,7 +23,6 @@ const STATUS_COLORS: Record<ReviewStatus, string> = {
   not_started: 'var(--ink-3)',
   in_progress: 'var(--blue)',
   submitted: 'var(--teal-deep)',
-  signed_off: 'var(--green)',
 }
 
 export interface ReviewStatusBoardProps {
@@ -32,9 +31,14 @@ export interface ReviewStatusBoardProps {
 
 const columns: readonly DataTableColumn<EmployeeReviewStatus>[] = [
   { key: 'name', header: 'Name', cell: (entry) => entry.employee.name },
-  { key: 'email', header: 'Email', cell: (entry) => entry.employee.email },
-  { key: 'org', header: 'Org', cell: (entry) => entry.employee.org },
-  { key: 'reportingManager', header: 'Reporting manager', cell: (entry) => entry.employee.reportingManager },
+  { key: 'email', header: 'Email', cell: (entry) => entry.employee.email, hideOnMobile: true },
+  { key: 'org', header: 'Org', cell: (entry) => entry.employee.org, hideOnMobile: true },
+  {
+    key: 'reportingManager',
+    header: 'Reporting manager',
+    cell: (entry) => entry.employee.reportingManager,
+    hideOnMobile: true,
+  },
   { key: 'status', header: 'Form status', cell: (entry) => <ReviewStatusPill status={entry.status} /> },
 ]
 
@@ -43,11 +47,11 @@ function percentOf(count: number, total: number): string {
 }
 
 export function ReviewStatusBoard({ entries }: ReviewStatusBoardProps) {
-  const [filter, setFilter] = useState<CompletionFilter>('all')
+  const [filter, setFilter] = useState<CompletionFilter>('pending')
   const counts = useMemo(() => countReviewStatuses(entries), [entries])
   const shown = useMemo(() => filterEntries(entries, filter), [entries, filter])
   const total = entries.length
-  const completed = counts.submitted + counts.signed_off
+  const completed = counts.submitted
 
   return (
     <>

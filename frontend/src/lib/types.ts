@@ -105,8 +105,8 @@ export interface RatingScaleEntry {
   description: string
 }
 
-/** Maps onto the fixed pill vocabulary: submitted → pending visuals, signed_off → approved visuals. */
-export type ReviewStatus = 'not_started' | 'in_progress' | 'submitted' | 'signed_off'
+/** Maps onto the fixed pill vocabulary: submitted → pending visuals, not_started → cancelled visuals. */
+export type ReviewStatus = 'not_started' | 'in_progress' | 'submitted'
 
 export type AssessmentQuestionId = 'contribution' | 'strengths' | 'development' | 'support'
 
