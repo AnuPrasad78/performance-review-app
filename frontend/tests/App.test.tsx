@@ -1,3 +1,4 @@
+
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
@@ -14,6 +15,7 @@ const {
   fetchReviewStatusesMock,
   fetchSelfEvaluationMock,
   fetchSessionMock,
+  fetchCycleSettingsMock,
   importRosterCsvMock,
   saveSelfEvaluationMock,
   submitSelfEvaluationMock,
@@ -23,23 +25,32 @@ const {
   fetchReviewStatusesMock: vi.fn(),
   fetchSelfEvaluationMock: vi.fn(),
   fetchSessionMock: vi.fn(),
+  fetchCycleSettingsMock: vi.fn(),
   importRosterCsvMock: vi.fn(),
   saveSelfEvaluationMock: vi.fn(),
   submitSelfEvaluationMock: vi.fn(),
 }))
+
 vi.mock('../src/lib/api', () => ({
   applyRosterImport: applyRosterImportMock,
-  fetchCycleSettings: vi.fn().mockResolvedValue({ ok: false, detail: 'No review cycle is configured yet.', code: 'cycle_missing' }),
   fetchEmployees: fetchEmployeesMock,
   fetchReviewStatuses: fetchReviewStatusesMock,
   fetchSelfEvaluation: fetchSelfEvaluationMock,
   fetchSession: fetchSessionMock,
+  fetchCycleSettings: fetchCycleSettingsMock,
+  saveCycleSettings: vi.fn(),
   importRosterCsv: importRosterCsvMock,
-  saveCycleSettings: vi.fn().mockResolvedValue({ ok: false, detail: 'save not used in this test', code: 'request_failed' }),
   saveSelfEvaluation: saveSelfEvaluationMock,
   submitSelfEvaluation: submitSelfEvaluationMock,
   setApiIdentity: vi.fn(),
 }))
+
+fetchCycleSettingsMock.mockResolvedValue({
+  ok: false,
+  detail: 'No review cycle configured.',
+  code: 'cycle_missing',
+})
+
 
 /** Wire mirror of GET /api/evaluations/me the employee dashboard consumes. */
 const OPEN_EVALUATION: SelfEvaluationWire = {
@@ -223,14 +234,14 @@ describe('App — signed-out users are routed to sign-in', () => {
 
   it('shows the sign-in page when no session exists', async () => {
     render(renderApp(['/users']))
-    expect(await screen.findByRole('heading', { name: 'Sign in', level: 1 })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Welcome back', level: 1 })).toBeInTheDocument()
   })
 
   it('returns to the guarded route after a successful sign-in', async () => {
     render(renderApp(['/dashboard']))
     const user = userEvent.setup()
 
-    await user.type(screen.getByLabelText('Email'), 'asha_menon@emids.com')
+    await user.type(screen.getByLabelText('Company Email'), 'asha_menon@emids.com')
     await user.type(screen.getByLabelText('Password'), 'Portal@2026')
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
