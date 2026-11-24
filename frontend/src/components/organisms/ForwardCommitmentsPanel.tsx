@@ -42,8 +42,13 @@ export function ForwardCommitmentsPanel({
               ) : null}
             </div>
             <div className="commitments__row">
-              <div className="field">
+              <FormField
+                id={`commitment-${commitment.id}`}
+                label="Commitment"
+                error={index === 0 ? (error ?? null) : null}
+              >
                 <Textarea
+                  id={`commitment-${commitment.id}`}
                   aria-label={`Commitment ${index + 1}`}
                   value={commitment.commitment}
                   disabled={readOnly}
@@ -51,15 +56,11 @@ export function ForwardCommitmentsPanel({
                     onCommitmentChange?.(commitment.id, 'commitment', event.target.value)
                   }
                 />
-                {index === 0 && error != null ? (
-                  <span className="field__error" role="alert">{error}</span>
-                ) : null}
-              </div>
+              </FormField>
               <FormField id={`commitment-support-${commitment.id}`} label="Agreed support / conditions">
                 <Textarea
                   id={`commitment-support-${commitment.id}`}
                   aria-label="Agreed support / conditions"
-                  placeholder="Agreed support / conditions"
                   value={commitment.support}
                   disabled={readOnly}
                   onChange={(event) =>
