@@ -56,10 +56,10 @@ describe('App — routed pages', () => {
   it('serves the employee side as a single page without a sidebar', async () => {
     render(renderSignedInAsEmployee())
 
-    expect(await screen.findByRole('heading', { name: 'Hi Asha', level: 1 })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Annual Performance Review 2026', level: 1 })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Open navigation' })).not.toBeInTheDocument()
     expect(document.querySelector('.drawer')).toBeNull()
-    expect(await screen.findByText('Q1. Key contributions and achievements')).toBeInTheDocument()
+    expect(await screen.findByText(/^Q1\./)).toBeInTheDocument()
   })
 
   it('navigates from Users to CSV upload and Cycle settings through the drawer', async () => {
@@ -129,6 +129,6 @@ describe('App — signed-out users are routed to sign-in', () => {
     await user.type(screen.getByLabelText('Password'), 'Portal@2026')
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
-    expect(await screen.findByRole('heading', { name: 'Hi Asha', level: 1 })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Annual Performance Review 2026', level: 1 })).toBeInTheDocument()
   })
 })

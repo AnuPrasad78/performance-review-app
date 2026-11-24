@@ -1,10 +1,34 @@
 import type { ReactNode } from 'react'
 
-export type IconName = 'menu' | 'close' | 'users' | 'upload' | 'calendar' | 'eye' | 'eye-off' | 'logout' | 'lock'
+export type IconName =
+  | 'menu'
+  | 'close'
+  | 'users'
+  | 'upload'
+  | 'calendar'
+  | 'eye'
+  | 'eye-off'
+  | 'logout'
+  | 'lock'
+  | 'check'
+  | 'chevron-down'
+  | 'user'
+  | 'plus'
+  | 'minus'
 
 const GLYPHS: Record<IconName, ReactNode> = {
   menu: <path d="M4 6h16M4 12h16M4 18h16" />,
   close: <path d="M18 6 6 18M6 6l12 12" />,
+  'chevron-down': <path d="m6 9 6 6 6-6" />,
+  check: <path d="m5 12.5 4.5 4.5L19 7.5" />,
+  plus: <path d="M12 5v14M5 12h14" />,
+  minus: <path d="M5 12h14" />,
+  user: (
+    <>
+      <circle cx="12" cy="7.5" r="3.5" />
+      <path d="M4.5 20.5c0-4.125 3.375-7 7.5-7s7.5 2.875 7.5 7" />
+    </>
+  ),
   users: (
     <>
       <circle cx="9" cy="7" r="3" />

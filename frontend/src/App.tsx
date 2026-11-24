@@ -23,12 +23,9 @@ function AdminLayout() {
   )
 }
 
+/** The employee page renders its own hero header; the layout only guards the outlet. */
 function EmployeeLayout() {
-  return (
-    <AppShell headerTitle="My review">
-      <Outlet />
-    </AppShell>
-  )
+  return <Outlet />
 }
 
 /** Only sessions with the matching role get through; everyone else is routed

@@ -1,7 +1,14 @@
 /** Directory of portal sign-in accounts, sourced from the 2026 roster CSV plus
     the standing admin credential. Mock layer — the backend owns real credentials. */
 
+import type { SelfEvaluationEmployee } from './types'
+
 export type AuthRole = 'admin' | 'employee'
+
+export const ROLE_LABELS: Record<AuthRole, string> = {
+  admin: 'Review administration',
+  employee: 'Employee',
+}
 
 export interface LoginAccount {
   email: string
@@ -53,4 +60,98 @@ export function authenticate(email: string, password: string): AuthResult {
 export function initialsOf(name: string): string {
   const words = name.trim().split(/\s+/)
   return (words[0] ?? '').charAt(0).concat((words[1] ?? '').charAt(0)).toUpperCase()
+}
+
+/** Per-account employee details for the session popover. Mock data keyed by the
+    sign-in email; the admin account has no employee record. The backend seam will
+    supply the real profile with the session. */
+const SESSION_PROFILES: Readonly<Record<string, SelfEvaluationEmployee>> = {
+  'asha_menon@emids.com': {
+    firstName: 'Asha',
+    lastName: 'Menon',
+    email: 'asha_menon@emids.com',
+    role: 'Engineer',
+    department: 'Quality',
+    manager: 'Ravi Menon',
+    employeeId: 'EMP-1001',
+    location: 'Bengaluru',
+    deliveryManager: 'Joseph Mathew',
+    deliveryHead: 'Divya Prakash',
+  },
+  'bilal_khan@emids.com': {
+    firstName: 'Bilal',
+    lastName: 'Khan',
+    email: 'bilal_khan@emids.com',
+    role: 'Senior Engineer',
+    department: 'Delivery',
+    manager: 'Ravi Menon',
+    employeeId: 'EMP-1002',
+    location: 'Bengaluru',
+    deliveryManager: 'Joseph Mathew',
+    deliveryHead: 'Divya Prakash',
+  },
+  'cara_fernandes@emids.com': {
+    firstName: 'Cara',
+    lastName: 'Fernandes',
+    email: 'cara_fernandes@emids.com',
+    role: 'Business Analyst',
+    department: 'Analytics',
+    manager: 'Anika Rao',
+    employeeId: 'EMP-1003',
+    location: 'Chennai',
+    deliveryManager: 'Anika Rao',
+    deliveryHead: 'Divya Prakash',
+  },
+  'devika_nair@emids.com': {
+    firstName: 'Devika',
+    lastName: 'Nair',
+    email: 'devika_nair@emids.com',
+    role: 'Engineer',
+    department: 'Quality',
+    manager: 'Anika Rao',
+    employeeId: 'EMP-1004',
+    location: 'Pune',
+    deliveryManager: 'Anika Rao',
+    deliveryHead: 'Divya Prakash',
+  },
+  'eshan_gupta@emids.com': {
+    firstName: 'Eshan',
+    lastName: 'Gupta',
+    email: 'eshan_gupta@emids.com',
+    role: 'Team Lead',
+    department: 'Delivery',
+    manager: 'Joseph Mathew',
+    employeeId: 'EMP-1005',
+    location: 'Bengaluru',
+    deliveryManager: 'Joseph Mathew',
+    deliveryHead: 'Divya Prakash',
+  },
+  'farah_sheikh@emids.com': {
+    firstName: 'Farah',
+    lastName: 'Sheikh',
+    email: 'farah_sheikh@emids.com',
+    role: 'Analyst',
+    department: 'Analytics',
+    manager: 'Anika Rao',
+    employeeId: 'EMP-1006',
+    location: 'Chennai',
+    deliveryManager: 'Anika Rao',
+    deliveryHead: 'Divya Prakash',
+  },
+  'heena_roy@emids.com': {
+    firstName: 'Heena',
+    lastName: 'Roy',
+    email: 'heena_roy@emids.com',
+    role: 'Engineer',
+    department: 'Quality',
+    manager: 'Joseph Mathew',
+    employeeId: 'EMP-1007',
+    location: 'Pune',
+    deliveryManager: 'Joseph Mathew',
+    deliveryHead: 'Divya Prakash',
+  },
+}
+
+export function sessionProfileFor(email: string): SelfEvaluationEmployee | null {
+  return SESSION_PROFILES[email] ?? null
 }

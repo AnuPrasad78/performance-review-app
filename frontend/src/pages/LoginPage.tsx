@@ -59,14 +59,11 @@ export function LoginPage() {
         <h1 className="login__title">Sign in</h1>
         <p className="login__lead">Access your performance review workspace.</p>
 
-        <button
-          type="button"
-          className="login__ms-btn"
-          onClick={() => setError('SSO is not enabled for this release — sign in with your email.')}
-        >
+        <button type="button" className="login__ms-btn" disabled>
           <MicrosoftLogo />
           Sign in with Microsoft
         </button>
+        <p className="muted login__hint">SSO unavailable in this release</p>
 
         <div className="login__divider" role="separator">
           <span>or sign in with email</span>

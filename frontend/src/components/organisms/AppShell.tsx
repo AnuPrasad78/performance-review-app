@@ -1,10 +1,9 @@
 import { useState, type ReactNode } from 'react'
 import { NavLink } from 'react-router-dom'
 import { Icon, type IconName } from '../atoms/Icon'
-import { Button } from '../atoms/Button'
+import { SessionMenu } from './SessionMenu'
 import { useAuth } from '../../state/AuthContext'
-import { initialsOf } from '../../lib/authUsers'
-import type { AuthRole } from '../../lib/authUsers'
+import { initialsOf, ROLE_LABELS } from '../../lib/authUsers'
 import logoUrl from '../../assets/emids-logo.svg'
 
 export interface NavSection {
@@ -20,15 +19,10 @@ export interface AppShellProps {
   children: ReactNode
 }
 
-const ROLE_LABELS: Record<AuthRole, string> = {
-  admin: 'Review administration',
-  employee: 'Employee',
-}
-
 export function AppShell({ headerTitle, navSections, children }: AppShellProps) {
   const hasDrawer = navSections !== undefined && navSections.length > 0
   const [navOpen, setNavOpen] = useState(false)
-  const { session, signOut } = useAuth()
+  const { session } = useAuth()
 
   return (
     <>
@@ -47,20 +41,7 @@ export function AppShell({ headerTitle, navSections, children }: AppShellProps) 
           <img src={logoUrl} alt="Emids" />
         </span>
         <span className="header__title">{headerTitle}</span>
-        {session !== null ? (
-          <div className="header__session">
-            <span className="avatar avatar--header" aria-hidden="true">
-              {initialsOf(session.name)}
-            </span>
-            <span className="header__user">
-              <span className="header__user-name">{session.name}</span>
-              <span className="header__user-role">{ROLE_LABELS[session.role]}</span>
-            </span>
-            <Button variant="ghost" size="sm" className="btn--logout" onClick={signOut}>
-              Sign out
-            </Button>
-          </div>
-        ) : null}
+        {session !== null ? <SessionMenuSlot /> : null}
       </header>
       <main className="content">{children}</main>
       {hasDrawer && navOpen ? (
@@ -108,5 +89,14 @@ export function AppShell({ headerTitle, navSections, children }: AppShellProps) 
         </>
       ) : null}
     </>
+  )
+}
+
+/** Reuses the shared session popover, positioned to fit the slim header. */
+function SessionMenuSlot() {
+  return (
+    <div className="header__session-slot">
+      <SessionMenu />
+    </div>
   )
 }

@@ -12,8 +12,6 @@ export interface ReviewQuestionPanelProps {
   onResponseChange: (questionId: AssessmentQuestion['id'], value: string) => void
 }
 
-const NO_MANAGER_COMMENT = 'No manager comment yet. Your manager will comment after submission.'
-
 export function ReviewQuestionPanel({
   question,
   label,
@@ -25,50 +23,30 @@ export function ReviewQuestionPanel({
     <Card>
       <div className="question-panel">
         <h3 className="question-panel__title">
-          {label}. {question.title}
+          {label}. {question.question}
         </h3>
-        <p className="question-panel__text muted">{question.question}</p>
-        <div className="question-panel__columns">
-          <FormField
-            id={`response-${question.id}`}
-            label="Employee response"
-            required
-            error={error ?? null}
-          >
-            {readOnly ? (
-              <Textarea
-                id={`response-${question.id}`}
-                value={question.employeeResponse}
-                disabled
-                readOnly
-                aria-label={`${label} — employee response`}
-              />
-            ) : (
-              <Textarea
-                id={`response-${question.id}`}
-                value={question.employeeResponse}
-                onChange={(event) => onResponseChange(question.id, event.target.value)}
-              />
-            )}
-          </FormField>
-          <div className="field">
-            <span className="field__label" id={`manager-comment-${question.id}`}>
-              Manager comments
-            </span>
-            {question.managerComment === null ? (
-              <p className="question-panel__empty muted" aria-describedby={`manager-comment-${question.id}`}>
-                {NO_MANAGER_COMMENT}
-              </p>
-            ) : (
-              <Textarea
-                aria-labelledby={`manager-comment-${question.id}`}
-                value={question.managerComment}
-                readOnly
-                disabled
-              />
-            )}
-          </div>
-        </div>
+        <FormField
+          id={`response-${question.id}`}
+          label="Employee response"
+          required
+          error={error ?? null}
+        >
+          {readOnly ? (
+            <Textarea
+              id={`response-${question.id}`}
+              value={question.employeeResponse}
+              disabled
+              readOnly
+              aria-label={`${label} — employee response`}
+            />
+          ) : (
+            <Textarea
+              id={`response-${question.id}`}
+              value={question.employeeResponse}
+              onChange={(event) => onResponseChange(question.id, event.target.value)}
+            />
+          )}
+        </FormField>
       </div>
     </Card>
   )

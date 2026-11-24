@@ -11,11 +11,18 @@ export interface OverallRatingPanelProps {
   readOnly: boolean
   ratingError?: string | null
   summaryError?: string | null
-  onRatingSelect: (rating: RatingValue) => void
+  onRatingSelect: (rating: RatingValue | null) => void
   onSummaryChange: (summary: string) => void
 }
 
-const NO_MANAGER_RATING = 'Not decided yet. Your manager sets this after the discussion.'
+/** Per-rating guidance revealed on hover or keyboard focus, one chip at a time. */
+const RATING_TOOLTIPS: Record<RatingValue, string> = {
+  5: 'Significantly exceeds expectations: Significantly exceeded targets; contributed to process improvement.',
+  4: 'Exceeds expectations: Delivered and exceeded targets and results.',
+  3: 'Meets expectations: Meets expected targets; achieved intended results.',
+  2: 'Below expectations: The employee needs improvement.',
+  1: 'Significantly below expectations: The employee significantly needs improvement.',
+}
 
 export function OverallRatingPanel({
   ratingValues,
@@ -27,6 +34,7 @@ export function OverallRatingPanel({
   onRatingSelect,
   onSummaryChange,
 }: OverallRatingPanelProps) {
+  const tooltips = ratingValues.map((value) => RATING_TOOLTIPS[value])
   return (
     <Card>
       <div className="rating-panel">
@@ -43,15 +51,12 @@ export function OverallRatingPanel({
               values={ratingValues}
               value={overallRating}
               disabled={false}
-              onChange={(value) => onRatingSelect(value as RatingValue)}
+              onChange={(value) => onRatingSelect(value === null ? null : (value as RatingValue))}
               ariaLabel="Overall self-rating from 1 to 5"
+              tooltips={tooltips}
             />
           )}
         </FormField>
-        <p className="rating-panel__reference muted">
-          Choose your overall self-rating using the rating definitions in section 3. The
-          self-rating is a discussion input, not a verdict.
-        </p>
         <FormField
           id="overall-summary"
           label="Overall comments"
@@ -65,14 +70,6 @@ export function OverallRatingPanel({
             onChange={(event) => onSummaryChange(event.target.value)}
           />
         </FormField>
-        <div className="field">
-          <span className="field__label" id="manager-rating-label">
-            Manager rating
-          </span>
-          <p className="rating-panel__empty muted" aria-describedby="manager-rating-label">
-            {NO_MANAGER_RATING}
-          </p>
-        </div>
       </div>
     </Card>
   )
