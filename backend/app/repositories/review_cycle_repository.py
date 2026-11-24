@@ -1,9 +1,10 @@
-"""Reads for the review_cycles table.
+"""Reads and writes for the review_cycles table.
 
-Only one read exists so far — "the cycle the employee answers into". Its
-definition: the highest review_year configured, because cycles are created
-once for a whole year and never coexist as open for answering; when a later
-year's cycle is published, it *is* the current one by construction.
+"Current cycle" — the one the employee answers into — is the highest
+review_year configured, because cycles are created once for a whole year and
+never coexist as open for answering; when a later year's cycle is published,
+it *is* the current one by construction. Admin settings address a cycle by
+its own year and never decide which one employees see.
 """
 
 from collections.abc import AsyncIterator
@@ -24,6 +25,14 @@ class ReviewCycleRepository:
     async def current(self) -> ReviewCycle | None:
         statement = select(ReviewCycle).order_by(ReviewCycle.review_year.desc()).limit(1)
         return await self._session.scalar(statement)
+
+    async def find_by_year(self, review_year: int) -> ReviewCycle | None:
+        statement = select(ReviewCycle).where(ReviewCycle.review_year == review_year)
+        return await self._session.scalar(statement)
+
+    async def add(self, cycle: ReviewCycle) -> None:
+        self._session.add(cycle)
+        await self._session.flush()
 
 
 def get_review_cycle_repository(

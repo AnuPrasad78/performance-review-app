@@ -21,6 +21,9 @@ export interface SelfEvaluationRecord {
   submittedAt: string | null
   employeeSignedAt: string | null
   submissionDeadline: string
+  /** Server-owned "the form is closed" verdict: after this moment the page
+      renders the closed state, and saves/refusals come from the server too. */
+  deadlinePassed: boolean
   /** Server-owned lock flag: open reviews and post-submit-before-manager-end. */
   commitmentsEditable: boolean
 }
@@ -105,6 +108,7 @@ export function mergeRecordFromApi(
     submittedAt: data.submittedAt,
     employeeSignedAt: data.employeeSignedAt,
     submissionDeadline: data.submissionDeadline,
+    deadlinePassed: data.deadlinePassed,
     commitmentsEditable: data.commitmentsEditable,
   }
 }
@@ -129,6 +133,7 @@ export function recordFromApi(data: SelfEvaluationWire): SelfEvaluationRecord {
     submittedAt: data.submittedAt,
     employeeSignedAt: data.employeeSignedAt,
     submissionDeadline: data.submissionDeadline,
+    deadlinePassed: data.deadlinePassed,
     commitmentsEditable: data.commitmentsEditable,
   }
 }

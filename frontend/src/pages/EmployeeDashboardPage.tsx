@@ -9,6 +9,8 @@ import { Button } from '../components/atoms/Button'
 import { Card } from '../components/atoms/Card'
 import { Modal } from '../components/molecules/Modal'
 import { saveSelfEvaluation, submitSelfEvaluation, fetchSelfEvaluation } from '../lib/api'
+import { daysUntilDeadlineUtc } from '../lib/dates'
+import { useDeadlineClock } from '../hooks/useDeadlineClock'
 import {
   commitmentsPayloadFromDraft,
   loadResumeIndices,
@@ -72,6 +74,7 @@ const STEPS: readonly WizardStep[] = [
 ]
 
 export function EmployeeDashboardPage() {
+  const now = useDeadlineClock()
   const [record, setRecord] = useState<SelfEvaluationRecord | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -172,6 +175,25 @@ export function EmployeeDashboardPage() {
             <p className="muted" role="status">
               Loading your review.
             </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // The server's deadline verdict decides what this page is at all: an open,
+  // unsubmitted review past its moment renders the closed state instead of
+  // the wizard. An already-submitted review keeps its submitted view — the
+  // freeze, and the commitments window, are its own rules.
+  if (record.deadlinePassed && record.submittedAt === null) {
+    return (
+      <div className="hero-page">
+        <div className="hero-card brand-frame">
+          <HeroHeader sectionProgress={[]} />
+          <div className="hero-card__body">
+            <Card caption="Submission closed" captionAccent>
+              <p className="deadline-closed">ops time passed</p>
+            </Card>
           </div>
         </div>
       </div>
@@ -308,10 +330,14 @@ export function EmployeeDashboardPage() {
     { label: 'Sections', value: `${sectionsDone}/4` },
     { label: 'Sign-off', value: signed ? 'Completed' : 'Pending' },
   ]
+  // Banner only while the form is both open and unsubmitted — a submitted
+  // review has nothing left to close.
+  const deadline =
+    record.submittedAt === null ? { daysRemaining: daysUntilDeadlineUtc(record.submissionDeadline, now) } : null
   return (
     <div className="hero-page">
       <div className="hero-card brand-frame">
-        <HeroHeader sectionProgress={sectionProgress} profile={draft.employee} />
+        <HeroHeader sectionProgress={sectionProgress} profile={draft.employee} deadline={deadline} />
         <div className="hero-card__body">
           <div className="page-stack">
             <nav className="steps-nav" aria-label="Review sections">

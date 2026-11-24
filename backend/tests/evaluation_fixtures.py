@@ -17,9 +17,11 @@ from app.repositories.review_cycle_repository import get_review_cycle_repository
 from app.schemas.employee import ROSTER_ATTRIBUTES
 
 #: The open window: everything (submit deadline, manager window) in the future.
+#: The deadline is an aware UTC instant — late on its day, so real now()
+#: decides openness; tests never freeze the clock.
 CYCLE = ReviewCycle(
     review_year=2026,
-    submission_deadline=datetime.date(2027, 1, 15),
+    submission_deadline=datetime.datetime(2027, 1, 15, 23, 59, tzinfo=datetime.timezone.utc),
     manager_review_start=datetime.date(2027, 1, 16),
     manager_review_end=datetime.date(2027, 2, 15),
     hr_approval_release_by=datetime.date(2027, 3, 1),
@@ -28,7 +30,7 @@ CYCLE = ReviewCycle(
 #: Deadline gone; manager window closed — only useful for rejection paths.
 PASSED_CYCLE = ReviewCycle(
     review_year=2026,
-    submission_deadline=datetime.date(2026, 1, 31),
+    submission_deadline=datetime.datetime(2026, 1, 31, 23, 59, tzinfo=datetime.timezone.utc),
     manager_review_start=datetime.date(2026, 2, 1),
     manager_review_end=datetime.date(2026, 2, 28),
     hr_approval_release_by=datetime.date(2026, 3, 1),

@@ -290,6 +290,21 @@
   color: rgba(255, 255, 255, 0.75);
   margin-top: 8px;
 }
+.hero__deadline {
+  margin-top: 12px;
+  align-self: flex-start;
+  background: var(--teal-wash);
+  color: var(--teal-deep);
+  font-size: 13.5px;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 8px 14px;
+}
+.deadline-closed {
+  font-size: 16px;
+  font-weight: 600;
+}
+
 
 .hero__pills { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
 .hero-pill {

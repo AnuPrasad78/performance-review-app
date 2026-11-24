@@ -3,39 +3,52 @@ import { Button } from '../atoms/Button'
 import { Input } from '../atoms/Input'
 import { Card } from '../atoms/Card'
 import { FormField } from '../molecules/FormField'
-import { validateCycleSettings } from '../../lib/cycleValidation'
+import {
+  cycleSettingsToDraft,
+  draftToCycleSettings,
+  emptyCycleDraft,
+  validateCycleSettings,
+} from '../../lib/cycleValidation'
 import type { CycleSettings } from '../../lib/types'
 
 export interface CycleSettingsFormProps {
   initial: CycleSettings | null
-  onSave: (settings: CycleSettings) => void
-}
-
-const EMPTY_CYCLE: CycleSettings = {
-  submissionDeadline: '',
-  managerReviewStart: '',
-  managerReviewEnd: '',
-  hrApprovalReleaseBy: '',
+  /** Saving goes to the API the page owns; the form reports both its own
+      validation and the server's verdict inline (the context toast then
+      confirms the accepted save). */
+  onSave: (settings: CycleSettings) => Promise<{ ok: true } | { ok: false; detail: string }>
 }
 
 export function CycleSettingsForm({ initial, onSave }: CycleSettingsFormProps) {
-  const [draft, setDraft] = useState<CycleSettings>(initial ?? EMPTY_CYCLE)
+  const [draft, setDraft] = useState(() =>
+    initial === null ? emptyCycleDraft() : cycleSettingsToDraft(initial),
+  )
+  const [serverError, setServerError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
   const validation = validateCycleSettings(draft)
 
-  function update(field: keyof CycleSettings, value: string) {
+  function update(field: keyof typeof draft, value: string) {
     setDraft((current) => ({ ...current, [field]: value }))
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function openDatePicker(event: MouseEvent<HTMLInputElement>) {
+    const input = event.currentTarget
+    if (typeof input.showPicker === 'function') {
+      input.showPicker()
+    }
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (validation.isValid) onSave(draft)
+    if (!validation.isValid) return
+    setServerError(null)
+    setSaving(true)
+    const outcome = await onSave(draftToCycleSettings(draft))
+    setSaving(false)
+    if (outcome.ok === false) {
+      setServerError(outcome.detail)
+    }
   }
-function openDatePicker(event: MouseEvent<HTMLInputElement>) {
-  const input = event.currentTarget
-  if (typeof input.showPicker === 'function') {
-    input.showPicker()
-  }
-}
 
   return (
     <Card caption="Review cycle settings" captionAccent className="form-card">
@@ -43,16 +56,45 @@ function openDatePicker(event: MouseEvent<HTMLInputElement>) {
         <div className="form-body">
           <div className="form-row">
             <FormField
-              id="submission-deadline"
-              label="Self-evaluation submission deadline"
+              id="review-year"
+              label="Review year"
               required
-              error={validation.fieldErrors.submissionDeadline}
+              error={validation.fieldErrors.reviewYear}
             >
               <Input
-                id="submission-deadline"
+                id="review-year"
+                type="number"
+                value={draft.reviewYear}
+                onChange={(event) => update('reviewYear', event.target.value)}
+              />
+            </FormField>
+          </div>
+          <div className="form-row form-row--2">
+            <FormField
+              id="submission-deadline-date"
+              label="Self-evaluation submission deadline (UTC)"
+              required
+              error={validation.fieldErrors.deadlineDate}
+            >
+              <Input
+                id="submission-deadline-date"
                 type="date"
-                value={draft.submissionDeadline}
-                onChange={(event) => update('submissionDeadline', event.target.value)}
+                value={draft.deadlineDate}
+                onChange={(event) => update('deadlineDate', event.target.value)}
+                onClick={openDatePicker}
+              />
+            </FormField>
+            <FormField
+              id="submission-deadline-time"
+              label="Deadline time (UTC)"
+              required
+              error={validation.fieldErrors.deadlineTime}
+            >
+              <Input
+                id="submission-deadline-time"
+                type="time"
+                value={draft.deadlineTime}
+                onChange={(event) => update('deadlineTime', event.target.value)}
                 onClick={openDatePicker}
               />
             </FormField>
@@ -69,7 +111,7 @@ function openDatePicker(event: MouseEvent<HTMLInputElement>) {
                 type="date"
                 value={draft.managerReviewStart}
                 onChange={(event) => update('managerReviewStart', event.target.value)}
-              onClick={openDatePicker}
+                onClick={openDatePicker}
               />
             </FormField>
             <FormField
@@ -83,7 +125,7 @@ function openDatePicker(event: MouseEvent<HTMLInputElement>) {
                 type="date"
                 value={draft.managerReviewEnd}
                 onChange={(event) => update('managerReviewEnd', event.target.value)}
-              onClick={openDatePicker}
+                onClick={openDatePicker}
               />
             </FormField>
             {validation.dateError ? (
@@ -108,9 +150,14 @@ function openDatePicker(event: MouseEvent<HTMLInputElement>) {
               />
             </FormField>
           </div>
+          {serverError ? (
+            <p className="form-date-error" role="alert">
+              {serverError}
+            </p>
+          ) : null}
         </div>
         <div className="form-actions">
-          <Button type="submit" disabled={!validation.isValid}>
+          <Button type="submit" disabled={!validation.isValid || saving} busy={saving}>
             Save cycle settings
           </Button>
         </div>
