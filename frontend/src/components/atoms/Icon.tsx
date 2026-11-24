@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 export type IconName =
   | 'menu'
   | 'close'
+  | 'mail'
   | 'users'
   | 'upload'
   | 'calendar'
@@ -22,6 +23,12 @@ export type IconName =
 
 const GLYPHS: Record<IconName, ReactNode> = {
   menu: <path d="M4 6h16M4 12h16M4 18h16" />,
+  mail: (
+    <>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="m3.5 7 8.5 6 8.5-6" />
+    </>
+  ),
   close: <path d="M18 6 6 18M6 6l12 12" />,
   'chevron-down': <path d="m6 9 6 6 6-6" />,
   check: <path d="m5 12.5 4.5 4.5L19 7.5" />,
