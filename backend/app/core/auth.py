@@ -14,9 +14,12 @@ shared path (including one shared 401 envelope).
 get_admin_user stacks on top of it: the role lives in settings until
 migration A5 (user_accounts.auth_role), and this dependency is the single
 place every admin-gated route inherits that gate from. Changing where roles
-come from later means editing this file, not every route.
+come from later means editing this file, not every route. An allow-list
+admin without a roster row still signs in (with an empty employee_id); the
+employee-only endpoints pick up get_roster_user, which rejects that shape.
 """
 
+import re
 from dataclasses import dataclass
 from typing import Annotated, Literal
 
@@ -51,21 +54,42 @@ def _unauthorized(detail: str, code: str) -> AppError:
     return AppError(detail, code=code, status_code=401)
 
 
+def admin_display_name(address: str) -> str:
+    # Off-roster admins have no roster row to carry a name; the address
+    # itself is the only truthful source, so it is shaped for the avatar.
+    local = address.split("@", 1)[0]
+    words = [word.capitalize() for word in re.split(r"[._+\-]", local) if word]
+    return " ".join(words) or address
+
+
 async def authenticate_email(
     email: str,
     repository: EmployeeRepository,
     settings: Settings,
 ) -> AuthUser:
-    employee: Employee | None = await repository.get_by_email(email)
-    if employee is None or not employee.email:
-        raise _unauthorized(
-            "This address is not on the review roster.", "auth_unknown_email"
+    address = email.strip().lower()
+    admin = role_for_email(address, settings) == "admin"
+
+    employee: Employee | None = await repository.get_by_email(address)
+    if employee is not None and employee.email:
+        return AuthUser(
+            employee_id=employee.employee_id,
+            name=employee.employee_name,
+            email=employee.email,
+            role=role_for_email(employee.email, settings),
         )
-    return AuthUser(
-        employee_id=employee.employee_id,
-        name=employee.employee_name,
-        email=employee.email,
-        role=role_for_email(employee.email, settings),
+    if admin:
+        # Console access is configuration, not roster membership: HR admins
+        # review the roster, so it cannot be the gate for them. employee_id
+        # stays empty — there is no roster row to act on behalf of.
+        return AuthUser(
+            employee_id="",
+            name=admin_display_name(address),
+            email=address,
+            role="admin",
+        )
+    raise _unauthorized(
+        "This address is not on the review roster.", "auth_unknown_email"
     )
 
 
@@ -78,6 +102,18 @@ async def get_current_user(
     if not identity:
         raise _unauthorized("Sign in to see your review.", "auth_required")
     return await authenticate_email(identity, repository, settings)
+
+
+async def get_roster_user(
+    user: Annotated[AuthUser, Depends(get_current_user)],
+) -> AuthUser:
+    if user.employee_id == "":
+        raise AppError(
+            "Your sign-in is not linked to a review roster entry.",
+            code="roster_required",
+            status_code=403,
+        )
+    return user
 
 
 async def get_admin_user(

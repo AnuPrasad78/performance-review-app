@@ -110,3 +110,34 @@ def test_missing_identity_header_is_a_401_envelope(asha: Employee) -> None:
     response = client.get("/api/evaluations/me", headers={"X-Stub-User": "   "})
     assert response.status_code == 401
     assert response.json()["code"] == "auth_required"
+
+
+def test_off_roster_admin_still_signs_in() -> None:
+    # Admins review the roster, so roster membership cannot gate their access.
+    client = make_client([], stub_admin_emails=["console.admin@emids.com"])
+    response = client.post("/api/auth/session", json={"email": " Console.Admin@Emids.com "})
+    assert response.status_code == 200
+    assert response.json() == {
+        "employeeId": "",
+        "name": "Console Admin",
+        "email": "console.admin@emids.com",
+        "role": "admin",
+    }
+
+
+def test_employee_endpoints_reject_the_off_roster_admin_identity() -> None:
+    # An admin without a roster row has no evaluation to act on; the 403 makes
+    # that explicit instead of the service's 500 "vanished row" failure.
+    client = make_client([], stub_admin_emails=["console.admin@emids.com"])
+    response = client.get(
+        "/api/evaluations/me", headers={"X-Stub-User": "console.admin@emids.com"}
+    )
+    assert response.status_code == 403
+    assert response.json()["code"] == "roster_required"
+
+
+def test_unknown_non_admin_email_is_still_a_401() -> None:
+    client = make_client([], stub_admin_emails=["console.admin@emids.com"])
+    response = client.post("/api/auth/session", json={"email": "nobody@emids.com"})
+    assert response.status_code == 401
+    assert response.json()["code"] == "auth_unknown_email"
