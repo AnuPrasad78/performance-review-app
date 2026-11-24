@@ -4,6 +4,8 @@ export interface DataTableColumn<Row> {
   key: string
   header: string
   cell: (row: Row) => ReactNode
+  /** Secondary columns drop out in phone view so the table stays readable. */
+  hideOnMobile?: boolean
 }
 
 export interface DataTableProps<Row> {
@@ -19,7 +21,7 @@ export function DataTable<Row>({ columns, rows, rowKey, emptyMessage }: DataTabl
       <thead>
         <tr>
           {columns.map((column) => (
-            <th key={column.key} scope="col">
+            <th key={column.key} scope="col" className={column.hideOnMobile ? 'col-desktop' : undefined}>
               {column.header}
             </th>
           ))}
@@ -36,7 +38,9 @@ export function DataTable<Row>({ columns, rows, rowKey, emptyMessage }: DataTabl
           rows.map((row) => (
             <tr key={rowKey(row)}>
               {columns.map((column) => (
-                <td key={column.key}>{column.cell(row)}</td>
+                <td key={column.key} className={column.hideOnMobile ? 'col-desktop' : undefined}>
+                  {column.cell(row)}
+                </td>
               ))}
             </tr>
           ))

@@ -12,14 +12,14 @@ export type EmployeeReviewStatus = {
 export type CompletionFilter = 'all' | 'pending' | 'completed'
 
 export const COMPLETION_FILTERS: readonly { value: CompletionFilter; label: string }[] = [
-  { value: 'all', label: 'All' },
   { value: 'pending', label: 'Pending' },
+  { value: 'all', label: 'All' },
   { value: 'completed', label: 'Completed' },
 ]
 
-/** Submitted and signed-off reviews count as complete for admin filtering. */
+/** Submitted reviews count as complete for admin filtering. */
 export function isReviewComplete(status: ReviewStatus): boolean {
-  return status === 'submitted' || status === 'signed_off'
+  return status === 'submitted'
 }
 
 export function countReviewStatuses(entries: readonly EmployeeReviewStatus[]): Record<ReviewStatus, number> {
@@ -27,7 +27,6 @@ export function countReviewStatuses(entries: readonly EmployeeReviewStatus[]): R
     not_started: 0,
     in_progress: 0,
     submitted: 0,
-    signed_off: 0,
   }
   for (const entry of entries) counts[entry.status] += 1
   return counts

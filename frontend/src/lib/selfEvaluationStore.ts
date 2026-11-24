@@ -169,10 +169,10 @@ export function commitmentsPayloadFromDraft(draft: SelfEvaluationDraft): SelfEva
   }
 }
 
-/** Status derives from what the API persisted, so the strip never invents review state. */
+/** Status derives from what the API persisted, so the strip never invents review state.
+    A signed form still counts as submitted — the display vocabulary has no signed-off word. */
 export function deriveReviewStatus(record: SelfEvaluationRecord): ReviewStatus {
-  if (record.employeeSignedAt !== null) return 'signed_off'
-  if (record.submittedAt !== null) return 'submitted'
+  if (record.submittedAt !== null || record.employeeSignedAt !== null) return 'submitted'
   const answered = record.draft.questions.some((question) => question.employeeResponse !== '')
   return answered ? 'in_progress' : 'not_started'
 }
@@ -181,14 +181,12 @@ export const REVIEW_STATUS_LABELS: Record<ReviewStatus, string> = {
   not_started: 'Not started',
   in_progress: 'In progress',
   submitted: 'Submitted',
-  signed_off: 'Signed off',
 }
 
 /** Fixed pill vocabulary only (ui.md §4.1): approved / pending / cancelled wash+text pairs. */
 export type ReviewStatusTone = 'approved' | 'pending' | 'cancelled'
 
 export function reviewStatusTone(status: ReviewStatus): ReviewStatusTone {
-  if (status === 'signed_off') return 'approved'
   if (status === 'not_started') return 'cancelled'
   return 'pending'
 }

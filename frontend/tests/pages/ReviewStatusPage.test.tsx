@@ -12,17 +12,16 @@ vi.mock('../../src/lib/api', () => ({
 }))
 
 /** Statuses come from the backend now, so the fixture states them outright:
-    1 not started, 1 in progress, 3 submitted, 3 signed off over an
-    eight-person roster. */
+    1 not started, 1 in progress, 6 submitted over an eight-person roster. */
 const SEED: readonly { email: string; status: ReviewStatus }[] = [
   { email: 'bilal_khan@emids.com', status: 'not_started' },
   { email: 'asha_menon@emids.com', status: 'in_progress' },
   { email: 'cara_fernandes@emids.com', status: 'submitted' },
   { email: 'devika_nair@emids.com', status: 'submitted' },
   { email: 'eshan_gupta@emids.com', status: 'submitted' },
-  { email: 'farah_sheikh@emids.com', status: 'signed_off' },
-  { email: 'gaurav_bhatt@emids.com', status: 'signed_off' },
-  { email: 'heena_roy@emids.com', status: 'signed_off' },
+  { email: 'farah_sheikh@emids.com', status: 'submitted' },
+  { email: 'gaurav_bhatt@emids.com', status: 'submitted' },
+  { email: 'heena_roy@emids.com', status: 'submitted' },
 ]
 
 function page(): React.ReactElement {
@@ -70,8 +69,12 @@ function dataRows(): HTMLElement[] {
 
 describe('ReviewStatusPage', () => {
   it('shows every employee with their form status and a completion meter per status', async () => {
+    const user = userEvent.setup()
     render(page())
     await screen.findByRole('table')
+
+    // Pending opens the board by default; All reveals the full roster.
+    await user.click(screen.getByRole('button', { name: 'All' }))
 
     expect(screen.getByRole('heading', { name: 'Review form status' })).toBeInTheDocument()
     expect(
@@ -79,14 +82,14 @@ describe('ReviewStatusPage', () => {
     ).toBeInTheDocument()
     const titles = [...document.querySelectorAll('.pie-block__chart title')].map((t) => t.textContent)
     // Every slice of this fixture is non-zero.
-    expect(titles).toHaveLength(4)
+    expect(titles).toHaveLength(3)
     expect(titles.every((title) => title?.includes(' of 8 ('))).toBe(true)
     const tiles = [...document.querySelectorAll('.tile')].map((tile) => tile.textContent)
     expect(tiles).toHaveLength(4)
     for (const label of ['Total employees', 'Completed', 'In progress', 'Not started']) {
       expect(tiles.some((text) => text?.includes(label))).toBe(true)
     }
-    for (const status of ['Not started', 'In progress', 'Submitted', 'Signed off']) {
+    for (const status of ['Not started', 'In progress', 'Submitted']) {
       expect(dataRows().some((row) => within(row).queryByText(status))).toBe(true)
     }
     expect(screen.getByText('Employees · 8 of 8')).toBeInTheDocument()
@@ -97,6 +100,8 @@ describe('ReviewStatusPage', () => {
     render(page())
     await screen.findByRole('table')
 
+    expect(screen.getByText('Employees · 2 of 8')).toBeInTheDocument()
+
     await user.click(screen.getByRole('button', { name: 'Pending' }))
 
     expect(screen.getByText('Employees · 2 of 8')).toBeInTheDocument()
@@ -104,7 +109,6 @@ describe('ReviewStatusPage', () => {
     expect(statuses.some((text) => text?.includes('Not started'))).toBe(true)
     expect(statuses.some((text) => text?.includes('In progress'))).toBe(true)
     expect(statuses.some((text) => text?.includes('Submitted'))).toBe(false)
-    expect(statuses.some((text) => text?.includes('Signed off'))).toBe(false)
   })
 
   it('filters the roster to completed reviews when Completed is selected', async () => {
@@ -117,7 +121,6 @@ describe('ReviewStatusPage', () => {
     expect(screen.getByText('Employees · 6 of 8')).toBeInTheDocument()
     const statuses = dataRows().map((row) => row.textContent)
     expect(statuses.some((text) => text?.includes('Submitted'))).toBe(true)
-    expect(statuses.some((text) => text?.includes('Signed off'))).toBe(true)
     expect(statuses.some((text) => text?.includes('Not started'))).toBe(false)
     expect(statuses.some((text) => text?.includes('In progress'))).toBe(false)
   })

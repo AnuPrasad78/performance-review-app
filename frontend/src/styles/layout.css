@@ -483,3 +483,9 @@
   .form-row--2, .form-row--type { grid-template-columns: 1fr; }
   .form-actions { padding: 14px 16px 18px; }
 }
+/* phone: the session chip collapses to its avatar so the header stays balanced */
+@media (max-width: 600px) {
+  .session-chip { padding: 5px; gap: 0; justify-content: center; }
+  .session-chip__text { display: none; }
+  .session-chip > svg { display: none; }
+}

@@ -138,6 +138,7 @@ a { color: var(--teal-deep); }
 .pill--cancelled { color: var(--ink-2); background: var(--canvas); border-color: var(--hairline); }
 
 /* data table */
+.table-toolbar { display: flex; justify-content: flex-end; margin-bottom: 12px; }
 .table { width: 100%; border-collapse: collapse; }
 .table th {
   font-family: var(--mono);
@@ -161,6 +162,9 @@ a { color: var(--teal-deep); }
 }
 .table tbody tr:hover { background: var(--teal-wash); }
 .table__empty { text-align: center; padding: 32px; color: var(--ink-3); }
+@media (max-width: 600px) {
+  .table .col-desktop { display: none; }
+}
 
 /* form scaffolding */
 .form-card { max-width: 860px; }
