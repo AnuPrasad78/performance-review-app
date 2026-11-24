@@ -111,7 +111,7 @@ describe('EmployeeDashboardPage — shell', () => {
 
     expect(await screen.findByRole('heading', { name: 'Annual Performance Review 2026' })).toBeInTheDocument()
     expect(await screen.findByText('Performance period: 1-Jan-2026 to 31-Dec-2026')).toBeInTheDocument()
-    const steps = await screen.findAllByText('Assessment Questions')
+    const steps = await screen.findAllByText('Self Evaluation')
     expect(steps.length).toBeGreaterThan(0)
     expect(document.querySelector('.steps-nav__step.is-active')).not.toBeNull()
 
@@ -302,7 +302,7 @@ describe('EmployeeDashboardPage — forward gating', () => {
     expect(screen.getByRole('button', { name: /Overall Rating & Feedback/ })).toBeDisabled()
     expect(screen.getByRole('button', { name: /Forward Commitments for 2027/ })).toBeDisabled()
     // Going backwards is never locked; the current section stays clickable.
-    expect(screen.getByRole('button', { name: /Assessment Questions/ })).toBeEnabled()
+    expect(screen.getByRole('button', { name: /Self Evaluation/ })).toBeEnabled()
   })
 
   it('unlocks the overall step as soon as a rating and a summary exist, and no POST ever fires early', async () => {

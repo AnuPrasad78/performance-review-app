@@ -50,7 +50,7 @@ interface WizardStep {
 const STEPS: readonly WizardStep[] = [
   {
     key: 'questions',
-    title: 'Assessment Questions',
+    title: 'Self Evaluation',
     description:
       'Four questions, one per topic. Use Next to move between them. Describe your own work — objectives and numbers over words.',
   },
@@ -67,7 +67,7 @@ const STEPS: readonly WizardStep[] = [
   },
   {
     key: 'signoff',
-    title: 'Review Discussion & Sign-off',
+    title: 'Sign-Off',
     description:
       'Sign-off confirms the review discussion took place and the rating and comments were shared with you.',
   },
@@ -407,9 +407,7 @@ export function EmployeeDashboardPage() {
             {step.key === 'signoff' ? (
               <SignOffPanel
                 employee={draft.employee}
-                acknowledged={draft.acknowledged}
                 signedAt={record.employeeSignedAt}
-                readOnly
               />
             ) : null}
             {!answersEditable ? (
