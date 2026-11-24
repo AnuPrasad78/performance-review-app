@@ -127,7 +127,6 @@ export interface SelfEvaluationFieldErrors {
   questionErrors: Partial<Record<AssessmentQuestionId, string>>
   overallRating: string | null
   overallSummary: string | null
-  commitments: string | null
 }
 
 export interface SelfEvaluationValidation {

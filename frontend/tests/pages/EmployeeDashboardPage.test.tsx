@@ -65,7 +65,15 @@ function openWire(overrides: Record<string, unknown> = {}): Record<string, unkno
     submissionDeadline: '2027-01-15',
     submittedAt: null,
     employeeSignedAt: null,
-    responses: { ...EMPTY_RESPONSES, contribution: 'Delivered the intake rewrite.' },
+    // Open-review wires default to an answerable form: the wizard's forward
+    // gating requires each question answered before Next, so tests that walk
+    // the steps start from a complete draft unless they override these.
+    responses: {
+      contribution: 'Delivered the intake rewrite.',
+      strengths: 'Filled response.',
+      development: 'Filled response.',
+      support: 'Filled response.',
+    },
     managerComments: EMPTY_RESPONSES,
     overallRating: 4,
     overallSummary: 'Strong year.',
@@ -183,7 +191,13 @@ describe('EmployeeDashboardPage — draft state over the API', () => {
 
   it('keeps the rest of the draft when a different question is edited', async () => {
     const user = userEvent.setup()
-    vi.stubGlobal('fetch', apiReturning(openWire()))
+    // Q2 opens unanswered so the typed text is the whole value.
+    vi.stubGlobal(
+      'fetch',
+      apiReturning(
+        openWire({ responses: { ...EMPTY_RESPONSES, contribution: 'Delivered the intake rewrite.' } }),
+      ),
+    )
 
     render(page())
     await screen.findByDisplayValue('Delivered the intake rewrite.')
@@ -197,10 +211,15 @@ describe('EmployeeDashboardPage — draft state over the API', () => {
     )
   })
 
-  it('resumes on the section the employee last visited', async () => {
+  it('resumes on the section the employee last visited, per signed-in identity', async () => {
     window.localStorage.setItem(
-      RESUME_KEY,
+      `${RESUME_KEY}:asha_menon@emids.com`,
       JSON.stringify({ lastStepIndex: 1, lastQuestionIndex: 2 }),
+    )
+    // Another employee's marker must not leak into this session.
+    window.localStorage.setItem(
+      `${RESUME_KEY}:bilal_khan@emids.com`,
+      JSON.stringify({ lastStepIndex: 3, lastQuestionIndex: 0 }),
     )
     vi.stubGlobal('fetch', apiReturning(openWire()))
 
@@ -238,57 +257,95 @@ describe('EmployeeDashboardPage — the API save contract', () => {
   })
 })
 
-describe('EmployeeDashboardPage — submit gate', () => {
-  it('blocks submit while the review is incomplete, without calling the API', async () => {
-    const user = userEvent.setup()
-    vi.stubGlobal('fetch', apiReturning(openWire()))
-
-    render(page())
-    await screen.findByDisplayValue('Delivered the intake rewrite.')
-    for (let step = 0; step < 6; step += 1) {
-      await user.click(screen.getByRole('button', { name: 'Next' }))
-    }
-    await user.click(screen.getByRole('button', { name: 'Submit' }))
-
-    expect(await screen.findByText('Complete the flagged fields before submitting.')).toBeInTheDocument()
-    // Validation jumps back to the first unanswered question…
-    expect(document.querySelector('.steps-nav__step.is-active')?.textContent).toContain(
-      'Assessment Questions',
-    )
-    // …flag it inline, and no submit request ever left the page.
-    expect(screen.getAllByText('Write your response before submitting.').length).toBeGreaterThan(0)
-    expect(calls.filter((call) => call.method === 'POST')).toHaveLength(0)
-  })
-
-  it('blocks submit when the compulsory first commitment is empty and jumps back to it', async () => {
+describe('EmployeeDashboardPage — forward gating', () => {
+  it('keeps Next blocked until the current question is answered', async () => {
     const user = userEvent.setup()
     vi.stubGlobal(
       'fetch',
       apiReturning(
         openWire({
-          responses: {
-            contribution: 'Filled response.',
-            strengths: 'Filled response.',
-            development: 'Filled response.',
-            support: 'Filled response.',
-          },
-          forwardCommitments: [{ commitment: '', support: '' }],
+          responses: { ...EMPTY_RESPONSES },
+          overallRating: null,
+          overallSummary: '',
         }),
       ),
     )
 
     render(page())
-    await screen.findByDisplayValue('Filled response.')
-    for (let step = 0; step < 6; step += 1) {
+    await screen.findByLabelText('Employee response *', { selector: '#response-contribution' })
+    const next = screen.getByRole('button', { name: 'Next' })
+    expect(next).toBeDisabled()
+    await user.click(next)
+    // The click is a no-op: we are still on Question 1.
+    expect(screen.getByText('Question 1 of 4')).toBeInTheDocument()
+
+    await user.type(screen.getByLabelText('Employee response *', { selector: '#response-contribution' }), ' Typed.')
+    expect(next).toBeEnabled()
+    await user.click(next)
+    expect(screen.getByText('Question 2 of 4')).toBeInTheDocument()
+  })
+
+  it('keeps future sections locked in the steps nav until earlier ones are complete', async () => {
+    vi.stubGlobal(
+      'fetch',
+      apiReturning(
+        openWire({
+          responses: { ...EMPTY_RESPONSES, contribution: 'Delivered the intake rewrite.' },
+        }),
+      ),
+    )
+
+    render(page())
+    await screen.findByDisplayValue('Delivered the intake rewrite.')
+    // The steps-nav buttons carry "N <title>" accessible names.
+    expect(screen.getByRole('button', { name: /Overall Rating & Feedback/ })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /Forward Commitments for 2027/ })).toBeDisabled()
+    // Going backwards is never locked; the current section stays clickable.
+    expect(screen.getByRole('button', { name: /Assessment Questions/ })).toBeEnabled()
+  })
+
+  it('unlocks the overall step as soon as a rating and a summary exist, and no POST ever fires early', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal(
+      'fetch',
+      apiReturning(openWire({ overallRating: null, overallSummary: '' })),
+    )
+
+    render(page())
+    await screen.findByDisplayValue('Delivered the intake rewrite.')
+    for (let step = 0; step < 4; step += 1) {
       await user.click(screen.getByRole('button', { name: 'Next' }))
     }
-    await user.click(screen.getByRole('button', { name: 'Submit' }))
+    expect(screen.getByText('Overall Rating & Feedback')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled()
 
-    expect(await screen.findByText('Write at least one commitment for 2027.')).toBeInTheDocument()
-    expect(document.querySelector('.steps-nav__step.is-active')?.textContent).toContain(
-      'Forward Commitments',
-    )
+    await user.click(screen.getByRole('button', { name: '4' }))
+    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled() // summary still empty
+
+    await user.type(screen.getByLabelText('Overall comments *'), 'Summary of the year.')
+    expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled()
     expect(calls.filter((call) => call.method === 'POST')).toHaveLength(0)
+  })
+})
+
+describe('EmployeeDashboardPage — submit gate', () => {
+  it('keeps the commitments step optional: Next stays enabled without any commitment', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal(
+      'fetch',
+      apiReturning(openWire({ forwardCommitments: [{ commitment: '', support: '' }] })),
+    )
+
+    render(page())
+    await screen.findByDisplayValue('Delivered the intake rewrite.')
+    for (let step = 0; step < 5; step += 1) {
+      await user.click(screen.getByRole('button', { name: 'Next' }))
+    }
+
+    expect(await screen.findByText('Commitment 1')).toBeInTheDocument()
+    // Optional content: the step never blocks navigation, and submission
+    // accepts a form with no commitments at all (backend contract).
+    expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled()
   })
 
   it('submits through the API and renders the review read-only', async () => {
@@ -336,7 +393,19 @@ describe('EmployeeDashboardPage — submit gate', () => {
     }
     await user.click(screen.getByRole('button', { name: 'Submit' }))
 
-    expect(await screen.findByText('Submitted.')).toBeInTheDocument()
+    // The disclaimer gate: nothing ships until the employee confirms.
+    const confirmDialog = await screen.findByRole('dialog', { name: 'Confirm submission' })
+    expect(within(confirmDialog).getByText(/Once submitted/)).toBeInTheDocument()
+    expect(calls.filter((call) => call.method === 'POST')).toHaveLength(0)
+
+    await user.click(within(confirmDialog).getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('dialog', { name: 'Confirm submission' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Submit' }))
+    const confirmDialog2 = await screen.findByRole('dialog', { name: 'Confirm submission' })
+    await user.click(within(confirmDialog2).getByRole('button', { name: 'OK' }))
+
+    expect(await screen.findByText('Submitted successfully.')).toBeInTheDocument()
     expect(
       await screen.findByText('Your self-evaluation was submitted. The form is read-only now.'),
     ).toBeInTheDocument()

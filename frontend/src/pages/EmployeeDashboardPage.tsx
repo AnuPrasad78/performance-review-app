@@ -7,6 +7,7 @@ import { ForwardCommitmentsPanel } from '../components/organisms/ForwardCommitme
 import { SignOffPanel } from '../components/organisms/SignOffPanel'
 import { Button } from '../components/atoms/Button'
 import { Card } from '../components/atoms/Card'
+import { Modal } from '../components/molecules/Modal'
 import { saveSelfEvaluation, submitSelfEvaluation, fetchSelfEvaluation } from '../lib/api'
 import {
   commitmentsPayloadFromDraft,
@@ -76,6 +77,7 @@ export function EmployeeDashboardPage() {
   const [submitting, setSubmitting] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [validation, setValidation] = useState<SelfEvaluationValidation | null>(null)
+  const [confirmingSubmit, setConfirmingSubmit] = useState(false)
   const [sectionIndex, setSectionIndex] = useState(0)
   const [questionIndex, setQuestionIndex] = useState(0)
   const lastResumeRef = useRef('')
@@ -115,7 +117,8 @@ export function EmployeeDashboardPage() {
       if (cancelled) return
       if (result.ok) {
         const initial = recordFromApi(result.data)
-        const resume = loadResumeIndices()
+        // Resume position is per-employee, keyed by the record's own identity.
+        const resume = loadResumeIndices(result.data.employee.email)
         const resumedSection =
           resume.lastStepIndex === null
             ? 0
@@ -144,7 +147,7 @@ export function EmployeeDashboardPage() {
     const json = JSON.stringify(indices)
     if (json === lastResumeRef.current) return
     lastResumeRef.current = json
-    saveResumeIndices(indices)
+    saveResumeIndices(record.draft.employee.email, indices)
   }, [record, sectionIndex, questionIndex])
 
   if (loadError !== null) {
@@ -181,6 +184,26 @@ export function EmployeeDashboardPage() {
   const errorFor = (questionId: AssessmentQuestionId): string | null =>
     validation?.fieldErrors.questionErrors[questionId] ?? null
 
+  /** Section completeness drives the wizard's forward gating: an open review
+      must be answered section by section before the next one unlocks. The
+      forward commitments are the deliberate exception — they are optional
+      content, so the step never blocks navigation; the submit validator (and
+      the backend behind it) still requires the first commitment at the end. */
+  const sectionComplete = (index: number): boolean => {
+    if (index === 0) return draft.questions.every((q) => q.employeeResponse.trim() !== '')
+    if (index === 1) return draft.overallRating !== null && draft.overallSummary.trim() !== ''
+    return true
+  }
+
+  const sectionUnlocked = (index: number): boolean => {
+    if (!answersEditable) return true
+    let unlocked = true
+    for (let i = 0; i < index; i += 1) {
+      unlocked = unlocked && sectionComplete(i)
+    }
+    return unlocked
+  }
+
   /** Edits land in local state; the hook decides when they go to the API. */
   const updateDraft = (mutate: (draft: SelfEvaluationDraft) => SelfEvaluationDraft): void => {
     setRecord((current) =>
@@ -206,6 +229,9 @@ export function EmployeeDashboardPage() {
   }
 
   const goToNext = (): void => {
+    // Forward gating: the current step must be answered before advancing an
+    // open review (belt-and-braces behind the disabled Next control).
+    if (answersEditable && !nextRequirementMet) return
     if (isQuestionsSection) {
       if (questionIndex < draft.questions.length - 1) {
         setQuestionIndex((index) => index + 1)
@@ -218,12 +244,21 @@ export function EmployeeDashboardPage() {
   }
 
   const goToSection = (index: number): void => {
+    // Jumping ahead through the steps nav obeys the same unlock chain.
+    if (index > sectionIndex && !sectionUnlocked(index)) return
     setSectionIndex(Math.min(Math.max(index, 0), STEPS.length - 1))
   }
 
   const showPrevious = !(isQuestionsSection && questionIndex === 0)
   const showNext = !isLastSection
   const showSubmit = isLastSection && answersEditable
+
+  const currentQuestionAnswered = currentQuestionAnsweredCheck(stepQuestion)
+  const nextRequirementMet = answersEditable
+    ? isQuestionsSection
+      ? currentQuestionAnswered
+      : sectionComplete(sectionIndex)
+    : true
 
   /** Save immediately, then submit — an un-flushed draft would submit
       incomplete even though the form looks complete locally. */
@@ -242,8 +277,6 @@ export function EmployeeDashboardPage() {
         outcome.fieldErrors.overallSummary !== null
       ) {
         setSectionIndex(1)
-      } else if (outcome.fieldErrors.commitments !== null) {
-        setSectionIndex(2)
       }
       setNotice('Complete the flagged fields before submitting.')
       return
@@ -255,7 +288,7 @@ export function EmployeeDashboardPage() {
       .then((result) => {
         if (result.ok) {
           setRecord(mergeRecordFromApi(recordRef.current ?? record, result.data))
-          setNotice('Submitted.')
+          setNotice('Submitted successfully.')
         } else {
           setNotice(result.detail)
         }
@@ -291,6 +324,7 @@ export function EmployeeDashboardPage() {
                     key={stepEntry.key}
                     type="button"
                     className={classes}
+                    disabled={!sectionUnlocked(index)}
                     aria-current={index === sectionIndex ? 'step' : undefined}
                     onClick={() => goToSection(index)}
                   >
@@ -337,7 +371,6 @@ export function EmployeeDashboardPage() {
               <ForwardCommitmentsPanel
                 commitments={draft.commitments}
                 readOnly={!record.commitmentsEditable}
-                error={validation?.fieldErrors.commitments ?? null}
                 onCommitmentChange={(id, field, value) =>
                   updateDraft((current) => updateCommitment(current, id, field, value))
                 }
@@ -374,7 +407,9 @@ export function EmployeeDashboardPage() {
                 </Button>
               ) : null}
               {showNext ? (
-                <Button onClick={goToNext}>Next</Button>
+                <Button disabled={!nextRequirementMet} onClick={goToNext}>
+                  Next
+                </Button>
               ) : null}
               {answersEditable ? (
                 <Button variant="ghost" busy={busy} onClick={() => void autoSave.flush()}>
@@ -387,7 +422,7 @@ export function EmployeeDashboardPage() {
                 </Button>
               ) : null}
               {showSubmit ? (
-                <Button busy={busy} onClick={submit}>
+                <Button busy={busy} onClick={() => setConfirmingSubmit(true)}>
                   Submit
                 </Button>
               ) : null}
@@ -396,6 +431,31 @@ export function EmployeeDashboardPage() {
           </div>
         </div>
       </div>
+      <Modal
+        open={confirmingSubmit}
+        label="Confirm submission"
+        onClose={() => setConfirmingSubmit(false)}
+      >
+        <div className="modal__body">
+          <p>
+            Once submitted, your self-evaluation can no longer be edited by you. It
+            goes to your manager for the review discussion and sign-off.
+          </p>
+        </div>
+        <div className="modal__actions">
+          <Button variant="ghost" onClick={() => setConfirmingSubmit(false)}>
+            Cancel
+          </Button>
+          <Button
+            onClick={() => {
+              setConfirmingSubmit(false)
+              submit()
+            }}
+          >
+            OK
+          </Button>
+        </div>
+      </Modal>
     </div>
   )
 }
@@ -407,6 +467,12 @@ function SaveNotice({ notice }: { notice: string | null }): ReactNode {
       {notice}
     </p>
   )
+}
+
+function currentQuestionAnsweredCheck(
+  stepQuestion: SelfEvaluationDraft['questions'][number] | undefined,
+): boolean {
+  return stepQuestion !== undefined && stepQuestion.employeeResponse.trim() !== ''
 }
 
 function updateQuestion(

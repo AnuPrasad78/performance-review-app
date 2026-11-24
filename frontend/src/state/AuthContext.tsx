@@ -14,11 +14,19 @@ interface AuthState {
 
 const AuthContext = createContext<AuthState | null>(null)
 
+// Identity must exist before the first page effect can fetch: a child's
+// effects run before its provider's, so a dashboard mounted under a restored
+// session would otherwise fire GET /me with no identity header (the 401
+// race). This one statement executes at import time, before any component
+// renders; the effect below keeps it true across sign-in and sign-out.
+setApiIdentity(loadSession()?.email ?? null)
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<AuthSession | null>(loadSession)
 
   // One effect owns the API identity for every phase of the session:
-  // restored-on-reload, freshly signed-in, and signed-out (null clears it).
+  // freshly signed-in, and signed-out (null clears it). The restored-on-
+  // reload phase is covered by the identity set at module import.
   useEffect(() => {
     setApiIdentity(session?.email ?? null)
   }, [session])

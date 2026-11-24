@@ -26,7 +26,8 @@ export interface SelfEvaluationRecord {
 }
 
 /** Where the wizard resumes on reload; keyed to its own storage entry so the
-    API record stays free of view-only fields. */
+    API record stays free of view-only fields, and namespaced per signed-in
+    email so one account's position never leaks into another's on sign-out. */
 export interface ResumeIndices {
   lastStepIndex: number | null
   lastQuestionIndex: number | null
@@ -34,9 +35,13 @@ export interface ResumeIndices {
 
 const RESUME_STORAGE_KEY = 'performance-review.employee.resume.v1'
 
-export function loadResumeIndices(): ResumeIndices {
+function resumeKey(email: string): string {
+  return `${RESUME_STORAGE_KEY}:${email.toLowerCase()}`
+}
+
+export function loadResumeIndices(email: string): ResumeIndices {
   try {
-    const raw = window.localStorage.getItem(RESUME_STORAGE_KEY)
+    const raw = window.localStorage.getItem(resumeKey(email))
     if (raw === null) return { lastStepIndex: null, lastQuestionIndex: null }
     const parsed: unknown = JSON.parse(raw)
     if (typeof parsed !== 'object' || parsed === null) {
@@ -53,9 +58,9 @@ export function loadResumeIndices(): ResumeIndices {
   }
 }
 
-export function saveResumeIndices(indices: ResumeIndices): void {
+export function saveResumeIndices(email: string, indices: ResumeIndices): void {
   try {
-    window.localStorage.setItem(RESUME_STORAGE_KEY, JSON.stringify(indices))
+    window.localStorage.setItem(resumeKey(email), JSON.stringify(indices))
   } catch {
     // Persistence is a view concern; navigation keeps working without it.
   }
