@@ -45,19 +45,9 @@ export const DEFAULT_SUBMISSION_DEADLINE = '2027-01-15'
 /** The published rating definition (the review document's scale reference). */
 export const RATING_SCALE_REFERENCE: readonly RatingScaleEntry[] = [
   {
-    value: 5,
-    name: 'Significantly exceeds expectations',
-    description: 'Significantly exceeded targets; contributed to process improvement.',
-  },
-  {
-    value: 4,
-    name: 'Exceeds expectations',
-    description: 'Delivered and exceeded targets and results.',
-  },
-  {
-    value: 3,
-    name: 'Meets expectations',
-    description: 'Meets expected targets; achieved intended results.',
+    value: 1,
+    name: 'Significantly below expectations',
+    description: 'The employee significantly needs improvement.',
   },
   {
     value: 2,
@@ -65,8 +55,18 @@ export const RATING_SCALE_REFERENCE: readonly RatingScaleEntry[] = [
     description: 'The employee needs improvement.',
   },
   {
-    value: 1,
-    name: 'Significantly below expectations',
-    description: 'The employee significantly needs improvement.',
+    value: 3,
+    name: 'Meets expectations',
+    description: 'Meets expected targets; achieved intended results.',
+  },
+  {
+    value: 4,
+    name: 'Exceeds expectations',
+    description: 'Delivered and exceeded targets and results.',
+  },
+  {
+    value: 5,
+    name: 'Significantly exceeds expectations',
+    description: 'Significantly exceeded targets; contributed to process improvement.',
   },
 ]
