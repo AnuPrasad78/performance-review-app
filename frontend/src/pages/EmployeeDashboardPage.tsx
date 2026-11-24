@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { HeroHeader, type HeroSectionProgress } from '../components/organisms/HeroHeader'
-import { EmployeeProfileCard } from '../components/organisms/EmployeeProfileCard'
 import { RatingReferencePanel } from '../components/organisms/RatingReferencePanel'
 import { ReviewQuestionPanel } from '../components/organisms/ReviewQuestionPanel'
 import { OverallRatingPanel } from '../components/organisms/OverallRatingPanel'
@@ -279,10 +278,9 @@ export function EmployeeDashboardPage() {
   return (
     <div className="hero-page">
       <div className="hero-card brand-frame">
-        <HeroHeader sectionProgress={sectionProgress} />
+        <HeroHeader sectionProgress={sectionProgress} profile={draft.employee} />
         <div className="hero-card__body">
           <div className="page-stack">
-            <EmployeeProfileCard employee={draft.employee} readOnly />
             <nav className="steps-nav" aria-label="Review sections">
               {STEPS.map((stepEntry, index) => {
                 const classes = ['steps-nav__step', index === sectionIndex ? 'is-active' : '']

@@ -3,13 +3,21 @@ import { Button } from '../atoms/Button'
 import { Icon } from '../atoms/Icon'
 import { useAuth } from '../../state/AuthContext'
 import { initialsOf, sessionProfileFor, ROLE_LABELS } from '../../lib/authUsers'
+import type { Employee } from '../../lib/types'
 
-export function SessionMenu() {
+export interface SessionMenuProps {
+  /** The signed-in employee's roster row, when the enclosing page has one
+      (e.g. the employee dashboard's API record). Absent elsewhere: the menu
+      then falls back to the mock session-profile lookup. */
+  profile?: Employee | null
+}
+
+export function SessionMenu({ profile: profileProp }: SessionMenuProps) {
   const [open, setOpen] = useState(false)
   const { session, signOut } = useAuth()
   if (session === null) return null
 
-  const profile = sessionProfileFor(session.email)
+  const profile = profileProp ?? sessionProfileFor(session.email)
   const employeeId = profile?.employeeId ?? ROLE_LABELS[session.role]
   const popoverFields =
     profile === null

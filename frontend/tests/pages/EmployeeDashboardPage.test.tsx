@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthProvider } from '../../src/state/AuthContext'
@@ -94,7 +94,8 @@ afterEach(() => {
 })
 
 describe('EmployeeDashboardPage — shell', () => {
-  it('renders the hero band, the progress meter, and employee details', async () => {
+  it('renders the hero band, the progress meter, and the session popover profile', async () => {
+    const user = userEvent.setup()
     vi.stubGlobal('fetch', apiReturning(openWire()))
 
     render(page())
@@ -104,10 +105,13 @@ describe('EmployeeDashboardPage — shell', () => {
     const steps = await screen.findAllByText('Assessment Questions')
     expect(steps.length).toBeGreaterThan(0)
     expect(document.querySelector('.steps-nav__step.is-active')).not.toBeNull()
-    // The profile fields come from the API's employee row, rendered read-only.
-    expect(screen.getByDisplayValue('Asha Menon')).toBeInTheDocument()
-    expect(screen.getByDisplayValue('Software Engineer')).toBeInTheDocument()
-    expect(screen.getAllByDisplayValue('Priya Raghavan')).toHaveLength(2)
+
+    // The profile lives in the session menu popover, sourced from the API's
+    // employee row (not the mock lookup).
+    await user.click(screen.getByRole('button', { name: 'Session details' }))
+    const popover = await screen.findByRole('dialog', { name: 'Session details' })
+    expect(within(popover).getByText('Software Engineer')).toBeInTheDocument()
+    expect(within(popover).getAllByText('Priya Raghavan')).toHaveLength(2)
   })
 
   it('renders the first assessment question inside the floating card', async () => {

@@ -1,5 +1,6 @@
 import { SessionMenu } from './SessionMenu'
 import logoUrl from '../../assets/emids-logo.svg'
+import type { Employee } from '../../lib/types'
 
 export interface HeroSectionProgress {
   label: string
@@ -9,9 +10,12 @@ export interface HeroSectionProgress {
 export interface HeroHeaderProps {
   /** Per-section progress, shown row by row in the hero. */
   sectionProgress: readonly HeroSectionProgress[]
+  /** The signed-in employee's roster row, when the page has it; the session
+      menu popover falls back to its mock lookup without it. */
+  profile?: Employee | null
 }
 
-export function HeroHeader({ sectionProgress }: HeroHeaderProps) {
+export function HeroHeader({ sectionProgress, profile }: HeroHeaderProps) {
   return (
     <header className="hero">
       <div className="hero__lead">
@@ -26,7 +30,7 @@ export function HeroHeader({ sectionProgress }: HeroHeaderProps) {
       </div>
       <div className="hero__side">
         <div className="hero__foot">
-          <SessionMenu />
+          <SessionMenu profile={profile} />
           {sectionProgress.length > 0 ? (
             <dl className="hero__status-list mono" aria-label="Progress by section">
               {sectionProgress.map((item) => (
