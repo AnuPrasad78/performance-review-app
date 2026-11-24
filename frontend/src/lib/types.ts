@@ -50,12 +50,6 @@ export interface AssessmentQuestion {
   managerComment: string | null
 }
 
-export interface RatingScaleEntry {
-  value: RatingValue
-  name: string
-  description: string
-}
-
 export interface ForwardCommitment {
   id: number
   commitment: string
@@ -70,6 +64,8 @@ export interface SelfEvaluationEmployee extends Employee {
   deliveryHead: string
 }
 
+export type SelfEvaluationEmployeeField = keyof SelfEvaluationEmployee
+
 export interface SelfEvaluationDraft {
   employee: SelfEvaluationEmployee
   questions: readonly AssessmentQuestion[]
@@ -83,6 +79,7 @@ export interface SelfEvaluationFieldErrors {
   questionErrors: Partial<Record<AssessmentQuestionId, string>>
   overallRating: string | null
   overallSummary: string | null
+  commitments: string | null
 }
 
 export interface SelfEvaluationValidation {

@@ -1,16 +1,21 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
 import { AdminStoreProvider } from '../../src/state/AdminContext'
+import { AuthProvider } from '../../src/state/AuthContext'
 import { EmployeeDashboardPage } from '../../src/pages/EmployeeDashboardPage'
 
 const STORAGE_KEY = 'performance-review.employee.v1'
-const ADMIN_STORAGE_KEY = 'performance-review.admin.v1'
 
 function renderPage(): React.ReactElement {
   return (
-    <AdminStoreProvider>
-      <EmployeeDashboardPage />
-    </AdminStoreProvider>
+    <MemoryRouter initialEntries={['/dashboard']}>
+      <AdminStoreProvider>
+        <AuthProvider>
+          <EmployeeDashboardPage />
+        </AuthProvider>
+      </AdminStoreProvider>
+    </MemoryRouter>
   )
 }
 
@@ -22,49 +27,67 @@ describe('EmployeeDashboardPage — shell', () => {
   it('renders the review progress meter and employee details on the single page', async () => {
     render(renderPage())
 
-    expect(await screen.findByText('0/7')).toBeInTheDocument()
-    expect(screen.getByRole('meter', { name: 'SECTIONS COMPLETED' })).toBeInTheDocument()
-    expect(screen.getByDisplayValue('Asha Nair')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Annual Performance Review 2026' })).toBeInTheDocument()
+    const steps = await screen.findAllByText('Assessment Questions')
+    expect(steps.length).toBeGreaterThan(0)
+    expect(document.querySelector('.steps-nav__step.is-active')).not.toBeNull()
   })
 
-  it('renders the self-evaluation form below the details and highlights the due date', async () => {
+  it('renders the assessment question on the first page inside the floating card', async () => {
     render(renderPage())
 
-    expect(await screen.findByText('Q1. Key contributions and achievements')).toBeInTheDocument()
-    const dueDate = screen.getByText('15-Jan-2027')
-    expect(dueDate.className).toContain('page-head__due')
+    expect(await screen.findByText(/^Q1\./)).toBeInTheDocument()
+    expect(document.querySelector('.hero-card')).not.toBeNull()
+    expect(screen.getByRole('button', { name: 'Next' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Previous' })).not.toBeInTheDocument()
   })
 
-  it('uses the admin deadline when cycle settings are published', async () => {
-    window.localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify({
-      employees: [],
-      cycleSettings: {
-        submissionDeadline: '2027-02-01',
-        managerReviewStart: '2027-02-02',
-        managerReviewEnd: '2027-03-01',
-        hrApprovalReleaseBy: '2027-03-15',
-      },
-    }))
+  it('shows the 2026 performance period in the hero band', async () => {
     render(renderPage())
 
-    expect(await screen.findByText('01-Feb-2027')).toBeInTheDocument()
+    expect(await screen.findByText('Performance period: 1-Jan-2026 to 31-Dec-2026')).toBeInTheDocument()
   })
 })
 
 describe('EmployeeDashboardPage — draft state', () => {
-  it('typing in a controlled textarea updates the persisted draft on save', async () => {
+  it('autosaves typed responses without a manual save action', async () => {
     const user = userEvent.setup()
     render(renderPage())
     const q1 = await screen.findByLabelText('Employee response *', { selector: '#response-contribution' })
     await user.type(q1, 'Cut ticket backlog 40 percent across 2026.')
 
-    await user.click(screen.getByRole('button', { name: 'Save draft' }))
-
-    const stored = JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? '{}')
-    expect(stored.draft.questions.find((q: { id: string }) => q.id === 'contribution').employeeResponse).toBe(
-      'Cut ticket backlog 40 percent across 2026.',
+    await vi.waitFor(
+      () => {
+        const stored = JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? '{}')
+        expect(
+          stored.draft.questions.find((q: { id: string }) => q.id === 'contribution').employeeResponse,
+        ).toBe('Cut ticket backlog 40 percent across 2026.')
+      },
+      { timeout: 3000 },
     )
+    const stored = JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? '{}')
     expect(stored.submittedAt).toBeNull()
+  })
+
+  it('resumes on the page the employee last visited', async () => {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      draft: {
+        employee: { firstName: 'Asha', lastName: 'Nair', email: 'a@emids.com', role: 'Engineer', department: 'Quality', manager: 'Ravi Menon', employeeId: 'EMP-1001', location: 'Bengaluru', deliveryManager: 'Joseph Mathew', deliveryHead: 'Divya Prakash' },
+        questions: [{ id: 'contribution', question: 'Q?', title: 'T?', employeeResponse: '', managerComment: null }],
+        overallRating: null,
+        overallSummary: '',
+        commitments: [{ id: 1, commitment: '', support: '' }],
+        acknowledged: false,
+      },
+      submittedAt: null,
+      employeeSignedAt: null,
+      lastStepIndex: 1,
+      lastQuestionIndex: 2,
+    }))
+    render(renderPage())
+
+    expect((await screen.findAllByText('Overall Rating & Feedback')).length).toBeGreaterThan(0)
+    expect(document.querySelector('.steps-nav__step.is-active')?.textContent).toContain('Overall Rating & Feedback')
   })
 
   it('keeps the rest of the draft when a different question is edited', async () => {
@@ -86,9 +109,11 @@ describe('EmployeeDashboardPage — draft state', () => {
     const user = userEvent.setup()
     render(renderPage())
 
+    await user.click(await screen.findByRole('button', { name: 'Next' }))
     const strengths = await screen.findByLabelText('Employee response *', { selector: '#response-strengths' })
     await user.type(strengths, 'Clear written explanations.')
     expect(strengths).toHaveValue('Clear written explanations.')
+    await user.click(screen.getByRole('button', { name: 'Previous' }))
     expect(screen.getByLabelText('Employee response *', { selector: '#response-contribution' })).toHaveValue(
       'Shipped the feature.',
     )
@@ -100,12 +125,14 @@ describe('EmployeeDashboardPage — submit validation', () => {
     const user = userEvent.setup()
     render(renderPage())
     await screen.findByLabelText('Employee response *', { selector: '#response-contribution' })
+    for (let page = 0; page < 6; page += 1) {
+      await user.click(screen.getByRole('button', { name: 'Next' }))
+    }
 
     await user.click(screen.getByRole('button', { name: 'Submit' }))
 
     expect(screen.getAllByText('Write your response before submitting.').length).toBeGreaterThan(0)
-    expect(screen.getByText('Choose your overall self-rating.')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Submit' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Next' })).toBeInTheDocument()
     const stored = JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? 'null')
     expect(stored?.submittedAt ?? null).toBeNull()
   })
@@ -115,12 +142,23 @@ describe('EmployeeDashboardPage — submit validation', () => {
     render(renderPage())
 
     await user.type(await screen.findByLabelText('Employee response *', { selector: '#response-contribution' }), 'Impact one.')
-    await user.type(screen.getByLabelText('Employee response *', { selector: '#response-strengths' }), 'Strength one.')
-    await user.type(screen.getByLabelText('Employee response *', { selector: '#response-development' }), 'Growth one.')
-    await user.type(screen.getByLabelText('Employee response *', { selector: '#response-support' }), 'Support one.')
-    const ratingChip4 = screen.getAllByRole('button', { name: '4' })
+    const continueToNext = async (): Promise<void> => {
+      await user.click(screen.getByRole('button', { name: 'Next' }))
+    }
+    await continueToNext()
+    await user.type(await screen.findByLabelText('Employee response *', { selector: '#response-strengths' }), 'Strength one.')
+    await continueToNext()
+    await user.type(await screen.findByLabelText('Employee response *', { selector: '#response-development' }), 'Growth one.')
+    await continueToNext()
+    await user.type(await screen.findByLabelText('Employee response *', { selector: '#response-support' }), 'Support one.')
+    await continueToNext()
+    const ratingChip4 = await screen.findAllByRole('button', { name: '4' })
     await user.click(ratingChip4[0]!)
     await user.type(screen.getByLabelText('Overall comments *'), 'Summary of the year.')
+    await continueToNext()
+    await user.type(await screen.findByLabelText('Commitment 1'), 'Own an end-to-end service in 2027.')
+    await user.type(screen.getByLabelText('Agreed support / conditions'), 'A service-ownership stretch assignment.')
+    await continueToNext()
 
     await user.click(screen.getByRole('button', { name: 'Submit' }))
 
@@ -128,6 +166,54 @@ describe('EmployeeDashboardPage — submit validation', () => {
     expect(stored.submittedAt).not.toBeNull()
     expect(stored.draft.overallRating).toBe(4)
     expect(await screen.findByText(/submitted on/)).toBeInTheDocument()
-    expect(screen.getByLabelText('Employee response *', { selector: '#response-contribution' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: 'Submit' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Previous' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Previous' }))
+    expect(screen.getByRole('button', { name: 'Next' })).toBeInTheDocument()
+  })
+
+  it('blocks submit when the compulsory first commitment is empty and jumps back to it', async () => {
+    const user = userEvent.setup()
+    render(renderPage())
+
+    const responses = ['#response-contribution', '#response-strengths', '#response-development', '#response-support']
+    for (let page = 0; page < 4; page += 1) {
+      const selector = responses[page]
+      if (selector === undefined) throw new Error('missing response selector')
+      await user.type(await screen.findByLabelText('Employee response *', { selector }), 'Filled response.')
+      await user.click(screen.getByRole('button', { name: 'Next' }))
+    }
+    const ratingChip3 = await screen.findAllByRole('button', { name: '3' })
+    await user.click(ratingChip3[0]!)
+    await user.type(screen.getByLabelText('Overall comments *'), 'Summary of the year.')
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+
+    await user.click(screen.getByRole('button', { name: 'Submit' }))
+
+    expect(screen.getByText('Write at least one commitment for 2027.')).toBeInTheDocument()
+    expect(document.querySelector('.steps-nav__step.is-active')?.textContent).toContain('Forward Commitments')
+    const stored = JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? 'null')
+    expect(stored?.submittedAt ?? null).toBeNull()
+  })
+
+  it('adds and removes optional commitments but never leaves the page empty', async () => {
+    const user = userEvent.setup()
+    render(renderPage())
+    await screen.findByLabelText('Employee response *', { selector: '#response-contribution' })
+    for (let page = 0; page < 5; page += 1) {
+      await user.click(screen.getByRole('button', { name: 'Next' }))
+    }
+
+    expect(await screen.findByText('Commitment 1')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Remove commitment 1' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Add commitment' }))
+    expect(screen.getByText('Commitment 2')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Remove commitment 2' }))
+    expect(screen.queryByText('Commitment 2')).not.toBeInTheDocument()
+    expect(screen.getByText('Commitment 1')).toBeInTheDocument()
   })
 })

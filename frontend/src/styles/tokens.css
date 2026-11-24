@@ -7,6 +7,8 @@
   --teal-light: #abc7ca;
   --teal-wash: #eef5f6;
   --grad: linear-gradient(90deg, #9dc6cc 0%, #72b3be 50%, #57a6b3 100%);
+  /* Harbor mock — deep green-teal used for review section headings */
+  --band-green: #0b8174;
 
   --black: #0e0e0e;
   --ink: #171a19;

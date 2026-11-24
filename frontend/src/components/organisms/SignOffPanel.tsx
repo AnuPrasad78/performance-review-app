@@ -1,7 +1,7 @@
 import { Card } from '../atoms/Card'
 import { Input } from '../atoms/Input'
 import { DataTable, type DataTableColumn } from '../molecules/DataTable'
-import { formatIsoDate } from '../../lib/dates'
+import { formatIsoDate, todayIsoDate } from '../../lib/dates'
 import type { SelfEvaluationEmployee } from '../../lib/types'
 
 export interface SignOffPanelProps {
@@ -42,9 +42,9 @@ export function SignOffPanel({
 }: SignOffPanelProps) {
   const rows: readonly SignoffRow[] = [
     {
-      employee: signedAt === null ? '' : `${employee.firstName} ${employee.lastName}`,
+      employee: `${employee.firstName} ${employee.lastName}`,
       manager: '',
-      date: signedAt === null ? '' : formatIsoDate(signedAt),
+      date: formatIsoDate(signedAt ?? todayIsoDate()),
     },
   ]
   return (

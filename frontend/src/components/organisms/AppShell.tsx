@@ -1,6 +1,9 @@
 import { useState, type ReactNode } from 'react'
 import { NavLink } from 'react-router-dom'
 import { Icon, type IconName } from '../atoms/Icon'
+import { SessionMenu } from './SessionMenu'
+import { useAuth } from '../../state/AuthContext'
+import { initialsOf, ROLE_LABELS } from '../../lib/authUsers'
 import logoUrl from '../../assets/emids-logo.svg'
 
 export interface NavSection {
@@ -19,6 +22,7 @@ export interface AppShellProps {
 export function AppShell({ headerTitle, navSections, children }: AppShellProps) {
   const hasDrawer = navSections !== undefined && navSections.length > 0
   const [navOpen, setNavOpen] = useState(false)
+  const { session } = useAuth()
 
   return (
     <>
@@ -37,6 +41,7 @@ export function AppShell({ headerTitle, navSections, children }: AppShellProps) 
           <img src={logoUrl} alt="Emids" />
         </span>
         <span className="header__title">{headerTitle}</span>
+        {session !== null ? <SessionMenuSlot /> : null}
       </header>
       <main className="content">{children}</main>
       {hasDrawer && navOpen ? (
@@ -51,11 +56,13 @@ export function AppShell({ headerTitle, navSections, children }: AppShellProps) 
             <div className="drawer__topbar" aria-hidden="true"></div>
             <div className="drawer__profile">
               <span className="avatar" aria-hidden="true">
-                AD
+                {session !== null ? initialsOf(session.name) : 'AD'}
               </span>
               <div>
-                <div className="drawer__name">Admin</div>
-                <div className="drawer__role">Review administration</div>
+                <div className="drawer__name">{session !== null ? session.name : 'Admin'}</div>
+                <div className="drawer__role">
+                  {session !== null ? ROLE_LABELS[session.role] : 'Review administration'}
+                </div>
               </div>
               <button
                 className="icon-btn drawer__close"
@@ -82,5 +89,14 @@ export function AppShell({ headerTitle, navSections, children }: AppShellProps) 
         </>
       ) : null}
     </>
+  )
+}
+
+/** Reuses the shared session popover, positioned to fit the slim header. */
+function SessionMenuSlot() {
+  return (
+    <div className="header__session-slot">
+      <SessionMenu />
+    </div>
   )
 }

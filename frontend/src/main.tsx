@@ -4,6 +4,7 @@ import '@fontsource-variable/plus-jakarta-sans'
 import './styles/tokens.css'
 import './styles/app.css'
 import './styles/layout.css'
+import './styles/login.css'
 import { App } from './App'
 
 createRoot(document.getElementById('root')!).render(

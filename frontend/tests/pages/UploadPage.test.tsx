@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AdminStoreProvider } from '../../src/state/AdminContext'
+import { AuthProvider } from '../../src/state/AuthContext'
 import { UploadPage } from '../../src/pages/UploadPage'
 
 const ROSTER_CSV = `first_name,last_name,email,role,department,manager
@@ -17,8 +18,10 @@ const STORAGE_KEY = 'performance-review.admin.v1'
 function page(): React.ReactElement {
   return (
     <AdminStoreProvider>
+          <AuthProvider>
       <UploadPage />
-    </AdminStoreProvider>
+    </AuthProvider>
+        </AdminStoreProvider>
   )
 }
 

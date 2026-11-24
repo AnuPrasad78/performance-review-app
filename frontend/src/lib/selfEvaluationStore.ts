@@ -12,6 +12,10 @@ export interface SelfEvaluationRecord {
   draft: SelfEvaluationDraft | null
   submittedAt: string | null
   employeeSignedAt: string | null
+  /** Review section the employee was on, so sign-in resumes where they left. */
+  lastStepIndex: number | null
+  /** Assessment question shown inside section 1. */
+  lastQuestionIndex: number | null
 }
 
 /** Mock identity for the employee persona until the backend supplies the session user. */
@@ -74,13 +78,13 @@ export function loadSelfEvaluationRecord(): SelfEvaluationRecord {
   try {
     raw = window.localStorage.getItem(STORAGE_KEY)
   } catch {
-    return { draft: null, submittedAt: null, employeeSignedAt: null }
+    return { draft: null, submittedAt: null, employeeSignedAt: null, lastStepIndex: null, lastQuestionIndex: null }
   }
-  if (raw === null) return { draft: null, submittedAt: null, employeeSignedAt: null }
+  if (raw === null) return { draft: null, submittedAt: null, employeeSignedAt: null, lastStepIndex: null, lastQuestionIndex: null }
   try {
     const parsed: unknown = JSON.parse(raw)
     if (typeof parsed !== 'object' || parsed === null) {
-      return { draft: null, submittedAt: null, employeeSignedAt: null }
+      return { draft: null, submittedAt: null, employeeSignedAt: null, lastStepIndex: null, lastQuestionIndex: null }
     }
     // Cross-shape persistence data is untrusted input on replay, so only typed-known
     // pieces are carried over; everything else resets to fresh.
@@ -89,9 +93,12 @@ export function loadSelfEvaluationRecord(): SelfEvaluationRecord {
     const submittedAt = typeof candidate.submittedAt === 'string' ? candidate.submittedAt : null
     const employeeSignedAt =
       typeof candidate.employeeSignedAt === 'string' ? candidate.employeeSignedAt : null
-    return { draft, submittedAt, employeeSignedAt }
+    const lastStepIndex = typeof candidate.lastStepIndex === 'number' ? candidate.lastStepIndex : null
+    const lastQuestionIndex =
+      typeof candidate.lastQuestionIndex === 'number' ? candidate.lastQuestionIndex : null
+    return { draft, submittedAt, employeeSignedAt, lastStepIndex, lastQuestionIndex }
   } catch {
-    return { draft: null, submittedAt: null, employeeSignedAt: null }
+    return { draft: null, submittedAt: null, employeeSignedAt: null, lastStepIndex: null, lastQuestionIndex: null }
   }
 }
 

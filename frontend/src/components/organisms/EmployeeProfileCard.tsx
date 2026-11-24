@@ -1,13 +1,15 @@
 import { Card } from '../atoms/Card'
 import { Input } from '../atoms/Input'
-import type { SelfEvaluationEmployee } from '../../lib/types'
+import type { SelfEvaluationEmployee, SelfEvaluationEmployeeField } from '../../lib/types'
 
 export interface EmployeeProfileCardProps {
   employee: SelfEvaluationEmployee
+  readOnly: boolean
+  onChange: (field: SelfEvaluationEmployeeField, value: string) => void
 }
 
 interface ProfileField {
-  key: string
+  key: SelfEvaluationEmployeeField
   label: string
   value: string
 }
@@ -18,16 +20,17 @@ function initialsOf(employee: SelfEvaluationEmployee): string {
   return (first + last).toUpperCase()
 }
 
-export function EmployeeProfileCard({ employee }: EmployeeProfileCardProps) {
+export function EmployeeProfileCard({ employee, readOnly, onChange }: EmployeeProfileCardProps) {
   const fields: readonly ProfileField[] = [
-    { key: 'name', label: 'Employee name', value: `${employee.firstName} ${employee.lastName}` },
-    { key: 'id', label: 'Employee ID', value: employee.employeeId },
-    { key: 'position', label: 'Position', value: employee.role },
+    { key: 'firstName', label: 'First name', value: employee.firstName },
+    { key: 'lastName', label: 'Last name', value: employee.lastName },
+    { key: 'employeeId', label: 'Employee ID', value: employee.employeeId },
+    { key: 'role', label: 'Position', value: employee.role },
     { key: 'department', label: 'Department', value: employee.department },
     { key: 'location', label: 'Location', value: employee.location },
     { key: 'manager', label: 'Reporting manager', value: employee.manager },
-    { key: 'dm', label: 'DM', value: employee.deliveryManager },
-    { key: 'dh-dp', label: 'DH/DP', value: employee.deliveryHead },
+    { key: 'deliveryManager', label: 'DM', value: employee.deliveryManager },
+    { key: 'deliveryHead', label: 'DH/DP', value: employee.deliveryHead },
   ]
 
   return (
@@ -49,7 +52,12 @@ export function EmployeeProfileCard({ employee }: EmployeeProfileCardProps) {
             <label className="field__label" htmlFor={`detail-${field.key}`}>
               {field.label}
             </label>
-            <Input id={`detail-${field.key}`} value={field.value} readOnly />
+            <Input
+              id={`detail-${field.key}`}
+              value={field.value}
+              readOnly={readOnly}
+              onChange={(event) => onChange(field.key, event.target.value)}
+            />
           </div>
         ))}
       </div>

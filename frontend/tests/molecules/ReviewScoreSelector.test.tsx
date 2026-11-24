@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { ReviewScoreSelector } from '../../src/components/molecules/ReviewScoreSelector'
 
-function Harness({ onChange }: { onChange: (value: number) => void }) {
+function Harness({ onChange }: { onChange: (value: number | null) => void }) {
   const [value, setValue] = useState<number | null>(null)
   return (
     <ReviewScoreSelector
@@ -21,7 +21,7 @@ function Harness({ onChange }: { onChange: (value: number) => void }) {
 describe('ReviewScoreSelector', () => {
   it('fires onChange with the selected value and marks it active', async () => {
     const user = userEvent.setup()
-    const selections: number[] = []
+    const selections: (number | null)[] = []
     render(<Harness onChange={(value) => selections.push(value)} />)
 
     await user.click(screen.getByRole('button', { name: '4' }))
@@ -31,9 +31,21 @@ describe('ReviewScoreSelector', () => {
     expect(screen.getByRole('button', { name: '3' })).toHaveAttribute('aria-pressed', 'false')
   })
 
+  it('deselects the active chip when clicked again', async () => {
+    const user = userEvent.setup()
+    const selections: (number | null)[] = []
+    render(<Harness onChange={(value) => selections.push(value)} />)
+
+    await user.click(screen.getByRole('button', { name: '4' }))
+    await user.click(screen.getByRole('button', { name: '4' }))
+
+    expect(selections).toEqual([4, null])
+    expect(screen.getByRole('button', { name: '4' })).toHaveAttribute('aria-pressed', 'false')
+  })
+
   it('renders disabled chips without interacting', async () => {
     const user = userEvent.setup()
-    const selections: number[] = []
+    const selections: (number | null)[] = []
     render(
       <ReviewScoreSelector
         values={[1, 2, 3, 4, 5]}

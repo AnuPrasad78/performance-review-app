@@ -1,4 +1,4 @@
-import type { AssessmentQuestion, ForwardCommitment, RatingScaleEntry } from './types'
+import type { AssessmentQuestion, ForwardCommitment } from './types'
 
 /** Static 2026 review form content (the review document this screen implements). The
     backend seam will replace this module's data with API responses; component code
@@ -37,39 +37,7 @@ export const REVIEW_QUESTIONS: readonly AssessmentQuestion[] = [
   },
 ]
 
-export const RATING_SCALE_REFERENCE: readonly RatingScaleEntry[] = [
-  {
-    value: 5,
-    name: 'Significantly exceeds expectations',
-    description: 'Significantly exceeded targets; contributed to process improvement.',
-  },
-  {
-    value: 4,
-    name: 'Exceeds expectations',
-    description: 'Delivered and exceeded targets and results.',
-  },
-  {
-    value: 3,
-    name: 'Meets expectations',
-    description: 'Meets expected targets; achieved intended results.',
-  },
-  {
-    value: 2,
-    name: 'Below expectations',
-    description: 'The employee needs improvement.',
-  },
-  {
-    value: 1,
-    name: 'Significantly below expectations',
-    description: 'The employee significantly needs improvement.',
-  },
-]
-
-export const EMPTY_COMMITMENTS: readonly ForwardCommitment[] = [
-  { id: 1, commitment: '', support: '' },
-  { id: 2, commitment: '', support: '' },
-  { id: 3, commitment: '', support: '' },
-]
+export const EMPTY_COMMITMENTS: readonly ForwardCommitment[] = [{ id: 1, commitment: '', support: '' }]
 
 /** The 2026 form's contractual due date, used until the admin publishes cycle settings. */
 export const DEFAULT_SUBMISSION_DEADLINE = '2027-01-15'
