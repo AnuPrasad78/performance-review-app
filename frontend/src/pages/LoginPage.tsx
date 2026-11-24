@@ -14,6 +14,8 @@ export const ROLE_HOME: Record<AuthRole, string> = {
 }
 
 const SSO_NOT_WIRED = 'SSO is not enabled for this release — sign in with your email.'
+const RESET_NOT_WIRED =
+  'Password reset is not available in this release — contact an administrator.'
 
 function guardedFrom(locationState: unknown): string | null {
   if (typeof locationState !== 'object' || locationState === null || !('from' in locationState)) {
@@ -58,39 +60,37 @@ export function LoginPage() {
   return (
     <LoginTemplate>
       <div className="login__form-stack">
-        <h1 className="login__title">Sign in</h1>
-        <p className="login__lead">Access your performance review workspace.</p>
-
-        <button type="button" className="login__ms-btn" onClick={() => setError(SSO_NOT_WIRED)}>
-          <MicrosoftLogo />
-          Sign in with Microsoft
-        </button>
-        <p className="muted login__hint">SSO unavailable in this release</p>
-
-        <div className="login__divider" role="separator">
-          <span>or sign in with email</span>
-        </div>
+        <h1 className="login__heading">Welcome back</h1>
+        <p className="login__lead">Sign in to your performance review account.</p>
 
         <form onSubmit={handleSubmit} noValidate>
           <div className="field">
             <label className="field__label" htmlFor="login-email">
-              Email
+              Company Email
             </label>
-            <Input
-              id="login-email"
-              type="email"
-              autoComplete="username"
-              placeholder="name_lastname@emids.com"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              disabled={busy}
-            />
+            <div className="icon-control">
+              <span className="icon-control__lead" aria-hidden="true">
+                <Icon name="mail" size={16} />
+              </span>
+              <Input
+                id="login-email"
+                type="email"
+                autoComplete="username"
+                placeholder="xyz@emids.com"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                disabled={busy}
+              />
+            </div>
           </div>
           <div className="field">
             <label className="field__label" htmlFor="login-password">
               Password
             </label>
-            <div className="pw-control">
+            <div className="icon-control icon-control--pw">
+              <span className="icon-control__lead" aria-hidden="true">
+                <Icon name="lock" size={16} />
+              </span>
               <Input
                 id="login-password"
                 type={showPassword ? 'text' : 'password'}
@@ -102,13 +102,22 @@ export function LoginPage() {
               />
               <button
                 type="button"
-                className="pw-control__toggle"
+                className="icon-control__toggle"
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
                 aria-pressed={showPassword}
                 onClick={() => setShowPassword((current) => !current)}
                 disabled={busy}
               >
                 <Icon name={showPassword ? 'eye-off' : 'eye'} size={18} />
+              </button>
+            </div>
+            <div className="login__forgot-row">
+              <button
+                type="button"
+                className="login__forgot"
+                onClick={() => setError(RESET_NOT_WIRED)}
+              >
+                Forgot password?
               </button>
             </div>
           </div>
@@ -119,6 +128,15 @@ export function LoginPage() {
             Sign in
           </Button>
         </form>
+
+        <div className="login__divider" role="separator">
+          <span>or continue with</span>
+        </div>
+
+        <button type="button" className="login__sso-btn" onClick={() => setError(SSO_NOT_WIRED)}>
+          <MicrosoftLogo />
+          Sign in with Emids SSO
+        </button>
       </div>
     </LoginTemplate>
   )

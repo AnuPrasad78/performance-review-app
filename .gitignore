@@ -42,3 +42,5 @@ desktop.ini
 .venv/
 __pycache__/
 *.pyc
+
+.claude/
