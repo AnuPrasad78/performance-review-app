@@ -7,7 +7,7 @@ export default defineConfig({
     proxy: {
       // Same-origin /api → review API; VITE_API_URL keeps direct-URL deploys.
       '/api': {
-        target: 'http://localhost:8000',
+        target: 'http://localhost:8010',
         changeOrigin: true,
       },
     },

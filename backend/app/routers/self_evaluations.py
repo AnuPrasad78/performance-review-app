@@ -1,6 +1,6 @@
 """Employee-facing self-evaluation endpoints plus the admin status board.
 
-Employee routes authenticate through get_current_user; the board route stacks
+Employee routes authenticate through get_roster_user; the board route stacks
 get_admin_user on top (role gate in core/auth.py). Routers stay thin by rule:
 the use cases — read, partial save, submit, board — live in the service.
 """
@@ -9,7 +9,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 
-from app.core.auth import AuthUser, get_admin_user, get_current_user
+from app.core.auth import AuthUser, get_admin_user, get_roster_user
 from app.repositories.evaluation_repository import (
     EvaluationRepository,
     get_evaluation_repository,
@@ -50,7 +50,7 @@ async def list_review_form_statuses(
 
 @router.get("/evaluations/me", response_model=SelfEvaluationOut)
 async def read_my_evaluation(
-    user: Annotated[AuthUser, Depends(get_current_user)],
+    user: Annotated[AuthUser, Depends(get_roster_user)],
     employee_repository: Annotated[EmployeeRepository, Depends(get_employee_repository)],
     evaluation_repository: Annotated[EvaluationRepository, Depends(get_evaluation_repository)],
     cycle_repository: Annotated[ReviewCycleRepository, Depends(get_review_cycle_repository)],
@@ -66,7 +66,7 @@ async def read_my_evaluation(
 @router.patch("/evaluations/me", response_model=SelfEvaluationOut)
 async def save_my_evaluation(
     patch: SelfEvaluationPatch,
-    user: Annotated[AuthUser, Depends(get_current_user)],
+    user: Annotated[AuthUser, Depends(get_roster_user)],
     employee_repository: Annotated[EmployeeRepository, Depends(get_employee_repository)],
     evaluation_repository: Annotated[EvaluationRepository, Depends(get_evaluation_repository)],
     cycle_repository: Annotated[ReviewCycleRepository, Depends(get_review_cycle_repository)],
@@ -82,7 +82,7 @@ async def save_my_evaluation(
 
 @router.post("/evaluations/me/submit", response_model=SelfEvaluationOut)
 async def submit_my_evaluation(
-    user: Annotated[AuthUser, Depends(get_current_user)],
+    user: Annotated[AuthUser, Depends(get_roster_user)],
     employee_repository: Annotated[EmployeeRepository, Depends(get_employee_repository)],
     evaluation_repository: Annotated[EvaluationRepository, Depends(get_evaluation_repository)],
     cycle_repository: Annotated[ReviewCycleRepository, Depends(get_review_cycle_repository)],
