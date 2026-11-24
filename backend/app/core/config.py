@@ -33,6 +33,12 @@ class Settings(BaseSettings):
     # Stub-auth phase: header that carries the acting user until SSO arrives.
     stub_user_header: str = "X-Stub-User"
 
+    # Stub-auth phase: emails hold the admin console role while roles live in
+    # settings (user_accounts.auth_role arrives with migration A5). Env syntax:
+    #   PR_STUB_ADMIN_EMAILS='["boss@emids.com"]'
+    # Everyone not listed is the employee persona.
+    stub_admin_emails: list[str] = []
+
     # Vite's default dev-server origin; extend per environment via PR_CORS_ORIGINS.
     cors_origins: list[str] = ["http://localhost:5173"]
 
@@ -48,6 +54,14 @@ class Settings(BaseSettings):
                 "(the async driver), got: " + value.split(":")[0]
             )
         return value
+
+    @property
+    def stub_admin_emails_normalized(self) -> frozenset[str]:
+        return frozenset(
+            one.strip().lower()
+            for one in self.stub_admin_emails
+            if one.strip() != ""
+        )
 
     @model_validator(mode="after")
     def stub_auth_only_in_dev(self) -> "Settings":

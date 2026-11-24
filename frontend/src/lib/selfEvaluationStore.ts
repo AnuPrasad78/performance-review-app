@@ -1,38 +1,31 @@
+/** The employee view's domain layer: wire → record translation, status
+    derivation, and the draft → patch payload. Storage and fetching no longer
+    live here — GET/PATCH/POST on /api/evaluations/me is the source (api.ts). */
+
 import { EMPTY_COMMITMENTS, REVIEW_QUESTIONS } from './selfEvaluationContent'
 import type {
-  ReviewSaveResult,
+  ForwardCommitment,
+  RatingValue,
   ReviewStatus,
   SelfEvaluationDraft,
   SelfEvaluationEmployee,
+  SelfEvaluationPartial,
+  SelfEvaluationWire,
+  TopicResponses,
 } from './types'
 
-const STORAGE_KEY = 'performance-review.employee.v1'
-
 export interface SelfEvaluationRecord {
-  draft: SelfEvaluationDraft | null
+  draft: SelfEvaluationDraft
   submittedAt: string | null
   employeeSignedAt: string | null
+  submissionDeadline: string
+  /** Server-owned lock flag: open reviews and post-submit-before-manager-end. */
+  commitmentsEditable: boolean
 }
 
-/** Mock identity for the employee persona until the backend supplies the session user. */
-export const MOCK_EMPLOYEE: SelfEvaluationEmployee = {
-  employeeId: 'EMP-V001',
-  name: 'Asha Menon',
-  email: 'asha_menon@emids.com',
-  designation: 'Software Engineer',
-  location: 'India',
-  org: 'Delivery',
-  project: 'Cigna One',
-  deliveryHead: 'Arumugam Thiraviam',
-  deliveryManager: 'Priya Raghavan',
-  businessPartner: 'John D',
-  reportingManager: 'Priya Raghavan',
-  status: 'Active',
-}
-
-export function buildFreshDraft(): SelfEvaluationDraft {
+export function buildFreshDraft(employee: SelfEvaluationEmployee): SelfEvaluationDraft {
   return {
-    employee: MOCK_EMPLOYEE,
+    employee,
     questions: REVIEW_QUESTIONS.map((question) => ({ ...question, employeeResponse: '' })),
     overallRating: null,
     overallSummary: '',
@@ -41,18 +34,95 @@ export function buildFreshDraft(): SelfEvaluationDraft {
   }
 }
 
-function isDraftShape(value: unknown): value is SelfEvaluationDraft {
-  if (typeof value !== 'object' || value === null) return false
-  const candidate = value as Record<string, unknown>
-  return typeof candidate.overallSummary === 'string' && Array.isArray(candidate.questions)
+function ratingOf(value: number | null): RatingValue | null {
+  return value !== null && value >= 1 && value <= 5 ? (value as RatingValue) : null
 }
 
-/** Status derives from what was persisted, so the strip never invents review state. */
+function commitmentsFromApi(values: readonly { commitment: string; support: string }[]): readonly ForwardCommitment[] {
+  // Positional ids only: the wire list is authoritative and the ids exist so
+  // the form's React keys and change handlers can address a row.
+  if (values.length === 0) return EMPTY_COMMITMENTS.map((commitment) => ({ ...commitment }))
+  return values.map((entry, index) => ({ ...entry, id: index + 1 }))
+}
+
+/** Workflow-state refresh after a save. The server echo is at most as new as
+    the client draft (typing continued during the request), so only the
+    server-owned fields — dates, deadline, lock flag — are taken back; the
+    local draft keeps every unsaved keystroke instead of being clobbered. */
+export function mergeRecordFromApi(
+  record: SelfEvaluationRecord,
+  data: SelfEvaluationWire,
+): SelfEvaluationRecord {
+  return {
+    ...record,
+    submittedAt: data.submittedAt,
+    employeeSignedAt: data.employeeSignedAt,
+    submissionDeadline: data.submissionDeadline,
+    commitmentsEditable: data.commitmentsEditable,
+  }
+}
+
+/** The record is rebuilt from every API answer — GET, PATCH, and POST all
+    return the same wire shape, so the page always ends on server truth. */
+export function recordFromApi(data: SelfEvaluationWire): SelfEvaluationRecord {
+  const draft: SelfEvaluationDraft = {
+    ...buildFreshDraft(data.employee),
+    questions: REVIEW_QUESTIONS.map((question) => ({
+      ...question,
+      employeeResponse: data.responses[question.id],
+      managerComment: data.managerComments[question.id] !== '' ? data.managerComments[question.id] : null,
+    })),
+    overallRating: ratingOf(data.overallRating),
+    overallSummary: data.overallSummary,
+    commitments: commitmentsFromApi(data.forwardCommitments),
+    acknowledged: data.employeeSignedAt !== null,
+  }
+  return {
+    draft,
+    submittedAt: data.submittedAt,
+    employeeSignedAt: data.employeeSignedAt,
+    submissionDeadline: data.submissionDeadline,
+    commitmentsEditable: data.commitmentsEditable,
+  }
+}
+
+/** Draft → the presence-shaped patch. While the review is open this sends the
+    whole employee-owned subset; after submit the caller reduces it to
+    commitments only (the server rejects the frozen members either way). */
+export function payloadFromDraft(draft: SelfEvaluationDraft): SelfEvaluationPartial {
+  const responses = {} as TopicResponses
+  for (const question of draft.questions) {
+    responses[question.id] = question.employeeResponse
+  }
+  return {
+    responses,
+    // The patch's wire key (backend contract) is selfRating; the GET's is
+    // overallRating. Using the GET's key here was silently dropped by the
+    // backend — the regression test pins the body's key name.
+    selfRating: draft.overallRating,
+    overallSummary: draft.overallSummary,
+    forwardCommitments: draft.commitments.map(({ commitment, support }) => ({
+      commitment,
+      support,
+    })),
+  }
+}
+
+export function commitmentsPayloadFromDraft(draft: SelfEvaluationDraft): SelfEvaluationPartial {
+  return {
+    forwardCommitments: draft.commitments.map(({ commitment, support }) => ({
+      commitment,
+      support,
+    })),
+  }
+}
+
+/** Status derives from what the API persisted, so the strip never invents review state. */
 export function deriveReviewStatus(record: SelfEvaluationRecord): ReviewStatus {
   if (record.employeeSignedAt !== null) return 'signed_off'
   if (record.submittedAt !== null) return 'submitted'
-  if (record.draft !== null) return 'in_progress'
-  return 'not_started'
+  const answered = record.draft.questions.some((question) => question.employeeResponse !== '')
+  return answered ? 'in_progress' : 'not_started'
 }
 
 export const REVIEW_STATUS_LABELS: Record<ReviewStatus, string> = {
@@ -69,53 +139,4 @@ export function reviewStatusTone(status: ReviewStatus): ReviewStatusTone {
   if (status === 'signed_off') return 'approved'
   if (status === 'not_started') return 'cancelled'
   return 'pending'
-}
-
-export function loadSelfEvaluationRecord(): SelfEvaluationRecord {
-  let raw: string | null = null
-  try {
-    raw = window.localStorage.getItem(STORAGE_KEY)
-  } catch {
-    return { draft: null, submittedAt: null, employeeSignedAt: null }
-  }
-  if (raw === null) return { draft: null, submittedAt: null, employeeSignedAt: null }
-  try {
-    const parsed: unknown = JSON.parse(raw)
-    if (typeof parsed !== 'object' || parsed === null) {
-      return { draft: null, submittedAt: null, employeeSignedAt: null }
-    }
-    // Cross-shape persistence data is untrusted input on replay, so only typed-known
-    // pieces are carried over; everything else resets to fresh.
-    const candidate = parsed as Record<string, unknown>
-    const draft = isDraftShape(candidate.draft) ? candidate.draft : null
-    const submittedAt = typeof candidate.submittedAt === 'string' ? candidate.submittedAt : null
-    const employeeSignedAt =
-      typeof candidate.employeeSignedAt === 'string' ? candidate.employeeSignedAt : null
-    return { draft, submittedAt, employeeSignedAt }
-  } catch {
-    return { draft: null, submittedAt: null, employeeSignedAt: null }
-  }
-}
-
-function writeRecord(record: SelfEvaluationRecord): void {
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(record))
-  } catch {
-    // Persistence is a mock concern; the page keeps its in-memory state working without it.
-  }
-}
-
-export function saveDraftRecord(record: SelfEvaluationRecord): ReviewSaveResult {
-  writeRecord(record)
-  return { ok: true }
-}
-
-/** Mock API over the module store. Pages swap these for fetch calls later; the
-    resolved types are the backend seam, so component code never changes. */
-export function getSelfEvaluation(): Promise<SelfEvaluationRecord> {
-  return Promise.resolve(loadSelfEvaluationRecord())
-}
-
-export function saveSelfEvaluation(record: SelfEvaluationRecord): Promise<ReviewSaveResult> {
-  return Promise.resolve(saveDraftRecord(record))
 }

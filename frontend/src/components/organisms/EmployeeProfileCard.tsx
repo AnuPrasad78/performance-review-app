@@ -5,7 +5,8 @@ import type { SelfEvaluationEmployee, SelfEvaluationEmployeeField } from '../../
 export interface EmployeeProfileCardProps {
   employee: SelfEvaluationEmployee
   readOnly: boolean
-  onChange: (field: SelfEvaluationEmployeeField, value: string) => void
+  /** Only an editable render edits; the backend owns this data when present. */
+  onChange?: (field: SelfEvaluationEmployeeField, value: string) => void
 }
 
 interface ProfileField {
@@ -54,7 +55,7 @@ export function EmployeeProfileCard({ employee, readOnly, onChange }: EmployeePr
               id={`detail-${field.key}`}
               value={field.value}
               readOnly={readOnly}
-              onChange={(event) => onChange(field.key, event.target.value)}
+              onChange={(event) => onChange?.(field.key, event.target.value)}
             />
           </div>
         ))}

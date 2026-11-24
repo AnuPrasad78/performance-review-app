@@ -3,40 +3,27 @@ import userEvent from '@testing-library/user-event'
 import { vi } from 'vitest'
 import { AdminStoreProvider } from '../../src/state/AdminContext'
 import { ReviewStatusPage } from '../../src/pages/ReviewStatusPage'
-import type { Employee } from '../../src/lib/types'
+import type { ReviewStatus } from '../../src/lib/types'
 
-const { fetchEmployeesMock } = vi.hoisted(() => ({ fetchEmployeesMock: vi.fn() }))
-vi.mock('../../src/lib/api', () => ({ fetchEmployees: fetchEmployeesMock }))
+const { fetchReviewStatusesMock } = vi.hoisted(() => ({ fetchReviewStatusesMock: vi.fn() }))
+vi.mock('../../src/lib/api', () => ({
+  fetchReviewStatuses: fetchReviewStatusesMock,
+  setApiIdentity: vi.fn(),
+}))
 
-/** The seed roster's real emails — review statuses derive from the email hash,
-    so this exact list keeps the fixture's 2 pending / 6 completed split. */
-const SEED_EMAILS = [
-  'asha_menon@emids.com',
-  'bilal_khan@emids.com',
-  'cara_fernandes@emids.com',
-  'devika_nair@emids.com',
-  'eshan_gupta@emids.com',
-  'farah_sheikh@emids.com',
-  'gaurav_bhatt@emids.com',
-  'heena_roy@emids.com',
+/** Statuses come from the backend now, so the fixture states them outright:
+    1 not started, 1 in progress, 3 submitted, 3 signed off over an
+    eight-person roster. */
+const SEED: readonly { email: string; status: ReviewStatus }[] = [
+  { email: 'bilal_khan@emids.com', status: 'not_started' },
+  { email: 'asha_menon@emids.com', status: 'in_progress' },
+  { email: 'cara_fernandes@emids.com', status: 'submitted' },
+  { email: 'devika_nair@emids.com', status: 'submitted' },
+  { email: 'eshan_gupta@emids.com', status: 'submitted' },
+  { email: 'farah_sheikh@emids.com', status: 'signed_off' },
+  { email: 'gaurav_bhatt@emids.com', status: 'signed_off' },
+  { email: 'heena_roy@emids.com', status: 'signed_off' },
 ]
-
-function roster(): Employee[] {
-  return SEED_EMAILS.map((email, index) => ({
-    employeeId: `EMP-V00${index + 1}`,
-    name: `Employee ${index + 1}`,
-    email,
-    designation: 'Engineer',
-    location: 'India',
-    org: 'Delivery',
-    project: 'Cigna One',
-    deliveryHead: 'Arumugam Thiraviam',
-    deliveryManager: 'Priya Raghavan',
-    businessPartner: 'John D',
-    reportingManager: 'Priya Raghavan',
-    status: 'Active',
-  }))
-}
 
 function page(): React.ReactElement {
   return (
@@ -46,10 +33,33 @@ function page(): React.ReactElement {
   )
 }
 
+function wireReview(seed: { email: string; status: ReviewStatus }, index: number) {
+  return {
+    employee: {
+      employeeId: `EMP-V00${index + 1}`,
+      name: `Employee ${index + 1}`,
+      email: seed.email,
+      designation: 'Engineer',
+      location: 'India',
+      org: 'Delivery',
+      project: 'Cigna One',
+      deliveryHead: 'Arumugam Thiraviam',
+      deliveryManager: 'Priya Raghavan',
+      businessPartner: 'John D',
+      reportingManager: 'Priya Raghavan',
+      status: 'Active',
+    },
+    status: seed.status,
+  }
+}
+
 beforeEach(() => {
   window.localStorage.clear()
-  fetchEmployeesMock.mockReset()
-  fetchEmployeesMock.mockResolvedValue({ ok: true, employees: roster() })
+  fetchReviewStatusesMock.mockReset()
+  fetchReviewStatusesMock.mockResolvedValue({
+    ok: true,
+    reviews: SEED.map((seed, index) => wireReview(seed, index)),
+  })
 })
 
 function dataRows(): HTMLElement[] {
@@ -68,15 +78,15 @@ describe('ReviewStatusPage', () => {
       screen.getByRole('img', { name: 'Review completion split by status' }),
     ).toBeInTheDocument()
     const titles = [...document.querySelectorAll('.pie-block__chart title')].map((t) => t.textContent)
-    // The pie only renders non-zero slices; this roster has no in-progress reviews.
-    expect(titles).toHaveLength(3)
+    // Every slice of this fixture is non-zero.
+    expect(titles).toHaveLength(4)
     expect(titles.every((title) => title?.includes(' of 8 ('))).toBe(true)
     const tiles = [...document.querySelectorAll('.tile')].map((tile) => tile.textContent)
     expect(tiles).toHaveLength(4)
     for (const label of ['Total employees', 'Completed', 'In progress', 'Not started']) {
       expect(tiles.some((text) => text?.includes(label))).toBe(true)
     }
-    for (const status of ['Not started', 'Submitted', 'Signed off']) {
+    for (const status of ['Not started', 'In progress', 'Submitted', 'Signed off']) {
       expect(dataRows().some((row) => within(row).queryByText(status))).toBe(true)
     }
     expect(screen.getByText('Employees · 8 of 8')).toBeInTheDocument()
@@ -92,7 +102,7 @@ describe('ReviewStatusPage', () => {
     expect(screen.getByText('Employees · 2 of 8')).toBeInTheDocument()
     const statuses = dataRows().map((row) => row.textContent)
     expect(statuses.some((text) => text?.includes('Not started'))).toBe(true)
-    expect(statuses.some((text) => text?.includes('In progress'))).toBe(false)
+    expect(statuses.some((text) => text?.includes('In progress'))).toBe(true)
     expect(statuses.some((text) => text?.includes('Submitted'))).toBe(false)
     expect(statuses.some((text) => text?.includes('Signed off'))).toBe(false)
   })
@@ -112,8 +122,19 @@ describe('ReviewStatusPage', () => {
     expect(statuses.some((text) => text?.includes('In progress'))).toBe(false)
   })
 
+  it('states the failure when the status endpoint cannot be reached', async () => {
+    fetchReviewStatusesMock.mockResolvedValue({
+      ok: false,
+      detail: 'Could not reach the review API.',
+      code: 'network_error',
+    })
+    render(page())
+
+    expect(await screen.findByText('Could not reach the review API.')).toBeInTheDocument()
+  })
+
   it('shows the empty-roster next move when no employees are loaded', async () => {
-    fetchEmployeesMock.mockResolvedValue({ ok: true, employees: [] })
+    fetchReviewStatusesMock.mockResolvedValue({ ok: true, reviews: [] })
     render(page())
 
     expect(

@@ -6,18 +6,66 @@ import { AdminStoreProvider } from '../src/state/AdminContext'
 import { AuthProvider } from '../src/state/AuthContext'
 import { AppRoutes } from '../src/App'
 import type { AuthSession } from '../src/lib/authStore'
-import type { RosterImportResult } from '../src/lib/types'
+import type { RosterImportResult, SelfEvaluationWire } from '../src/lib/types'
 
-const { applyRosterImportMock, fetchEmployeesMock, importRosterCsvMock } = vi.hoisted(() => ({
+const {
+  applyRosterImportMock,
+  fetchEmployeesMock,
+  fetchReviewStatusesMock,
+  fetchSelfEvaluationMock,
+  fetchSessionMock,
+  importRosterCsvMock,
+  saveSelfEvaluationMock,
+  submitSelfEvaluationMock,
+} = vi.hoisted(() => ({
   applyRosterImportMock: vi.fn(),
   fetchEmployeesMock: vi.fn(),
+  fetchReviewStatusesMock: vi.fn(),
+  fetchSelfEvaluationMock: vi.fn(),
+  fetchSessionMock: vi.fn(),
   importRosterCsvMock: vi.fn(),
+  saveSelfEvaluationMock: vi.fn(),
+  submitSelfEvaluationMock: vi.fn(),
 }))
 vi.mock('../src/lib/api', () => ({
   applyRosterImport: applyRosterImportMock,
   fetchEmployees: fetchEmployeesMock,
+  fetchReviewStatuses: fetchReviewStatusesMock,
+  fetchSelfEvaluation: fetchSelfEvaluationMock,
+  fetchSession: fetchSessionMock,
   importRosterCsv: importRosterCsvMock,
+  saveSelfEvaluation: saveSelfEvaluationMock,
+  submitSelfEvaluation: submitSelfEvaluationMock,
+  setApiIdentity: vi.fn(),
 }))
+
+/** Wire mirror of GET /api/evaluations/me the employee dashboard consumes. */
+const OPEN_EVALUATION: SelfEvaluationWire = {
+  employee: {
+    employeeId: 'EMP-V001',
+    name: 'Asha Menon',
+    email: 'asha_menon@emids.com',
+    designation: 'Software Engineer',
+    location: 'India',
+    org: 'Delivery',
+    project: 'Cigna One',
+    deliveryHead: 'Arumugam Thiraviam',
+    deliveryManager: 'Priya Raghavan',
+    businessPartner: 'John D',
+    reportingManager: 'Priya Raghavan',
+    status: 'Active',
+  },
+  reviewYear: 2026,
+  submissionDeadline: '2027-01-15',
+  submittedAt: null,
+  employeeSignedAt: null,
+  responses: { contribution: 'Delivered the intake rewrite.', strengths: '', development: '', support: '' },
+  managerComments: { contribution: '', strengths: '', development: '', support: '' },
+  overallRating: 4,
+  overallSummary: 'Strong year.',
+  forwardCommitments: [{ commitment: 'Own the intake rewrite', support: 'Lead mentoring' }],
+  commitmentsEditable: true,
+}
 
 const SESSION_KEY = 'performance-review.session.v1'
 const ADMIN_SESSION: AuthSession = {
@@ -60,10 +108,17 @@ function renderSignedInAsEmployee(initial: string[] = ['/']): React.ReactElement
   return renderApp(initial)
 }
 
-describe('App — routed pages', () => {
-  beforeEach(() => {
-    fetchEmployeesMock.mockResolvedValue({ ok: true, employees: [] })
+beforeEach(() => {
+  fetchEmployeesMock.mockResolvedValue({ ok: true, employees: [] })
+  fetchReviewStatusesMock.mockResolvedValue({ ok: true, reviews: [] })
+  fetchSelfEvaluationMock.mockResolvedValue({ ok: true, data: OPEN_EVALUATION })
+  fetchSessionMock.mockResolvedValue({
+    ok: true,
+    session: { employeeId: 'EMP-V001', name: 'Asha Menon', email: 'asha_menon@emids.com', role: 'employee' },
   })
+})
+
+describe('App — routed pages', () => {
   it('lands on the Review form status page', () => {
     render(renderSignedInAsAdmin())
     expect(screen.getByRole('heading', { name: 'Review form status', level: 1 })).toBeInTheDocument()

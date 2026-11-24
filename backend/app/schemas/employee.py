@@ -10,15 +10,10 @@ admin confirms (new rows as inserts, collided rows where the admin chose
 Update).
 """
 
-from pydantic import BaseModel, ConfigDict
-from pydantic.alias_generators import to_camel
+from app.schemas.base import ApiModel
 
 
-class _ApiModel(BaseModel):
-    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
-
-
-class RosterEmployeeOut(_ApiModel):
+class RosterEmployeeOut(ApiModel):
     employee_id: str
     name: str
     email: str
@@ -33,16 +28,16 @@ class RosterEmployeeOut(_ApiModel):
     status: str
 
 
-class RosterRowError(_ApiModel):
+class RosterRowError(ApiModel):
     line: int
     message: str
 
 
-class RosterRowErrors(_ApiModel):
+class RosterRowErrors(ApiModel):
     errors: list[RosterRowError]
 
 
-class RosterConflict(_ApiModel):
+class RosterConflict(ApiModel):
     """One upload row whose employee_id is already stored — the admin must
     decide per row whether the stored employee is overwritten or kept."""
 
@@ -52,7 +47,7 @@ class RosterConflict(_ApiModel):
     changed_fields: list[str]
 
 
-class RosterImportReport(_ApiModel):
+class RosterImportReport(ApiModel):
     imported_count: int
     duplicates_skipped: int
     conflicts: list[RosterConflict]
@@ -62,21 +57,21 @@ class RosterImportReport(_ApiModel):
     employees: list[RosterEmployeeOut]
 
 
-class RosterApplyPayload(_ApiModel):
+class RosterApplyPayload(ApiModel):
     inserts: list[RosterEmployeeOut]
     updates: list[RosterEmployeeOut]
 
 
-class RosterApplyReport(_ApiModel):
+class RosterApplyReport(ApiModel):
     imported_count: int
     updated_count: int
 
 
-class RosterConflictIds(_ApiModel):
+class RosterConflictIds(ApiModel):
     employee_ids: list[str]
 
 
-class EmployeeList(_ApiModel):
+class EmployeeList(ApiModel):
     employees: list[RosterEmployeeOut]
 
 

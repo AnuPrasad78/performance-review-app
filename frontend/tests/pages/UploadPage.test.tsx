@@ -16,6 +16,7 @@ vi.mock('../../src/lib/api', () => ({
   applyRosterImport: applyRosterImportMock,
   fetchEmployees: fetchEmployeesMock,
   importRosterCsv: importRosterCsvMock,
+  setApiIdentity: vi.fn(),
 }))
 
 function employee(employeeId: string, name: string, email: string): Employee {

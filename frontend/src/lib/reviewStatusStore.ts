@@ -1,9 +1,13 @@
-import {
-  MOCK_EMPLOYEE,
-  deriveReviewStatus,
-  loadSelfEvaluationRecord,
-} from './selfEvaluationStore'
+/** The admin review board's shared vocabulary: the entry shape the API feeds,
+    counting and filtering rules. Status values come from the backend's
+    derived words (GET /api/evaluations) — nothing is fabricated here anymore. */
+
 import type { Employee, ReviewStatus } from './types'
+
+export type EmployeeReviewStatus = {
+  employee: Employee
+  status: ReviewStatus
+}
 
 export type CompletionFilter = 'all' | 'pending' | 'completed'
 
@@ -13,45 +17,9 @@ export const COMPLETION_FILTERS: readonly { value: CompletionFilter; label: stri
   { value: 'completed', label: 'Completed' },
 ]
 
-/** Mock roster-wide assignment until the backend serves admin review state.
-    Weighted cycle keeps the distribution realistic for the seed list. */
-const MOCK_STATUS_CYCLE: readonly ReviewStatus[] = [
-  'in_progress',
-  'submitted',
-  'not_started',
-  'signed_off',
-  'submitted',
-  'in_progress',
-  'not_started',
-  'submitted',
-  'signed_off',
-  'not_started',
-]
-
-export interface EmployeeReviewStatus {
-  employee: Employee
-  status: ReviewStatus
-}
-
 /** Submitted and signed-off reviews count as complete for admin filtering. */
 export function isReviewComplete(status: ReviewStatus): boolean {
   return status === 'submitted' || status === 'signed_off'
-}
-
-function mockStatusFor(email: string): ReviewStatus {
-  const hash = [...email].reduce((sum, character) => sum + character.charCodeAt(0), 0)
-  return MOCK_STATUS_CYCLE[hash % MOCK_STATUS_CYCLE.length] ?? 'not_started'
-}
-
-export function loadReviewStatuses(employees: readonly Employee[]): EmployeeReviewStatus[] {
-  const liveRecord = loadSelfEvaluationRecord()
-  return employees.map((employee) => ({
-    employee,
-    status:
-      employee.email === MOCK_EMPLOYEE.email
-        ? deriveReviewStatus(liveRecord)
-        : mockStatusFor(employee.email),
-  }))
 }
 
 export function countReviewStatuses(entries: readonly EmployeeReviewStatus[]): Record<ReviewStatus, number> {

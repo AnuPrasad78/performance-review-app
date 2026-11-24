@@ -11,7 +11,8 @@ export interface SignOffPanelProps {
   /** ISO date the app stamped on sign-off; null until a save or submit. */
   signedAt: string | null
   readOnly: boolean
-  onAcknowledgeChange: (acknowledged: boolean) => void
+  /** Absent on display-only renders. */
+  onAcknowledgeChange?: (acknowledged: boolean) => void
 }
 
 const CONFIRM_STATEMENT =
@@ -55,7 +56,7 @@ export function SignOffPanel({
           className="checkbox"
           checked={acknowledged}
           disabled={readOnly}
-          onChange={(event) => onAcknowledgeChange(event.target.checked)}
+          onChange={(event) => onAcknowledgeChange?.(event.target.checked)}
         />
         <span>{CONFIRM_STATEMENT}</span>
       </label>

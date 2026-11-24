@@ -61,7 +61,7 @@ export type EmployeeListResult =
   | { ok: true; employees: Employee[] }
   | { ok: false; detail: string; code: string }
 
-export interface CycleSettingsFieldErrors {
+export type CycleSettingsFieldErrors = {
   submissionDeadline: string | null
   managerReviewStart: string | null
   managerReviewEnd: string | null
@@ -134,3 +134,72 @@ export interface SelfEvaluationValidation {
 }
 
 export type ReviewSaveResult = { ok: true } | { ok: false; error: string }
+
+/** Identity the API reports for the signed-in address — wire mirror of
+    backend SessionOut; `role` duplicates AuthRole's union inline because
+    types.ts must not import the auth module back. */
+export interface SessionWire {
+  employeeId: string
+  name: string
+  email: string
+  role: 'admin' | 'employee'
+}
+
+export type SessionApiResult =
+  | { ok: true; session: SessionWire }
+  | { ok: false; detail: string; code: string }
+
+/** Per-topic answer values as the review form names them; the backend maps
+    q1..q4 storage columns onto these ids. */
+export interface TopicResponses {
+  contribution: string
+  strengths: string
+  development: string
+  support: string
+}
+
+/** Wire mirror of GET/PATCH/POST(/submit) responses: one payload mixing
+    profile, the evaluation row, and cycle settings. Dates are ISO
+    yyyy-mm-dd or null. */
+export interface SelfEvaluationWire {
+  employee: Employee
+  reviewYear: number
+  submissionDeadline: string
+  submittedAt: string | null
+  employeeSignedAt: string | null
+  responses: TopicResponses
+  managerComments: TopicResponses
+  overallRating: number | null
+  overallSummary: string
+  forwardCommitments: { commitment: string; support: string }[]
+  /** The server owns the commitment-lock window (open review, or post-submit
+      until manager review end); the UI never re-derives it. */
+  commitmentsEditable: boolean
+}
+
+export type SelfEvaluationApiResult =
+  | { ok: true; data: SelfEvaluationWire }
+  | { ok: false; detail: string; code: string }
+
+/** Presence-shaped partial update: provided members move, omitted ones stand.
+    Mirrors backend SelfEvaluationPatch, employee-owned fields only. Note the
+    patch's wire key is `selfRating` (backend SelfEvaluationPatch.self_rating)
+    even though the GET response calls the same value `overallRating` —
+    writing and reading models differ on this side of the seam. */
+export interface SelfEvaluationPartial {
+  responses?: TopicResponses
+  selfRating?: number | null
+  overallSummary?: string
+  forwardCommitments?: { commitment: string; support: string }[]
+}
+
+/** One roster row as the admin board sees it: the profile the board renders
+    (the full roster wire shape, reused) plus the derived workflow word. */
+export interface ReviewStatusWire {
+  employee: Employee
+  status: ReviewStatus
+}
+
+export type ReviewStatusResult =
+  | { ok: true; reviews: ReviewStatusWire[] }
+  | { ok: false; detail: string; code: string }
