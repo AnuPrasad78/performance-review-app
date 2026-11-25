@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "pr_0001_a1_review_cycles"
-down_revision = None
+down_revision = "pr_0000_a0_baseline"
 branch_labels = None
 depends_on = None
 

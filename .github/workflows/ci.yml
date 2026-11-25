@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [develop, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: performance_review_ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      # Throwaway database: the migration suite drops and rebuilds its schema.
+      PR_TEST_DATABASE_URL: postgresql+asyncpg://postgres:ci@localhost:5432/performance_review_ci
+      PR_DATABASE_URL: postgresql+asyncpg://postgres:ci@localhost:5432/performance_review_ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: backend/requirements*.txt
+      - run: pip install -r requirements-dev.txt
+      # Unit + API tests, and the migration suite: build from empty, no drift,
+      # every revision up/down/up, full round trip, data survives a rollback.
+      - run: python -m pytest -q
+      # Belt and braces: a fresh head-level schema must equal the ORM models.
+      - name: Schema drift check
+        run: |
+          alembic upgrade head
+          alembic check
+      # Every migration after A2 must render as reviewable SQL, so a DBA can
+      # read exactly what a release will run (`alembic upgrade <from>:head
+      # --sql`). A2 is exempt: it counts rows mid-upgrade to abort on orphans,
+      # which only an online run can do.
+      - name: Render offline migration SQL
+        run: alembic upgrade pr_0002_a2_evaluations_cycle_id:head --sql > /dev/null
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+
+  images:
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t performance-review-api:ci backend
+      - run: docker build -t performance-review-web:ci frontend
+
+  deploy-scripts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # The Azure release path (scripts/azure, docs/deployment.md) runs from a
+      # terminal, so CI's job is to keep it lint-clean.
+      - run: shellcheck -x -P scripts/azure scripts/azure/*.sh
