@@ -27,6 +27,7 @@ from fastapi import Depends, Request
 
 from app.core.config import Settings, get_settings
 from app.core.errors import AppError
+from app.core.sessions import read_session
 from app.models.employee import Employee
 from app.repositories.employee_repository import EmployeeRepository, get_employee_repository
 
@@ -98,10 +99,24 @@ async def get_current_user(
     repository: Annotated[EmployeeRepository, Depends(get_employee_repository)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> AuthUser:
-    identity = request.headers.get(settings.stub_user_header, "").strip()
-    if not identity:
-        raise _unauthorized("Sign in to see your review.", "auth_required")
-    return await authenticate_email(identity, repository, settings)
+    # SSO phase: the server-side session cookie is the primary credential —
+    # a signed token holding the email Entra verified, resolved through the
+    # one shared authenticate_email path below.
+    cookie_email = read_session(
+        request.cookies.get(settings.session_cookie_name, ""),
+        settings.session_secret,
+    )
+    if cookie_email is not None:
+        return await authenticate_email(cookie_email, repository, settings)
+
+    # Dev-only crutch: the stub header survives while developers build
+    # without the Entra endpoints; prod identity never falls back to it.
+    if settings.environment == "dev":
+        identity = request.headers.get(settings.stub_user_header, "").strip()
+        if identity:
+            return await authenticate_email(identity, repository, settings)
+
+    raise _unauthorized("Sign in to see your review.", "auth_required")
 
 
 async def get_roster_user(

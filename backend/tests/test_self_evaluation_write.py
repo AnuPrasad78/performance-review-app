@@ -50,6 +50,20 @@ def test_first_partial_save_opens_the_row_in_progress() -> None:
     assert evaluations.row.q1_employee_response == "Delivered the intake rewrite."
 
 
+def test_first_save_writes_the_email_display_mirror() -> None:
+    # The deployed schema (pr_0007_email_display_mirror) requires the
+    # denormalized email on create; a row written without it 500s at the
+    # storage layer — the regression that left freshly deleted accounts
+    # unsaveable and unsendable.
+    client, evaluations = make_client()
+
+    response = save(client, {"responses": full_answers()})
+
+    assert response.status_code == 200
+    assert evaluations.row is not None
+    assert evaluations.row.email == "asha_menon@emids.com"
+
+
 def test_partial_saves_replace_only_the_members_they_carry() -> None:
     row = __import__("tests.evaluation_fixtures", fromlist=["evaluation"]).evaluation(
         "SELF_EVALUATION_IN_PROGRESS", q1_employee_response="Preexisting answer."

@@ -69,6 +69,7 @@ def evaluation(status: str, employee_id: str = "EMP-V001", **overrides: object) 
     row = Evaluation(
         employee_id=employee_id,
         review_year=2026,
+        email="asha_menon@emids.com",
         status=status,
         cycle_id=1,
         forward_commitments=[

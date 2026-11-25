@@ -28,9 +28,8 @@ export function ForwardCommitmentsPanel({
       <div className="commitments">
         {commitments.map((commitment, index) => (
           <div key={commitment.id} className="commitments__item">
-            <div className="commitments__head">
-              <h3 className="commitments__heading mono">Commitment {index + 1}</h3>
-              {index > 0 && !readOnly ? (
+            {index > 0 && !readOnly ? (
+              <div className="commitments__head">
                 <button
                   type="button"
                   className="commitments__action"
@@ -39,8 +38,8 @@ export function ForwardCommitmentsPanel({
                 >
                   <Icon name="minus" size={14} />
                 </button>
-              ) : null}
-            </div>
+              </div>
+            ) : null}
             <div className="commitments__row">
               <FormField
                 id={`commitment-${commitment.id}`}

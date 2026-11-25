@@ -9,7 +9,8 @@ const { fetchReviewBoardMock, fetchEmployeeFacetsMock } = vi.hoisted(() => ({
   fetchReviewBoardMock: vi.fn(),
   fetchEmployeeFacetsMock: vi.fn(),
 }))
-vi.mock('../../src/lib/api', () => ({
+vi.mock('../../src/lib/api', async (importOriginal) => ({
+  ...(await importOriginal()),
   fetchReviewBoard: fetchReviewBoardMock,
   fetchEmployeeFacets: fetchEmployeeFacetsMock,
   setApiIdentity: vi.fn(),

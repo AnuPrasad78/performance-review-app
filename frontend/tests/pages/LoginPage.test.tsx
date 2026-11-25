@@ -13,14 +13,17 @@ const {
   fetchReviewBoardMock,
   fetchSelfEvaluationMock,
   fetchSessionMock,
+  startSsoLoginMock,
 } = vi.hoisted(() => ({
   fetchEmployeesMock: vi.fn(),
   fetchEmployeeFacetsMock: vi.fn(),
   fetchReviewBoardMock: vi.fn(),
   fetchSelfEvaluationMock: vi.fn(),
   fetchSessionMock: vi.fn(),
+  startSsoLoginMock: vi.fn(),
 }))
-vi.mock('../../src/lib/api', () => ({
+vi.mock('../../src/lib/api', async (importOriginal) => ({
+  ...(await importOriginal()),
   fetchEmployees: fetchEmployeesMock,
   fetchEmployeeFacets: fetchEmployeeFacetsMock,
   fetchReviewBoard: fetchReviewBoardMock,
@@ -29,6 +32,7 @@ vi.mock('../../src/lib/api', () => ({
   saveSelfEvaluation: vi.fn(),
   submitSelfEvaluation: vi.fn(),
   setApiIdentity: vi.fn(),
+  startSsoLogin: startSsoLoginMock,
 }))
 
 function session(employeeId: string, name: string, email: string, role: 'admin' | 'employee'): SessionApiResult {
@@ -114,13 +118,11 @@ describe('LoginPage', () => {
     expect(screen.getByText('or sign in with your email')).toBeInTheDocument()
   })
 
-  it('explains that SSO is not wired for this release when it is clicked', async () => {
+  it('hands off to the backend SSO route when the SSO button is clicked', async () => {
     const user = userEvent.setup()
     render(renderApp())
     await user.click(screen.getByRole('button', { name: 'Sign in with Emids SSO' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'SSO is not enabled for this release — sign in with your email.',
-    )
+    expect(startSsoLoginMock).toHaveBeenCalledTimes(1)
   })
 
   it('explains that password reset is not wired when Forgot password is clicked', async () => {

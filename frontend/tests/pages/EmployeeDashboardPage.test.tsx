@@ -174,8 +174,9 @@ describe('EmployeeDashboardPage — draft state over the API', () => {
     // A real pause slightly past the 1200ms debounce; nothing was clicked.
     await new Promise((resolve) => setTimeout(resolve, 1600))
 
+    // The save is silent: the status notice only appears on the commitments step.
     expect(calls.some((call) => call.method === 'PATCH')).toBe(true)
-    expect(await screen.findByText('Draft saved.')).toBeInTheDocument()
+    expect(screen.queryByText('Draft saved.')).not.toBeInTheDocument()
   })
 
   it('memorizes a draft through the manual Save-draft PATCH', async () => {
@@ -186,9 +187,9 @@ describe('EmployeeDashboardPage — draft state over the API', () => {
     await user.type(await screen.findByDisplayValue('Delivered the intake rewrite.'), ' — for the Cigna One migration')
     await user.click(screen.getByRole('button', { name: 'Save draft' }))
 
-    expect(await screen.findByText('Draft saved.')).toBeInTheDocument()
     const patched = calls.find((call) => call.method === 'PATCH')
     expect(patched?.url).toContain('/api/evaluations/me')
+    expect(screen.queryByText('Draft saved.')).not.toBeInTheDocument()
   })
 
   it('keeps the rest of the draft when a different question is edited', async () => {
@@ -260,7 +261,7 @@ describe('EmployeeDashboardPage — the API save contract', () => {
 })
 
 describe('EmployeeDashboardPage — forward gating', () => {
-  it('keeps Next blocked until the current question is answered', async () => {
+  it('keeps Next clickable everywhere; an empty mandatory answer surfaces on click', async () => {
     const user = userEvent.setup()
     vi.stubGlobal(
       'fetch',
@@ -276,19 +277,14 @@ describe('EmployeeDashboardPage — forward gating', () => {
     render(page())
     await screen.findByLabelText('Employee response *', { selector: '#response-contribution' })
     const next = screen.getByRole('button', { name: 'Next' })
-    expect(next).toBeDisabled()
-    await user.click(next)
-    // The click is a no-op: we are still on Question 1.
-    expect(screen.getByText('Question 1 of 4')).toBeInTheDocument()
-
-    await user.type(screen.getByLabelText('Employee response *', { selector: '#response-contribution' }), ' Typed.')
     expect(next).toBeEnabled()
+
+    // Nothing gates navigation: an empty answer simply moves on.
     await user.click(next)
     expect(screen.getByText('Question 2 of 4')).toBeInTheDocument()
   })
 
-  it('lets the employee move across sections in any order from the steps nav', async () => {
-    // Section navigation is free: an untouched section is reachable directly.
+  it('keeps every steps-nav button clickable — validation happens only on submit', async () => {
     vi.stubGlobal(
       'fetch',
       apiReturning(
@@ -300,21 +296,13 @@ describe('EmployeeDashboardPage — forward gating', () => {
 
     render(page())
     await screen.findByDisplayValue('Delivered the intake rewrite.')
-    // The steps-nav buttons carry "N <title>" accessible names and none of
-    // them lock.
-    expect(screen.getByRole('button', { name: /Self Evaluation/ })).toBeEnabled()
+    // The steps-nav buttons carry "N <title>" accessible names.
     expect(screen.getByRole('button', { name: /Overall Rating & Feedback/ })).toBeEnabled()
     expect(screen.getByRole('button', { name: /Forward Commitments for 2027/ })).toBeEnabled()
     expect(screen.getByRole('button', { name: /Sign-Off/ })).toBeEnabled()
-
-    // A straight jump to the last section works with nothing answered behind.
-    const user = userEvent.setup()
-    await user.click(screen.getByRole('button', { name: /Sign-Off/ }))
-    expect(await screen.findByRole('button', { name: 'Submit' })).toBeInTheDocument()
-    expect(screen.queryByText('Question 1 of 4')).not.toBeInTheDocument()
   })
 
-  it('unlocks the overall step as soon as a rating and a summary exist, and no POST ever fires early', async () => {
+  it('never fires the submit POST from navigation alone', async () => {
     const user = userEvent.setup()
     vi.stubGlobal(
       'fetch',
@@ -327,13 +315,16 @@ describe('EmployeeDashboardPage — forward gating', () => {
       await user.click(screen.getByRole('button', { name: 'Next' }))
     }
     expect(screen.getByText('Overall Rating & Feedback')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled()
-
-    await user.click(screen.getByRole('button', { name: '4' }))
-    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled() // summary still empty
-
-    await user.type(screen.getByLabelText('Overall comments *'), 'Summary of the year.')
     expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled()
+
+    // Even a half-filled step cannot break the no-POST rule: navigation alone
+    // never submits — the click moves onward.
+    await user.click(screen.getByRole('button', { name: '4' }))
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    expect(screen.getByLabelText('Commitment 1')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Previous' }))
+    await user.type(screen.getByLabelText('Overall comments *'), 'Summary of the year.')
     expect(calls.filter((call) => call.method === 'POST')).toHaveLength(0)
   })
 })
@@ -352,13 +343,15 @@ describe('EmployeeDashboardPage — submit gate', () => {
       await user.click(screen.getByRole('button', { name: 'Next' }))
     }
 
-    expect(await screen.findByText('Commitment 1')).toBeInTheDocument()
+    // The 'Q1'-style item headings are gone; the commitment textareas carry
+    // the accessible name instead.
+    expect(await screen.findByLabelText('Commitment 1')).toBeInTheDocument()
     // Optional content: the step never blocks navigation, and submission
     // accepts a form with no commitments at all (backend contract).
     expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled()
   })
 
-  it('submits through the API, confirms the success popup, and renders the review read-only', async () => {
+  it('submits through the preview and renders the download-enabled read-only view', async () => {
     const user = userEvent.setup()
     // The endpoint's lifecycle: GET returns the open review; the PATCH preamble
     // echoes it; POST /submit returns the frozen server state.
@@ -401,6 +394,11 @@ describe('EmployeeDashboardPage — submit gate', () => {
     for (let step = 0; step < 6; step += 1) {
       await user.click(screen.getByRole('button', { name: 'Next' }))
     }
+    await user.click(screen.getByRole('button', { name: 'Preview' }))
+
+    // The preview lists every answered field; Submit lives there now.
+    expect(await screen.findByRole('button', { name: 'Edit' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Download' })).toBeDisabled()
     await user.click(screen.getByRole('button', { name: 'Submit' }))
 
     // The disclaimer gate: nothing ships until the employee confirms.
@@ -427,39 +425,40 @@ describe('EmployeeDashboardPage — submit gate', () => {
     expect(screen.queryByRole('dialog', { name: 'Submission complete' })).not.toBeInTheDocument()
 
     expect(await screen.findByText('Submitted successfully.')).toBeInTheDocument()
-    expect(
-      await screen.findByText('Your self-evaluation was submitted. The form is read-only now.'),
-    ).toBeInTheDocument()
+
+    // The submitted view stays in the preview: still editable commitments stay
+    // out of scope here, but the download unlocks and the submit disappears.
+    expect(screen.getByRole('button', { name: 'Download' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Save draft' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Save commitments' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Submit' })).not.toBeInTheDocument()
   })
 
-  it('pops the failure state and keeps the form open when the API refuses the submit', async () => {
+  it('aborts the submission when the pre-submit save fails', async () => {
     const user = userEvent.setup()
+    // The server never saw the draft (its record holds nothing), so the
+    // failure chain is: PATCH preamble rejected, POST /submit never fired.
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         calls.push({
           url: String(input),
           method: init?.method,
+          body:
+            init?.body !== undefined
+              ? (JSON.parse(String(init.body)) as Record<string, unknown>)
+              : undefined,
         })
         const method = init?.method ?? 'GET'
-        if (method === 'POST') {
-          // The server refuses: the envelope flows to the failure popup.
-          return {
-            ok: false,
-            status: 409,
-            json: async () => ({
-              detail: 'This self-evaluation was already submitted.',
-              code: 'already_submitted',
-            }),
-          } as unknown as Response
-        }
+        const payload =
+          method === 'PATCH'
+            ? { detail: 'Internal server error.', code: 'internal_error' }
+            : openWire()
         return {
-          ok: true,
-          status: 200,
-          json: async () => openWire(),
+          ok: method !== 'PATCH',
+          status: method === 'PATCH' ? 500 : 200,
+          json: async () => payload,
         } as unknown as Response
       }) as unknown as typeof fetch,
     )
@@ -469,17 +468,18 @@ describe('EmployeeDashboardPage — submit gate', () => {
     for (let step = 0; step < 6; step += 1) {
       await user.click(screen.getByRole('button', { name: 'Next' }))
     }
+    await user.click(screen.getByRole('button', { name: 'Preview' }))
+    expect(await screen.findByRole('button', { name: 'Edit' })).toBeInTheDocument()
+
     await user.click(screen.getByRole('button', { name: 'Submit' }))
-    await user.click(within(await screen.findByRole('dialog', { name: 'Confirm submission' })).getByRole('button', { name: 'OK' }))
+    const confirmDialog = await screen.findByRole('dialog', { name: 'Confirm submission' })
+    await user.click(within(confirmDialog).getByRole('button', { name: 'OK' }))
 
-    const failureDialog = await screen.findByRole('dialog', { name: 'Submission failed' })
-    expect(within(failureDialog).getByText('Your self-evaluation was not submitted. Please try again.')).toBeInTheDocument()
-    expect(within(failureDialog).getByText('This self-evaluation was already submitted.')).toBeInTheDocument()
-    await user.click(within(failureDialog).getByRole('button', { name: 'OK' }))
-
-    // The form stays open and editable — a refused submit is not a submit.
-    expect(screen.getByRole('button', { name: 'Save draft' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Submit' })).toBeInTheDocument()
+    // No POST escaped, and the notice names the failure instead of answering
+    // with the server's stale-record verdict.
+    expect(calls.filter((call) => call.method === 'POST')).toHaveLength(0)
+    expect(await screen.findByText('Save failed — Internal server error.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Download' })).toBeDisabled()
   })
 })
 
@@ -494,15 +494,15 @@ describe('EmployeeDashboardPage — forward commitments', () => {
       await user.click(screen.getByRole('button', { name: 'Next' }))
     }
 
-    expect(await screen.findByText('Commitment 1')).toBeInTheDocument()
+    expect(await screen.findByLabelText('Commitment 1')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Remove commitment 1' })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Add commitment' }))
-    expect(screen.getByText('Commitment 2')).toBeInTheDocument()
+    expect(screen.getByLabelText('Commitment 2')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Remove commitment 2' }))
-    expect(screen.queryByText('Commitment 2')).not.toBeInTheDocument()
-    expect(screen.getByText('Commitment 1')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Commitment 2')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Commitment 1')).toBeInTheDocument()
   })
 
   it('keeps commitments editable after submission while the window is open', async () => {
@@ -535,8 +535,9 @@ describe('EmployeeDashboardPage — submission deadline', () => {
 
     render(page())
 
+    expect(await screen.findByText(/Your Growth\. Our Success! 🚀/)).toBeInTheDocument()
     expect(
-      await screen.findByText(/^The form will close in \d+ days\. Fill it up soon\.$/),
+      await screen.findByText(/\d+ Days Left — Complete your self-evaluation\./),
     ).toBeInTheDocument()
   })
 
@@ -549,7 +550,7 @@ describe('EmployeeDashboardPage — submission deadline', () => {
     render(page())
     await screen.findByText(/Your self-evaluation is read-only now\./)
 
-    expect(screen.queryByText(/The form will close in/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Days Left/)).not.toBeInTheDocument()
   })
 
   it('replaces the whole wizard with the closed state once the deadline passes', async () => {
@@ -595,13 +596,13 @@ describe('EmployeeDashboardPage — rating scale reference', () => {
     const trigger = screen.getByRole('button', { name: 'Rating scale reference' })
     await user.hover(trigger)
 
-    const popover = await screen.findByRole('group', { name: 'Rating scale (1 to 5)' })
+    const popover = await screen.findByRole('group', { name: 'Rating scale (5 to 1)' })
     expect(within(popover).getByText('Below expectations')).toBeInTheDocument()
     expect(within(popover).getByText('Exceeds expectations')).toBeInTheDocument()
-    // The rows read 1 → 5.
+    // The rows read 5 → 1.
     const order = popover.textContent ?? ''
-    expect(order.indexOf('Significantly below expectations')).toBeLessThan(
-      order.indexOf('Significantly exceeds expectations'),
+    expect(order.indexOf('Significantly exceeds expectations')).toBeLessThan(
+      order.indexOf('Significantly below expectations'),
     )
   })
 })

@@ -32,7 +32,8 @@ const {
   submitSelfEvaluationMock: vi.fn(),
 }))
 
-vi.mock('../src/lib/api', () => ({
+vi.mock('../src/lib/api', async (importOriginal) => ({
+  ...(await importOriginal()),
   applyRosterImport: applyRosterImportMock,
   fetchEmployees: fetchEmployeesMock,
   fetchEmployeeFacets: fetchEmployeeFacetsMock,
@@ -252,6 +253,9 @@ describe('App — signed-out users are routed to sign-in', () => {
     render(renderApp(['/dashboard']))
     const user = userEvent.setup()
 
+    // The boot splash holds the interface while the server-side cookie is
+    // checked; the form appears once no session is waiting to be adopted.
+    await screen.findByLabelText('Company Email')
     await user.type(screen.getByLabelText('Company Email'), 'asha_menon@emids.com')
     await user.type(screen.getByLabelText('Password'), 'Portal@2026')
     await user.click(screen.getByRole('button', { name: 'Sign in' }))

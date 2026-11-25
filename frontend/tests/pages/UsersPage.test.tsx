@@ -13,7 +13,8 @@ const { fetchEmployeesMock, fetchEmployeeFacetsMock, fetchRosterCsvExportMock, s
     fetchRosterCsvExportMock: vi.fn(),
     saveCsvBlobMock: vi.fn(),
   }))
-vi.mock('../../src/lib/api', () => ({
+vi.mock('../../src/lib/api', async (importOriginal) => ({
+  ...(await importOriginal()),
   fetchEmployees: fetchEmployeesMock,
   fetchEmployeeFacets: fetchEmployeeFacetsMock,
   fetchRosterCsvExport: fetchRosterCsvExportMock,

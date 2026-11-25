@@ -107,15 +107,16 @@ class Evaluation(Base):
         ForeignKey("employees.employee_id", ondelete="RESTRICT", onupdate="CASCADE"),
         nullable=False,
     )
-    email: Mapped[str] = mapped_column(String(255))
+    #: Denormalized display mirror of employees.email, applied to the production
+    #: schema by migration pr_0007_email_display_mirror (not in this checkout).
+    #: The storage column is NOT NULL, so every create path must set it.
+    email: Mapped[str] = mapped_column(String(255), nullable=False)
     review_year: Mapped[int]
     # varchar(40) per pr_0006: the longest lifecycle word rests at 30, never
     # at the column's edge. Default NOT_STARTED — an insert that omits status
     # says "no content yet" (the old 'IN_PROGRESS' default breached the new
     # CHECK by construction).
-    status: Mapped[str] = mapped_column(
-        String(40), server_default="NOT_STARTED"
-    )
+    status: Mapped[str] = mapped_column(String(40), server_default="NOT_STARTED")
     q1_employee_response: Mapped[str | None] = mapped_column(Text())
     q2_employee_response: Mapped[str | None] = mapped_column(Text())
     q3_employee_response: Mapped[str | None] = mapped_column(Text())

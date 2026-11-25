@@ -10,13 +10,15 @@ export function validateSelfEvaluation(draft: SelfEvaluationDraft): SelfEvaluati
 
   for (const question of draft.questions) {
     if (question.employeeResponse.trim() === '') {
-      questionErrors[question.id] = 'Write your response before submitting.'
+      questionErrors[question.id] = 'Mandatory field — write your response before submitting.'
       hasQuestionErrors = true
     }
   }
 
-  const overallRating = draft.overallRating === null ? 'Choose your overall self-rating.' : null
-  const overallSummary = draft.overallSummary.trim() === '' ? 'Write your overall summary comment.' : null
+  const overallRating =
+    draft.overallRating === null ? 'Mandatory field — choose your overall self-rating.' : null
+  const overallSummary =
+    draft.overallSummary.trim() === '' ? 'Mandatory field — write your overall summary comment.' : null
 
   return {
     fieldErrors: { questionErrors, overallRating, overallSummary },
