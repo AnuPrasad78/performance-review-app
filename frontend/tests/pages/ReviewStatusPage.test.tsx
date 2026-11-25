@@ -15,10 +15,6 @@ vi.mock('../../src/lib/api', async (importOriginal) => ({
   fetchEmployeeFacets: fetchEmployeeFacetsMock,
   setApiIdentity: vi.fn(),
 }))
-  fetchReviewBoard: fetchReviewBoardMock,
-  fetchEmployeeFacets: fetchEmployeeFacetsMock,
-  setApiIdentity: vi.fn(),
-}))
 
 function wireReview(email: string, name: string, status: ReviewStatusWire['status'], index: number): ReviewStatusWire {
   return {
