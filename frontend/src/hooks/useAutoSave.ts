@@ -15,7 +15,10 @@ The rules that make auto-save safe rather than merely eager:
 - Flush points: `flush()` (the explicit button, and Submit) drains a pending
   save immediately and resolves after any in-flight save finishes, so a
   submit never races its own preamble. Unmounting flushes too as a
-  best-effort final save. */
+  best-effort final save.
+- Every drained save reports its outcome: `flush()` returns the last save's
+  result (null when nothing needed saving), so a caller must not act on the
+  assumption that its preamble save reached the server. */
 
 interface AutoSaveOptions {
   delayMs: number
@@ -28,7 +31,7 @@ interface AutoSaveOptions {
 
 export function useAutoSave(options: AutoSaveOptions): {
   requestSave: () => void
-  flush: () => Promise<void>
+  flush: () => Promise<SelfEvaluationApiResult | null>
   saving: boolean
 } {
   // The callbacks are read through currentOptions at send time, so only the
@@ -41,6 +44,11 @@ export function useAutoSave(options: AutoSaveOptions): {
   const currentOptions = useRef(options)
   currentOptions.current = options
 
+  /** The serial drain: every run queues behind the previous one, so flushes
+      that arrive mid-save wait for the whole loop, not just the in-flight
+      request. */
+  const work = useRef<Promise<SelfEvaluationApiResult | null>>(Promise.resolve(null))
+
   const clearTimer = (): void => {
     if (timer.current !== null) {
       clearTimeout(timer.current)
@@ -48,33 +56,44 @@ export function useAutoSave(options: AutoSaveOptions): {
     }
   }
 
-  async function run(): Promise<void> {
-    if (inFlight.current || !dirty.current) return
-    const payload = currentOptions.current.currentPayload()
-    dirty.current = false
-    inFlight.current = true
-    setSaving(true)
-    const result = await currentOptions.current.perform(payload)
-    inFlight.current = false
-    if (result.ok) currentOptions.current.onSaved(result)
-    else currentOptions.current.onError(result.detail)
-    // A change during the request re-arms immediately: the drain continues.
-    if (dirty.current) await run()
-    else setSaving(false)
+  const queueRun = (): Promise<SelfEvaluationApiResult | null> => {
+    const next = work.current.catch(() => null).then(() => drain())
+    work.current = next
+    return next
+  }
+
+  async function drain(): Promise<SelfEvaluationApiResult | null> {
+    if (inFlight.current || !dirty.current) return null
+    let last: SelfEvaluationApiResult | null = null
+    // A change during a request re-arms immediately: the drain continues.
+    while (dirty.current) {
+      inFlight.current = true
+      setSaving(true)
+      const payload = currentOptions.current.currentPayload()
+      dirty.current = false
+      const result = await currentOptions.current.perform(payload)
+      inFlight.current = false
+      last = result
+      if (result.ok) currentOptions.current.onSaved(result)
+      else currentOptions.current.onError(result.detail)
+    }
+    setSaving(false)
+    return last
   }
 
   /** Mark content changed and schedule the pause-window save. */
   const requestSave = (): void => {
     dirty.current = true
     clearTimer()
-    if (!inFlight.current) timer.current = setTimeout(() => void run(), delayMs)
+    if (!inFlight.current) timer.current = setTimeout(() => void queueRun(), delayMs)
   }
 
-  /** Save now (if anything is pending) and drain any in-flight save. */
-  const flush = (): Promise<void> => {
+  /** Save now (if anything is pending) and drain any in-flight save;
+      returns the outcome of the last save this flush performed. */
+  const flush = (): Promise<SelfEvaluationApiResult | null> => {
     clearTimer()
     dirty.current = true
-    return run()
+    return queueRun()
   }
 
   useEffect(() => {
@@ -83,7 +102,7 @@ export function useAutoSave(options: AutoSaveOptions): {
       clearTimer()
       if (dirty.current && !inFlight.current) {
         dirty.current = false
-        void run()
+        void drain()
       }
     }
   }, [])

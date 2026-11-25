@@ -36,8 +36,11 @@ export function HeroHeader({ sectionProgress, profile, deadline }: HeroHeaderPro
         <p className="hero__meta">Performance period: 1-Jan-2026 to 31-Dec-2026</p>
         {deadline ? (
           <p className="hero__deadline" role="status">
-            The form will close in {deadline.daysRemaining}{' '}
-            {deadline.daysRemaining === 1 ? 'day' : 'days'}. Fill it up soon.
+            Your Growth. Our Success! 🚀
+            <br />
+            {deadline.daysRemaining}{' '}
+            {deadline.daysRemaining === 1 ? 'Day' : 'Days'} Left — Complete your
+            self-evaluation.
           </p>
         ) : null}
       </div>

@@ -10,6 +10,8 @@ import { Card } from '../components/atoms/Card'
 import { Modal } from '../components/molecules/Modal'
 import { saveSelfEvaluation, submitSelfEvaluation, fetchSelfEvaluation } from '../lib/api'
 import { daysUntilDeadlineUtc } from '../lib/dates'
+import { downloadSelfEvaluationPdf } from '../lib/selfEvaluationPdf'
+import { ReviewPreviewPanel } from '../components/organisms/ReviewPreviewPanel'
 import { useDeadlineClock } from '../hooks/useDeadlineClock'
 import {
   commitmentsPayloadFromDraft,
@@ -21,6 +23,7 @@ import {
   type SelfEvaluationRecord,
 } from '../lib/selfEvaluationStore'
 import { validateSelfEvaluation } from '../lib/selfEvaluationValidation'
+import { QUESTION_LABELS } from '../lib/selfEvaluationContent'
 import { useAutoSave } from '../hooks/useAutoSave'
 import type {
   AssessmentQuestionId,
@@ -30,15 +33,8 @@ import type {
   SelfEvaluationValidation,
 } from '../lib/types'
 
-const RATING_VALUES: readonly RatingValue[] = [1, 2, 3, 4, 5]
+const RATING_VALUES: readonly RatingValue[] = [5, 4, 3, 2, 1]
 const AUTO_SAVE_DELAY_MS = 1200
-
-const QUESTION_LABELS: Record<AssessmentQuestionId, string> = {
-  contribution: 'Q1',
-  strengths: 'Q2',
-  development: 'Q3',
-  support: 'Q4',
-}
 
 /** The four numbered review sections of the wizard. */
 interface WizardStep {
@@ -83,6 +79,7 @@ export function EmployeeDashboardPage() {
   const [confirmingSubmit, setConfirmingSubmit] = useState(false)
   const [sectionIndex, setSectionIndex] = useState(0)
   const [questionIndex, setQuestionIndex] = useState(0)
+  const [previewing, setPreviewing] = useState(false)
   const lastResumeRef = useRef('')
 
   // The hook reads the payload through this ref, so its closures stay stable
@@ -111,7 +108,7 @@ export function EmployeeDashboardPage() {
       )
       setNotice(wasOpen ? 'Draft saved.' : 'Commitments saved.')
     },
-    onError: (detail) => setNotice(detail),
+    onError: (detail) => setNotice(`Save failed — ${detail}`),
   })
 
   useEffect(() => {
@@ -206,31 +203,14 @@ export function EmployeeDashboardPage() {
   const errorFor = (questionId: AssessmentQuestionId): string | null =>
     validation?.fieldErrors.questionErrors[questionId] ?? null
 
-  /** Section completeness drives the wizard's forward gating: an open review
-      must be answered section by section before the next one unlocks. The
-      forward commitments are the deliberate exception — they are optional
-      content, so the step never blocks navigation; the submit validator (and
-      the backend behind it) still requires the first commitment at the end. */
-  const sectionComplete = (index: number): boolean => {
-    if (index === 0) return draft.questions.every((q) => q.employeeResponse.trim() !== '')
-    if (index === 1) return draft.overallRating !== null && draft.overallSummary.trim() !== ''
-    return true
-  }
-
-  const sectionUnlocked = (index: number): boolean => {
-    if (!answersEditable) return true
-    let unlocked = true
-    for (let i = 0; i < index; i += 1) {
-      unlocked = unlocked && sectionComplete(i)
-    }
-    return unlocked
-  }
-
-  /** Edits land in local state; the hook decides when they go to the API. */
+  /** Edits land in local state; the hook decides when they go to the API.
+      A fresh edit clears the validation display — the next Submit click
+      re-runs the rules. */
   const updateDraft = (mutate: (draft: SelfEvaluationDraft) => SelfEvaluationDraft): void => {
     setRecord((current) =>
       current === null ? current : { ...current, draft: mutate(current.draft) },
     )
+    setValidation(null)
     autoSave.requestSave()
   }
 
@@ -251,9 +231,7 @@ export function EmployeeDashboardPage() {
   }
 
   const goToNext = (): void => {
-    // Forward gating: the current step must be answered before advancing an
-    // open review (belt-and-braces behind the disabled Next control).
-    if (answersEditable && !nextRequirementMet) return
+    // Navigation is free; only Submit runs the validation rules.
     if (isQuestionsSection) {
       if (questionIndex < draft.questions.length - 1) {
         setQuestionIndex((index) => index + 1)
@@ -266,48 +244,72 @@ export function EmployeeDashboardPage() {
   }
 
   const goToSection = (index: number): void => {
-    // Jumping ahead through the steps nav obeys the same unlock chain.
-    if (index > sectionIndex && !sectionUnlocked(index)) return
     setSectionIndex(Math.min(Math.max(index, 0), STEPS.length - 1))
   }
 
   const showPrevious = !(isQuestionsSection && questionIndex === 0)
   const showNext = !isLastSection
-  const showSubmit = isLastSection && answersEditable
 
-  const currentQuestionAnswered = currentQuestionAnsweredCheck(stepQuestion)
-  const nextRequirementMet = answersEditable
-    ? isQuestionsSection
-      ? currentQuestionAnswered
-      : sectionComplete(sectionIndex)
-    : true
+  /** Send the reader to the first unanswered mandatory item, so the "Mandatory
+      field" errors written by openPreview/submit are where the eyes are. */
+  const jumpToFirstInvalid = (outcome: SelfEvaluationValidation): void => {
+    const firstInvalidQuestion = draft.questions.findIndex(
+      (question) => outcome.fieldErrors.questionErrors[question.id] !== undefined,
+    )
+    if (firstInvalidQuestion >= 0) {
+      setSectionIndex(0)
+      setQuestionIndex(firstInvalidQuestion)
+    } else if (
+      outcome.fieldErrors.overallRating !== null ||
+      outcome.fieldErrors.overallSummary !== null
+    ) {
+      setSectionIndex(1)
+    }
+  }
+
+  /** Preview opens from the sign-off step only; an open review must first be
+      mandatory-complete, exactly like submitting. */
+  const openPreview = (): void => {
+    if (answersEditable) {
+      const outcome = validateSelfEvaluation(draft)
+      if (!outcome.isValid) {
+        setValidation(outcome)
+        jumpToFirstInvalid(outcome)
+        setNotice('Complete the flagged fields before submitting.')
+        return
+      }
+    }
+    setValidation(null)
+    setPreviewing(true)
+  }
+
+  const goToEdit = (): void => {
+    setPreviewing(false)
+    setSectionIndex(0)
+    setQuestionIndex(0)
+  }
 
   /** Save immediately, then submit — an un-flushed draft would submit
-      incomplete even though the form looks complete locally. */
+      incomplete even though the form looks complete locally. A preamble save
+      that fails stops the submission: the server never saw the draft, so its
+      verdict on what "complete" means would read a stale record. */
   const submit = (): void => {
     const outcome = validateSelfEvaluation(draft)
     setValidation(outcome)
     if (!outcome.isValid) {
-      const firstInvalidQuestion = draft.questions.findIndex(
-        (question) => outcome.fieldErrors.questionErrors[question.id] !== undefined,
-      )
-      if (firstInvalidQuestion >= 0) {
-        setSectionIndex(0)
-        setQuestionIndex(firstInvalidQuestion)
-      } else if (
-        outcome.fieldErrors.overallRating !== null ||
-        outcome.fieldErrors.overallSummary !== null
-      ) {
-        setSectionIndex(1)
-      }
+      jumpToFirstInvalid(outcome)
       setNotice('Complete the flagged fields before submitting.')
       return
     }
     setSubmitting(true)
     void autoSave
       .flush()
-      .then(() => submitSelfEvaluation())
+      .then((saveOutcome) => {
+        if (saveOutcome !== null && !saveOutcome.ok) return null
+        return submitSelfEvaluation()
+      })
       .then((result) => {
+        if (result === null) return
         if (result.ok) {
           setRecord(mergeRecordFromApi(recordRef.current ?? record, result.data))
           setNotice('Submitted successfully.')
@@ -341,7 +343,39 @@ export function EmployeeDashboardPage() {
         <HeroHeader sectionProgress={sectionProgress} profile={draft.employee} deadline={deadline} />
         <div className="hero-card__body">
           <div className="page-stack">
-            <nav className="steps-nav" aria-label="Review sections">
+            {previewing ? (
+              <>
+                <ReviewPreviewPanel draft={draft} signedAt={record.employeeSignedAt} />
+                <div className="form-actions wizard-actions">
+                  {answersEditable ? (
+                    <Button variant="ghost" onClick={goToEdit}>
+                      Edit
+                    </Button>
+                  ) : null}
+                  {answersEditable ? (
+                    <Button busy={busy} onClick={() => setConfirmingSubmit(true)}>
+                      Submit
+                    </Button>
+                  ) : null}
+                  <Button
+                    variant="ghost"
+                    busy={busy}
+                    disabled={record.submittedAt === null}
+                    onClick={() =>
+                      downloadSelfEvaluationPdf(
+                        draft,
+                        record.employeeSignedAt ?? record.submittedAt,
+                        'self-evaluation',
+                      )
+                    }
+                  >
+                    Download
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <nav className="steps-nav" aria-label="Review sections">
               {STEPS.map((stepEntry, index) => {
                 const classes = ['steps-nav__step', index === sectionIndex ? 'is-active' : '']
                   .filter(Boolean)
@@ -351,7 +385,6 @@ export function EmployeeDashboardPage() {
                     key={stepEntry.key}
                     type="button"
                     className={classes}
-                    disabled={!sectionUnlocked(index)}
                     aria-current={index === sectionIndex ? 'step' : undefined}
                     onClick={() => goToSection(index)}
                   >
@@ -429,7 +462,7 @@ export function EmployeeDashboardPage() {
                 </Button>
               ) : null}
               {showNext ? (
-                <Button disabled={!nextRequirementMet} onClick={goToNext}>
+                <Button onClick={goToNext}>
                   Next
                 </Button>
               ) : null}
@@ -438,18 +471,22 @@ export function EmployeeDashboardPage() {
                   Save draft
                 </Button>
               ) : null}
-              {!answersEditable && record.commitmentsEditable ? (
+              {!answersEditable && record.commitmentsEditable && step.key === 'commitments' ? (
                 <Button variant="ghost" busy={busy} onClick={() => void autoSave.flush()}>
                   Save commitments
                 </Button>
               ) : null}
-              {showSubmit ? (
-                <Button busy={busy} onClick={() => setConfirmingSubmit(true)}>
-                  Submit
+              {isLastSection ? (
+                <Button variant="ghost" onClick={openPreview}>
+                  Preview
                 </Button>
               ) : null}
-            </div>
-            <SaveNotice notice={notice} />
+                </div>
+              </>
+            )}
+            {step.key === 'commitments' || previewing || (validation !== null && !validation.isValid) ? (
+              <SaveNotice notice={notice} />
+            ) : null}
           </div>
         </div>
       </div>
@@ -489,12 +526,6 @@ function SaveNotice({ notice }: { notice: string | null }): ReactNode {
       {notice}
     </p>
   )
-}
-
-function currentQuestionAnsweredCheck(
-  stepQuestion: SelfEvaluationDraft['questions'][number] | undefined,
-): boolean {
-  return stepQuestion !== undefined && stepQuestion.employeeResponse.trim() !== ''
 }
 
 function updateQuestion(

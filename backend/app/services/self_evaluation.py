@@ -202,6 +202,7 @@ async def _open_or_create(
         evaluation = Evaluation(
             employee_id=user.employee_id,
             review_year=cycle.review_year,
+            email=user.email,
             cycle_id=cycle.cycle_id,
             status=_IN_PROGRESS,
             forward_commitments=[],

@@ -8,6 +8,7 @@ from tests.evaluation_fixtures import (
     make_board_client,
     roster_employee,
 )
+from app.models.evaluation import STATUS_IN_PROGRESS, STATUS_SUBMITTED
 
 ASHA_EMAIL = "asha_menon@emids.com"
 
@@ -22,9 +23,9 @@ def test_board_joins_roster_rows_with_evaluation_states() -> None:
     cara = roster_employee("EMP-V003", "Cara Fernandes")
     devika = roster_employee("EMP-V004", "Devika Nair")
     rows = [
-        evaluation("IN_PROGRESS", employee_id="EMP-V001", q1_employee_response="An answer."),
-        evaluation("IN_PROGRESS", employee_id="EMP-V002"),
-        evaluation("SUBMITTED", employee_id="EMP-V003"),
+        evaluation(STATUS_IN_PROGRESS, employee_id="EMP-V001", q1_employee_response="An answer."),
+        evaluation(STATUS_IN_PROGRESS, employee_id="EMP-V002"),
+        evaluation(STATUS_SUBMITTED, employee_id="EMP-V003"),
     ]
     client = make_board_client([asha, bilal, cara, devika], rows, admin_emails=[ASHA_EMAIL])
 
@@ -91,8 +92,8 @@ def test_board_filter_narrows_rows_and_total_not_counts() -> None:
     bilal = roster_employee("EMP-V002", "Bilal Khan")
     cara = roster_employee("EMP-V003", "Cara Fernandes")
     rows = [
-        evaluation("IN_PROGRESS", employee_id="EMP-V001", q1_employee_response="An answer."),
-        evaluation("SUBMITTED", employee_id="EMP-V003"),
+        evaluation(STATUS_IN_PROGRESS, employee_id="EMP-V001", q1_employee_response="An answer."),
+        evaluation(STATUS_SUBMITTED, employee_id="EMP-V003"),
     ]
     client = make_board_client([asha, bilal, cara], rows, admin_emails=[ASHA_EMAIL])
 

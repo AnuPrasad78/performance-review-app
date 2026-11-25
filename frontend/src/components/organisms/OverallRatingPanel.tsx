@@ -74,13 +74,13 @@ function RatingScaleInfo() {
         <div
           ref={popoverRef}
           role="group"
-          aria-label="Rating scale (1 to 5)"
+          aria-label="Rating scale (5 to 1)"
           className="rating-info__popover"
           style={{ left: offsetLeft }}
         >
           <p className="rating-info__title mono">Rating scale</p>
           {[...RATING_SCALE_REFERENCE]
-            .sort((a, b) => a.value - b.value)
+            .sort((a, b) => b.value - a.value)
             .map((entry) => (
               <div key={entry.value} className="rating-info__row">
                 <span className="mono rating-info__value">{entry.value}</span>
@@ -130,7 +130,7 @@ export function OverallRatingPanel({
               value={overallRating}
               disabled={false}
               onChange={(value) => onRatingSelect?.(value === null ? null : (value as RatingValue))}
-              ariaLabel="Overall self-rating from 1 to 5"
+              ariaLabel="Overall self-rating from 5 to 1"
               tooltips={tooltips}
             />
           )}
