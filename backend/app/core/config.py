@@ -12,7 +12,7 @@ environment with other tooling (alembic, dev servers, ...).
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import field_validator, model_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -28,7 +28,18 @@ class Settings(BaseSettings):
 
     # Required with no default: the app refuses to boot without a database URL.
     # postgresql+asyncpg://<user>:<password>@<host>:<port>/<database>
+    # Azure Database for PostgreSQL enforces TLS: append ?ssl=require there.
     database_url: str
+
+    # Connection pool, per process. The total a deployment can open is
+    # replicas x workers x (pool_size + max_overflow); keep it under the
+    # server's max_connections (docs/deployment.md has the arithmetic).
+    db_pool_size: int = Field(default=5, ge=1)
+    db_max_overflow: int = Field(default=5, ge=0)
+    # Seconds to wait for a free pooled connection before failing the request.
+    db_pool_timeout: int = Field(default=10, ge=1)
+    # Recycle connections before Azure's idle-connection reaping can kill them.
+    db_pool_recycle: int = Field(default=1800, ge=60)
 
     # Stub-auth phase: header that carries the acting user until SSO arrives.
     stub_user_header: str = "X-Stub-User"

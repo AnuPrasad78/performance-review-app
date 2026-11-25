@@ -17,6 +17,7 @@ without redesign.
 from collections.abc import AsyncIterator
 
 from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
@@ -24,20 +25,27 @@ from sqlalchemy.ext.asyncio import (
 
 from app.core.config import Settings
 
-_engine = None
+_engine: AsyncEngine | None = None
 _session_factory: async_sessionmaker[AsyncSession] | None = None
 
 
-def build_engine(database_url: str):
-    # pool_pre_ping: productivity feature — a stale pooled connection is
+def build_engine(settings: Settings) -> AsyncEngine:
+    # pool_pre_ping: a stale pooled connection (failover, idle reaping) is
     # revalidated before use instead of surfacing as a mid-request failure.
-    return create_async_engine(database_url, pool_pre_ping=True)
+    return create_async_engine(
+        settings.database_url,
+        pool_pre_ping=True,
+        pool_size=settings.db_pool_size,
+        max_overflow=settings.db_max_overflow,
+        pool_timeout=settings.db_pool_timeout,
+        pool_recycle=settings.db_pool_recycle,
+    )
 
 
 def configure_engine(settings: Settings) -> None:
     global _engine, _session_factory
     if _session_factory is None:
-        _engine = build_engine(settings.database_url)
+        _engine = build_engine(settings)
         _session_factory = async_sessionmaker(_engine, expire_on_commit=False)
 
 

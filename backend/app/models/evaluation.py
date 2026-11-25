@@ -29,6 +29,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Identity,
+    Index,
     SmallInteger,
     String,
     Text,
@@ -82,6 +83,8 @@ class Evaluation(Base):
     __tablename__ = "evaluations"
     __table_args__ = (
         UniqueConstraint("employee_id", "review_year", name="unique_employee_review"),
+        Index("idx_evaluations_status", "status"),
+        Index("idx_evaluations_cycle_id", "cycle_id"),
         CheckConstraint(
             f"status IN ({', '.join(repr(word) for word in EVALUATION_STATUSES)})",
             name="evaluations_status_check",
@@ -151,7 +154,12 @@ class Evaluation(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
     cycle_id: Mapped[int] = mapped_column(
-        ForeignKey("review_cycles.cycle_id"), nullable=False
+        ForeignKey(
+            "review_cycles.cycle_id",
+            name="evaluations_cycle_id_fkey",
+            ondelete="RESTRICT",
+        ),
+        nullable=False,
     )
 
     employee: Mapped[Employee] = relationship(lazy="selectin")

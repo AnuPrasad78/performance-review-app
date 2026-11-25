@@ -97,6 +97,7 @@ Rules:
 ## Database Standards (PostgreSQL)
 
 - Schema lives only in Alembic migrations, one migration per logical change, never editing an applied migration.
+- Migrations are expand-then-contract, always ship a working `downgrade()`, and must pass the migration suite (`tests/test_migrations.py`) and `alembic check`. Full rules, release order and rollback runbook: `docs/deployment.md`.
 - All tables: `id` (PK), `created_at` / `updated_at` timestamps, FKs with explicit `ondelete`, and named constraints.
 - Naming: `snake_case` tables and columns; join tables named `<a>_<b>`. IA: every FK indexed, and indexes for known query patterns.
 - Soft deletes only where the domain requires audit history (performance reviews do — ratings/feedback must be immutable or versioned, never destroyed).

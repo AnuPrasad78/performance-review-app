@@ -7,7 +7,7 @@ they sign in. Columns mirror the roster CSV the admin uploads.
 
 import datetime
 
-from sqlalchemy import DateTime, String, func
+from sqlalchemy import Date, DateTime, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
@@ -31,6 +31,9 @@ class Employee(Base):
     business_partner: Mapped[str | None] = mapped_column(String(150))
     reporting_manager: Mapped[str | None] = mapped_column(String(150))
     employment_status: Mapped[str | None] = mapped_column(String(50))
+    # Legacy column: real seeded values live here, but the roster CSV does not
+    # carry it, so roster writes never touch it (migration A3).
+    joining_date: Mapped[datetime.date | None] = mapped_column(Date())
     created_at: Mapped[datetime.datetime | None] = mapped_column(
         DateTime(), server_default=func.now()
     )

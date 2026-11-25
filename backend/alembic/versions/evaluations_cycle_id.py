@@ -101,13 +101,10 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index("idx_evaluations_cycle_id", table_name="evaluations")
-    op.drop_constraint("evaluations_cycle_id_fkey", "evaluations", type_="foreignkey")
-    op.drop_column("evaluations", "cycle_id")
-
     # Remove only the cycles this migration could have seeded — i.e. cycles no
     # evaluation references anymore. Admin-configured rows in active use are
-    # never deleted by a schema rollback.
+    # never deleted by a schema rollback. This must run while cycle_id still
+    # exists: it is the column that tells referenced cycles apart.
     op.execute(
         sa.text(
             """
@@ -118,3 +115,6 @@ def downgrade() -> None:
             """
         )
     )
+    op.drop_index("idx_evaluations_cycle_id", table_name="evaluations")
+    op.drop_constraint("evaluations_cycle_id_fkey", "evaluations", type_="foreignkey")
+    op.drop_column("evaluations", "cycle_id")
