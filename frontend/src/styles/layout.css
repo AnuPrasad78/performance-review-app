@@ -262,9 +262,26 @@
   background: rgba(13, 42, 40, 0.55);
   pointer-events: none;
 }
-.hero__lead, .hero__side { position: relative; min-width: 0; }
-.hero__lead { flex: 1 1 380px; }
-.hero__side { flex: 0 1 320px; display: flex; flex-direction: column; gap: 12px; align-items: flex-end; }
+.hero__lead { position: relative; min-width: 0; flex: 1 1 380px; }
+/* Side overlays the hero's right edge and spans its full height: the session
+    chip rides the top, the progress block drops to the bottom by bottom:0.
+    Out of the flex flow, flex-wrap can no longer push it inward mid-hero. */
+/* the side column must sit above hero__lead (z-index 1), which otherwise
+    covers the session chip and swallows its clicks */
+.hero__side {
+  position: absolute;
+  z-index: 2;
+  top: 34px;
+  right: 30px;
+  bottom: 30px;
+  width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-end;
+}
+/* the lead must stay above the hero's scrim overlay */
+.hero__lead { position: relative; z-index: 1; }
 
 .hero__brand { display: flex; align-items: center; gap: 10px; }
 .hero__brand-logo { height: 17px; display: block; }
@@ -293,6 +310,7 @@
 .hero__deadline {
   margin-top: 12px;
   align-self: flex-start;
+  max-width: calc(100% - 290px);
   background: var(--teal-wash);
   color: var(--teal-deep);
   font-size: 13.5px;
@@ -347,20 +365,26 @@
 .hero__reviewing-value .icon { color: var(--ink-2); flex: none; }
 
 /* progress block sits at the right bottom of the hero, stacked under the chip */
-.hero__foot { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; align-self: stretch; }
-.hero__status-list { width: 250px; margin-top: auto; }
+.hero__foot { display: flex; flex: 1; flex-direction: column; align-items: flex-end; align-self: stretch; }
+.hero__status-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 250px;
+  margin: 0;
+  margin-top: auto;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 10px;
+}
 .hero__status-label {
   font-size: 10px;
-  letter-spacing: 0.06em;
-  color: rgba(255, 255, 255, 0.85);
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.8);
 }
-.hero__status-value { color: #ffffff; font-weight: 700; }
-.hero__status-list, .hero__status-row {
-  padding: 0;
-  margin: 0;
-}
-.hero__status-list { display: flex; flex-direction: column; gap: 4px; }
-.hero__status-row { display: flex; justify-content: space-between; gap: 14px; }
+.hero__status-value { color: #ffffff; font-weight: 700; margin: 0; }
+.hero__status-row { display: flex; justify-content: space-between; align-items: baseline; gap: 14px; }
 
 /* session chip inside the hero */
 .hero .header__session { position: static; }

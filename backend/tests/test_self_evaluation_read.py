@@ -11,6 +11,7 @@ from tests.evaluation_fixtures import (
     read,
     roster_employee,
 )
+from app.models.evaluation import STATUS_IN_PROGRESS, STATUS_SUBMITTED
 
 UTC = datetime.timezone.utc
 
@@ -51,7 +52,8 @@ def test_no_evaluation_row_reads_as_an_empty_open_form() -> None:
 
 def test_open_evaluation_marries_q_columns_to_topics() -> None:
     row = evaluation(
-        "SELF_EVALUATION_IN_PROGRESS",
+        STATUS_IN_PROGRESS,
+
         q1_employee_response="Delivered the intake rewrite.",
         q2_employee_response="Data modeling holds up.",
         q3_employee_response="Deep Kafka work.",
@@ -91,7 +93,8 @@ def test_open_evaluation_marries_q_columns_to_topics() -> None:
 
 def test_submitted_status_derives_the_wire_dates() -> None:
     row = evaluation(
-        "SELF_EVALUATION_COMPLETED",
+        STATUS_SUBMITTED,
+
         updated_at=datetime.datetime(2026, 11, 20, 9, 30, tzinfo=UTC),
         employee_signed_at=datetime.datetime(2026, 11, 21, 10, 0, tzinfo=UTC),
     )

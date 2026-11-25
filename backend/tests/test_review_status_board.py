@@ -7,6 +7,7 @@ from tests.evaluation_fixtures import (
     make_board_client,
     roster_employee,
 )
+from app.models.evaluation import STATUS_IN_PROGRESS, STATUS_SUBMITTED
 
 ASHA_EMAIL = "asha_menon@emids.com"
 

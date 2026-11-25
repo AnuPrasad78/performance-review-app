@@ -10,7 +10,12 @@ const { fetchEmployeesMock, fetchEmployeeFacetsMock } = vi.hoisted(() => ({
   fetchEmployeesMock: vi.fn(),
   fetchEmployeeFacetsMock: vi.fn(),
 }))
-vi.mock('../../src/lib/api', () => ({
+vi.mock('../../src/lib/api', async (importOriginal) => ({
+  ...(await importOriginal()),
+  fetchEmployees: fetchEmployeesMock,
+  fetchEmployeeFacets: fetchEmployeeFacetsMock,
+  setApiIdentity: vi.fn(),
+}))
   fetchEmployees: fetchEmployeesMock,
   fetchEmployeeFacets: fetchEmployeeFacetsMock,
   setApiIdentity: vi.fn(),

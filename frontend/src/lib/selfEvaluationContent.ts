@@ -1,4 +1,12 @@
-import type { AssessmentQuestion, ForwardCommitment, RatingScaleEntry } from './types'
+import type { AssessmentQuestion, AssessmentQuestionId, ForwardCommitment, RatingScaleEntry } from './types'
+
+/** The 2026 form's question numbers, shared by the wizard and the preview view. */
+export const QUESTION_LABELS: Record<AssessmentQuestionId, string> = {
+  contribution: 'Q1',
+  strengths: 'Q2',
+  development: 'Q3',
+  support: 'Q4',
+}
 
 /** Static 2026 review form content (the review document this screen implements). The
     backend seam will replace this module's data with API responses; component code

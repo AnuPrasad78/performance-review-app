@@ -77,6 +77,12 @@ EVALUATION_STATUSES = (
     STATUS_MANAGER_EVALUATION_COMPLETED,
 )
 
+#: Narrow aliases some suites still import; they name the same stored
+#: words as the lifecycle constants above — kept so the vocabulary stays
+#: single-spelled inside the app code.
+STATUS_IN_PROGRESS = STATUS_SELF_EVALUATION_IN_PROGRESS
+STATUS_SUBMITTED = STATUS_SELF_EVALUATION_COMPLETED
+
 
 class Evaluation(Base):
     __tablename__ = "evaluations"

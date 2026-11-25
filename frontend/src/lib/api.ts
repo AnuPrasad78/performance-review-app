@@ -28,10 +28,11 @@ import { RAW_TO_DISPLAY } from './reviewStatusStore'
 const API_BASE = import.meta.env.VITE_API_URL !== undefined ? import.meta.env.VITE_API_URL : ''
 
 /** Carries the acting user while the backend runs its stub-identity phase.
-    Must match the backend's default stub header (app/core/config.py); when
-    SSO lands this becomes an automatic session cookie and both sides of the
-    seam are edited to match. */
+    Must match the backend's default stub header (app/core/config.py); with
+    SSO enabled the server-side session cookie is what the backend reads,
+    which 'include' makes the browser send on every call. */
 const STUB_IDENTITY_HEADER = 'X-Stub-User'
+const CREDENTIALS: RequestCredentials = 'include'
 
 const UNSUPPORTED_ENV_ERROR = {
   ok: false as const,
@@ -221,7 +222,7 @@ export async function importRosterCsv(file: File): Promise<RosterImportResult> {
   body.append('file', file, file.name)
   let response: Response
   try {
-    response = await fetch(`${API_BASE}/api/employees/import`, { method: 'POST', body })
+    response = await fetch(`${API_BASE}/api/employees/import`, { method: 'POST', body, credentials: CREDENTIALS })
   } catch {
     return {
       ok: false,
@@ -285,6 +286,7 @@ export async function applyRosterImport(payload: {
   try {
     response = await fetch(`${API_BASE}/api/employees/import/apply`, {
       method: 'POST',
+      credentials: CREDENTIALS,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         inserts: payload.inserts.map(employeeToWire),
@@ -368,7 +370,7 @@ export async function fetchReviewBoard(query: ReviewBoardQuery): Promise<ReviewB
   try {
     response = await fetch(
       `${API_BASE}/api/evaluations?${tableQueryParams(query)}`,
-      { headers: identityHeaders() },
+      { headers: identityHeaders(), credentials: CREDENTIALS },
     )
   } catch {
     return { ok: false, detail: NETWORK_UNAVAILABLE.detail, code: NETWORK_UNAVAILABLE.code }
@@ -388,7 +390,9 @@ export async function fetchReviewBoard(query: ReviewBoardQuery): Promise<ReviewB
 export async function fetchEmployees(query: RosterQuery & { page: number }): Promise<EmployeeListResult> {
   let response: Response
   try {
-    response = await fetch(`${API_BASE}/api/employees?${tableQueryParams(query)}`)
+    response = await fetch(`${API_BASE}/api/employees?${tableQueryParams(query)}`, {
+      credentials: CREDENTIALS,
+    })
   } catch {
     return { ok: false, detail: NETWORK_UNAVAILABLE.detail, code: NETWORK_UNAVAILABLE.code }
   }
@@ -450,6 +454,7 @@ export async function fetchSession(email: string): Promise<SessionApiResult> {
   try {
     response = await fetch(`${API_BASE}/api/auth/session`, {
       method: 'POST',
+      credentials: CREDENTIALS,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email }),
     })
@@ -468,10 +473,51 @@ export async function fetchSession(email: string): Promise<SessionApiResult> {
   return { ok: true, session }
 }
 
+/** Identify the holder of the server-side session cookie: what the SPA calls
+    on boot to adopt a completed SSO login (backend GET /api/auth/session). */
+export async function fetchCookieSession(): Promise<SessionApiResult> {
+  let response: Response
+  try {
+    response = await fetch(`${API_BASE}/api/auth/session`, { credentials: CREDENTIALS })
+  } catch {
+    return { ok: false, detail: NETWORK_UNAVAILABLE.detail, code: NETWORK_UNAVAILABLE.code }
+  }
+  const parsed = await envelopeOf(response)
+  if (parsed === null) {
+    return { ok: false, detail: REVIEW_UNAVAILABLE.detail, code: REVIEW_UNAVAILABLE.code }
+  }
+  if (!response.ok) return { ok: false, ...envelopeFields(parsed) }
+  const session = sessionFrom(parsed)
+  if (session === null) {
+    return { ok: false, detail: REVIEW_UNAVAILABLE.detail, code: REVIEW_UNAVAILABLE.code }
+  }
+  return { ok: true, session }
+}
+
+/** Tell the backend to drop its session cookie (backend POST /api/auth/logout). */
+export async function closeServerSession(): Promise<void> {
+  try {
+    await fetch(`${API_BASE}/api/auth/logout`, {
+      method: 'POST',
+      credentials: CREDENTIALS,
+    })
+  } catch {
+    // Sign-out succeeds for the local session regardless; the cookie drop is
+    // the server's half and is retried on the next sign-in attempt.
+  }
+}
+
+/** Full-page navigation to the backend's Entra ID hand-off; the SSO callback
+    (backend routers/auth.py) eventually bounces the browser back here with
+    the session cookie set. */
+export function startSsoLogin(): void {
+  window.location.assign(`${API_BASE}/api/auth/sso/login`)
+}
+
 export async function fetchSelfEvaluation(): Promise<SelfEvaluationApiResult> {
   let response: Response
   try {
-    response = await fetch(`${API_BASE}/api/evaluations/me`, { headers: identityHeaders() })
+    response = await fetch(`${API_BASE}/api/evaluations/me`, { headers: identityHeaders(), credentials: CREDENTIALS })
   } catch {
     return { ok: false, detail: NETWORK_UNAVAILABLE.detail, code: NETWORK_UNAVAILABLE.code }
   }
@@ -485,6 +531,7 @@ export async function saveSelfEvaluation(
   try {
     response = await fetch(`${API_BASE}/api/evaluations/me`, {
       method: 'PATCH',
+      credentials: CREDENTIALS,
       headers: { 'Content-Type': 'application/json', ...identityHeaders() },
       body: JSON.stringify(payload),
     })
@@ -499,6 +546,7 @@ export async function submitSelfEvaluation(): Promise<SelfEvaluationApiResult> {
   try {
     response = await fetch(`${API_BASE}/api/evaluations/me/submit`, {
       method: 'POST',
+      credentials: CREDENTIALS,
       headers: identityHeaders(),
     })
   } catch {
@@ -534,7 +582,7 @@ function cycleSettingsFrom(value: unknown): CycleSettings | null {
 export async function fetchCycleSettings(): Promise<CycleSettingsResult> {
   let response: Response
   try {
-    response = await fetch(`${API_BASE}/api/cycle-settings`, { headers: identityHeaders() })
+    response = await fetch(`${API_BASE}/api/cycle-settings`, { headers: identityHeaders(), credentials: CREDENTIALS })
   } catch {
     return { ok: false, detail: NETWORK_UNAVAILABLE.detail, code: NETWORK_UNAVAILABLE.code }
   }
@@ -557,6 +605,7 @@ export async function saveCycleSettings(
   try {
     response = await fetch(`${API_BASE}/api/cycle-settings`, {
       method: 'PUT',
+      credentials: CREDENTIALS,
       headers: { 'Content-Type': 'application/json', ...identityHeaders() },
       body: JSON.stringify(settings),
     })
