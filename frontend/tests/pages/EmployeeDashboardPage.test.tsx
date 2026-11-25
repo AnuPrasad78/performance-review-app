@@ -406,12 +406,12 @@ describe('EmployeeDashboardPage — submit gate', () => {
     const confirmDialog2 = await screen.findByRole('dialog', { name: 'Confirm submission' })
     await user.click(within(confirmDialog2).getByRole('button', { name: 'OK' }))
 
+    const submitCall = calls.find((call) => call.method === 'POST')
+    expect(submitCall?.url).toContain('/api/evaluations/me')
     expect(await screen.findByText('Submitted successfully.')).toBeInTheDocument()
     expect(
       await screen.findByText('Your self-evaluation was submitted. The form is read-only now.'),
     ).toBeInTheDocument()
-    const submitCall = calls.find((call) => call.method === 'POST')
-    expect(submitCall?.url).toContain('/api/evaluations/me')
     expect(screen.queryByRole('button', { name: 'Save draft' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Save commitments' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Submit' })).not.toBeInTheDocument()
@@ -509,5 +509,33 @@ describe('EmployeeDashboardPage — submission deadline', () => {
 
     expect(await screen.findByText(/Your self-evaluation was submitted\. The form is read-only now\./)).toBeInTheDocument()
     expect(screen.queryByText('ops time passed')).not.toBeInTheDocument()
+  })
+})
+
+describe('EmployeeDashboardPage — rating scale reference', () => {
+  it('reveals the 1-to-5 scale from the info icon on Overall self-rating, with no table card', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal('fetch', apiReturning(openWire()))
+
+    render(page())
+    await screen.findByDisplayValue('Delivered the intake rewrite.')
+    for (let step = 0; step < 4; step += 1) {
+      await user.click(screen.getByRole('button', { name: 'Next' }))
+    }
+
+    // The standalone scale table is gone from the step.
+    expect(screen.queryByRole('columnheader', { name: 'Expectation' })).not.toBeInTheDocument()
+
+    const trigger = screen.getByRole('button', { name: 'Rating scale reference' })
+    await user.hover(trigger)
+
+    const popover = await screen.findByRole('group', { name: 'Rating scale (1 to 5)' })
+    expect(within(popover).getByText('Below expectations')).toBeInTheDocument()
+    expect(within(popover).getByText('Exceeds expectations')).toBeInTheDocument()
+    // The rows read 1 → 5.
+    const order = popover.textContent ?? ''
+    expect(order.indexOf('Significantly below expectations')).toBeLessThan(
+      order.indexOf('Significantly exceeds expectations'),
+    )
   })
 })

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { HeroHeader, type HeroSectionProgress } from '../components/organisms/HeroHeader'
-import { RatingReferencePanel } from '../components/organisms/RatingReferencePanel'
+
 import { ReviewQuestionPanel } from '../components/organisms/ReviewQuestionPanel'
 import { OverallRatingPanel } from '../components/organisms/OverallRatingPanel'
 import { ForwardCommitmentsPanel } from '../components/organisms/ForwardCommitmentsPanel'
@@ -330,6 +330,7 @@ export function EmployeeDashboardPage() {
     { label: 'Sections', value: `${sectionsDone}/4` },
     { label: 'Sign-off', value: signed ? 'Completed' : 'Pending' },
   ]
+
   // Banner only while the form is both open and unsubmitted — a submitted
   // review has nothing left to close.
   const deadline =
@@ -377,9 +378,6 @@ export function EmployeeDashboardPage() {
                   updateDraft((current) => updateQuestion(current, questionId, value))
                 }
               />
-            ) : null}
-            {step.key === 'overall' ? (
-              <RatingReferencePanel />
             ) : null}
             {step.key === 'overall' ? (
               <OverallRatingPanel

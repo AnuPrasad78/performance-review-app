@@ -20,6 +20,7 @@ export type IconName =
   | 'clock'
   | 'circle-check'
   | 'alert'
+  | 'info'
 
 const GLYPHS: Record<IconName, ReactNode> = {
   menu: <path d="M4 6h16M4 12h16M4 18h16" />,
@@ -107,6 +108,13 @@ const GLYPHS: Record<IconName, ReactNode> = {
     <>
       <circle cx="12" cy="12" r="9" />
       <path d="m9 12 2 2 4-4" />
+    </>
+  ),
+  info: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v5" />
+      <path d="M12 7.5h.01" />
     </>
   ),
   alert: (
