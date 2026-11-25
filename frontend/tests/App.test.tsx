@@ -31,7 +31,8 @@ const {
   submitSelfEvaluationMock: vi.fn(),
 }))
 
-vi.mock('../src/lib/api', () => ({
+vi.mock('../src/lib/api', async (importOriginal) => ({
+  ...(await importOriginal()),
   applyRosterImport: applyRosterImportMock,
   fetchEmployees: fetchEmployeesMock,
   fetchReviewBoard: fetchReviewBoardMock,
@@ -237,13 +238,16 @@ describe('App — signed-out users are routed to sign-in', () => {
 
   it('shows the sign-in page when no session exists', async () => {
     render(renderApp(['/users']))
-    expect(await screen.findByRole('heading', { name: 'Welcome back', level: 1 })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Welcome', level: 1 })).toBeInTheDocument()
   })
 
   it('returns to the guarded route after a successful sign-in', async () => {
     render(renderApp(['/dashboard']))
     const user = userEvent.setup()
 
+    // The boot splash holds the interface while the server-side cookie is
+    // checked; the form appears once no session is waiting to be adopted.
+    await screen.findByLabelText('Company Email')
     await user.type(screen.getByLabelText('Company Email'), 'asha_menon@emids.com')
     await user.type(screen.getByLabelText('Password'), 'Portal@2026')
     await user.click(screen.getByRole('button', { name: 'Sign in' }))

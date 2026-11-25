@@ -12,7 +12,8 @@ const { applyRosterImportMock, fetchEmployeesMock, importRosterCsvMock } = vi.ho
   fetchEmployeesMock: vi.fn(),
   importRosterCsvMock: vi.fn(),
 }))
-vi.mock('../../src/lib/api', () => ({
+vi.mock('../../src/lib/api', async (importOriginal) => ({
+  ...(await importOriginal()),
   applyRosterImport: applyRosterImportMock,
   fetchEmployees: fetchEmployeesMock,
   importRosterCsv: importRosterCsvMock,

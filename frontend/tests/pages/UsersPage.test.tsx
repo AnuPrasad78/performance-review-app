@@ -7,7 +7,8 @@ import { UsersPage } from '../../src/pages/UsersPage'
 import type { Employee } from '../../src/lib/types'
 
 const { fetchEmployeesMock } = vi.hoisted(() => ({ fetchEmployeesMock: vi.fn() }))
-vi.mock('../../src/lib/api', () => ({
+vi.mock('../../src/lib/api', async (importOriginal) => ({
+  ...(await importOriginal()),
   fetchEmployees: fetchEmployeesMock,
   setApiIdentity: vi.fn(),
 }))

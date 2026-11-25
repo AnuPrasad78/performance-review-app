@@ -33,6 +33,23 @@ class Settings(BaseSettings):
     # Stub-auth phase: header that carries the acting user until SSO arrives.
     stub_user_header: str = "X-Stub-User"
 
+    # Entra ID (Microsoft) OIDC login. Empty defaults keep SSO disabled in dev;
+    # the prod validator below refuses to boot without them — identity in prod
+    # never falls back to a stub.
+    entra_tenant_id: str = ""
+    entra_client_id: str = ""
+    entra_client_secret: str = ""
+    sso_redirect_uri: str = ""
+
+    # Where the SPA lives; the SSO callback bounces the browser here. Same
+    # origin as PR_SSO_REDIRECT_URI in the Vite-proxied dev setup.
+    app_url: str = "http://localhost:5173"
+
+    # Signs the server-side session cookie (JWT). Not loaded from Entra —
+    # it is this app's own credential, independent of the IdP.
+    session_secret: str = ""
+    session_cookie_name: str = "pr_session"
+
     # Stub-auth phase: emails hold the admin console role while roles live in
     # settings (user_accounts.auth_role arrives with migration A5). Env syntax:
     #   PR_STUB_ADMIN_EMAILS='["boss@emids.com"]'
@@ -71,6 +88,38 @@ class Settings(BaseSettings):
         if self.environment == "prod" and self.stub_user_header.strip() == "":
             raise ValueError("stub_user_header must be unset/empty in prod")
         return self
+
+    @model_validator(mode="after")
+    def prod_identity_comes_from_sso(self) -> "Settings":
+        # A prod deploy without the Entra endpoint values or a session
+        # signing key would boot into an app no one can sign into; fail the
+        # boot instead of the first login.
+        if self.environment != "prod":
+            return self
+        missing = [
+            name
+            for name, value in (
+                ("PR_ENTRA_TENANT_ID", self.entra_tenant_id),
+                ("PR_ENTRA_CLIENT_ID", self.entra_client_id),
+                ("PR_ENTRA_CLIENT_SECRET", self.entra_client_secret),
+                ("PR_SSO_REDIRECT_URI", self.sso_redirect_uri),
+                ("PR_SESSION_SECRET", self.session_secret),
+            )
+            if value.strip() == ""
+        ]
+        if missing:
+            raise ValueError("SSO is mandatory in prod; missing " + ", ".join(missing))
+        return self
+
+    @property
+    def sso_enabled(self) -> bool:
+        return (
+            self.entra_tenant_id.strip() != ""
+            and self.entra_client_id.strip() != ""
+            and self.entra_client_secret.strip() != ""
+            and self.sso_redirect_uri.strip() != ""
+            and self.session_secret.strip() != ""
+        )
 
 
 @lru_cache

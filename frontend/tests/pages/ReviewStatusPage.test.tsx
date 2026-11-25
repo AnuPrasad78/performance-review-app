@@ -6,7 +6,8 @@ import { ReviewStatusPage } from '../../src/pages/ReviewStatusPage'
 import type { ReviewBoardPage, ReviewStatusWire } from '../../src/lib/types'
 
 const { fetchReviewBoardMock } = vi.hoisted(() => ({ fetchReviewBoardMock: vi.fn() }))
-vi.mock('../../src/lib/api', () => ({
+vi.mock('../../src/lib/api', async (importOriginal) => ({
+  ...(await importOriginal()),
   fetchReviewBoard: fetchReviewBoardMock,
   setApiIdentity: vi.fn(),
 }))

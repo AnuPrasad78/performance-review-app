@@ -1,4 +1,6 @@
 import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
+import type { ReactNode } from 'react'
+import { Spinner } from './components/atoms/Spinner'
 import { AppShell, type NavSection } from './components/organisms/AppShell'
 import { AdminStoreProvider } from './state/AdminContext'
 import { AuthProvider, useAuth } from './state/AuthContext'
@@ -30,13 +32,23 @@ function EmployeeLayout() {
   return <Outlet />
 }
 
+/** The still moment between a redirect back from SSO and the cookie identity
+    check settling: a splash instead of a login-page flicker, on the canvas. */
+function BootSplash(): ReactNode {
+  return (
+    <div className="app-boot" role="status" aria-label="Restoring your session">
+      <Spinner tone="teal" size={24} />
+    </div>
+  )
+}
+
 /** Only sessions with the matching role get through; everyone else is routed
     back to sign-in, keeping the attempted route for the post-login return. */
 function RequireRole({ role }: { role: AuthRole }) {
-  const { session } = useAuth()
+  const { session, booting } = useAuth()
   const location = useLocation()
   if (session === null) {
-    return <Navigate to="/login" replace state={{ from: location }} />
+    return booting ? <BootSplash /> : <Navigate to="/login" replace state={{ from: location }} />
   }
   if (session.role !== role) {
     return <Navigate to={ROLE_HOME[session.role]} replace />
@@ -45,8 +57,11 @@ function RequireRole({ role }: { role: AuthRole }) {
 }
 
 function HomeRedirect() {
-  const { session } = useAuth()
-  return <Navigate to={session === null ? '/login' : ROLE_HOME[session.role]} replace />
+  const { session, booting } = useAuth()
+  if (session === null) {
+    return booting ? <BootSplash /> : <Navigate to="/login" replace />
+  }
+  return <Navigate to={ROLE_HOME[session.role]} replace />
 }
 
 export function AppRoutes() {

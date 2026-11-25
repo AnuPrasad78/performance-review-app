@@ -12,6 +12,9 @@ dependencies = [
     "pydantic-settings>=2.7,<3",
     # multipart/form-data parsing for file uploads
     "python-multipart==0.0.34",
+    # Sessions: Entra ID id_token validation (RS256/JWKS) and the signed
+    # server-side session cookie (HS256).
+    "pyjwt[crypto]==2.15.1",
     # Persistence
     "sqlalchemy[asyncio]==2.0.44",
     "asyncpg>=0.31,<1",

@@ -12,13 +12,16 @@ const {
   fetchReviewBoardMock,
   fetchSelfEvaluationMock,
   fetchSessionMock,
+  startSsoLoginMock,
 } = vi.hoisted(() => ({
   fetchEmployeesMock: vi.fn(),
   fetchReviewBoardMock: vi.fn(),
   fetchSelfEvaluationMock: vi.fn(),
   fetchSessionMock: vi.fn(),
+  startSsoLoginMock: vi.fn(),
 }))
-vi.mock('../../src/lib/api', () => ({
+vi.mock('../../src/lib/api', async (importOriginal) => ({
+  ...(await importOriginal()),
   fetchEmployees: fetchEmployeesMock,
   fetchReviewBoard: fetchReviewBoardMock,
   fetchSelfEvaluation: fetchSelfEvaluationMock,
@@ -26,6 +29,7 @@ vi.mock('../../src/lib/api', () => ({
   saveSelfEvaluation: vi.fn(),
   submitSelfEvaluation: vi.fn(),
   setApiIdentity: vi.fn(),
+  startSsoLogin: startSsoLoginMock,
 }))
 
 function session(employeeId: string, name: string, email: string, role: 'admin' | 'employee'): SessionApiResult {
@@ -95,19 +99,17 @@ function renderApp(): React.ReactElement {
 describe('LoginPage', () => {
   it('renders the redesigned sign-in form with SSO below the divider', () => {
     render(renderApp())
-    expect(screen.getByRole('heading', { name: 'Welcome back', level: 1 })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Welcome', level: 1 })).toBeInTheDocument()
     // The email form is the primary option; SSO is the secondary one.
     expect(screen.getByRole('button', { name: 'Sign in with Emids SSO' })).toBeEnabled()
-    expect(screen.getByText('or continue with')).toBeInTheDocument()
+    expect(screen.getByText('or sign in with your email')).toBeInTheDocument()
   })
 
-  it('explains that SSO is not wired for this release when it is clicked', async () => {
+  it('hands off to the backend SSO route when the SSO button is clicked', async () => {
     const user = userEvent.setup()
     render(renderApp())
     await user.click(screen.getByRole('button', { name: 'Sign in with Emids SSO' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'SSO is not enabled for this release — sign in with your email.',
-    )
+    expect(startSsoLoginMock).toHaveBeenCalledTimes(1)
   })
 
   it('explains that password reset is not wired when Forgot password is clicked', async () => {
@@ -133,7 +135,7 @@ describe('LoginPage', () => {
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('This address is not on the review roster.')
-    expect(screen.getByRole('heading', { name: 'Welcome back', level: 1 })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Welcome', level: 1 })).toBeInTheDocument()
   })
 
   it('signs the admin in to the admin console', async () => {

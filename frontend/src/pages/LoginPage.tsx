@@ -5,6 +5,7 @@ import { Icon } from '../components/atoms/Icon'
 import { Input } from '../components/atoms/Input'
 import { LoginTemplate } from '../components/templates/LoginTemplate'
 import { useAuth } from '../state/AuthContext'
+import { startSsoLogin } from '../lib/api'
 import type { AuthRole } from '../lib/authUsers'
 import type { AuthResult } from '../lib/authUsers'
 
@@ -13,7 +14,6 @@ export const ROLE_HOME: Record<AuthRole, string> = {
   employee: '/dashboard',
 }
 
-const SSO_NOT_WIRED = 'SSO is not enabled for this release — sign in with your email.'
 const RESET_NOT_WIRED =
   'Password reset is not available in this release — contact an administrator.'
 
@@ -63,7 +63,7 @@ export function LoginPage() {
         <h1 className="login__heading">Welcome</h1>
         <p className="login__lead">Sign in to your performance review account.</p>
 
-        <button type="button" className="login__sso-btn" onClick={() => setError(SSO_NOT_WIRED)}>
+        <button type="button" className="login__sso-btn" onClick={startSsoLogin}>
           <MicrosoftLogo />
           Sign in with Emids SSO
         </button>

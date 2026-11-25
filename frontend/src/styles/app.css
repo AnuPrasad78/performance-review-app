@@ -203,6 +203,17 @@ a { color: var(--teal-deep); }
 .spinner--teal { border: 2px solid rgba(42, 118, 130, 0.25); border-top-color: var(--teal-deep); }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* session boot splash — the still moment between a redirect back from SSO
+   and the cookie-identity check settling; never flickers the login form */
+.app-boot {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: var(--canvas);
+}
+
+
 /* toast */
 .toast {
   position: fixed;

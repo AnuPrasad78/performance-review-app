@@ -47,6 +47,12 @@ class AppError(Exception):
             self.status_code = status_code
 
 
+class SsoError(AppError):
+    """SSO-specific failure at the Entra boundary (redirect through exchange,
+    token validation, roster mapping). One subclass so handlers and tests can
+    distinguish IdP talk from every other business error without string codes."""
+
+
 def envelope_body(exc: AppError) -> dict[str, object]:
     body: dict[str, object] = {"detail": exc.detail, "code": exc.code}
     if exc.payload is not None:
