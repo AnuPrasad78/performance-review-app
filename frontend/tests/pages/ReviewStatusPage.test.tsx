@@ -32,7 +32,9 @@ function wireReview(email: string, name: string, status: ReviewStatusWire['statu
 }
 
 /** Two board pages (pageSize 2) over an eight-person roster: row slices the
-    server decided, so the test only states what the endpoint returns. */
+    server decided, so the test only states what the endpoint returns. Rows
+    carry display words (the page-facing shape); statusCounts carries raw
+    lifecycle words — 4 not-started, 2 in-progress, 2 past-submission. */
 const PAGE_ONE: ReviewBoardPage = {
   reviews: [
     wireReview('asha_menon@emids.com', 'Asha Menon', 'in_progress', 0),
@@ -41,7 +43,12 @@ const PAGE_ONE: ReviewBoardPage = {
   total: 6,
   page: 1,
   pageSize: 2,
-  statusCounts: { not_started: 4, in_progress: 2, submitted: 2, signed_off: 0 },
+  statusCounts: {
+    not_started: 4,
+    self_evaluation_in_progress: 2,
+    self_evaluation_completed: 1,
+    in_manager_review: 1,
+  },
 }
 const PAGE_TWO: ReviewBoardPage = {
   reviews: [
@@ -51,7 +58,12 @@ const PAGE_TWO: ReviewBoardPage = {
   total: 2,
   page: 2,
   pageSize: 2,
-  statusCounts: { not_started: 4, in_progress: 2, submitted: 2, signed_off: 0 },
+  statusCounts: {
+    not_started: 4,
+    self_evaluation_in_progress: 2,
+    self_evaluation_completed: 1,
+    in_manager_review: 1,
+  },
 }
 
 function page(): React.ReactElement {
@@ -78,7 +90,7 @@ describe('ReviewStatusPage', () => {
       screen.getByRole('img', { name: 'Review completion split by status' }),
     ).toBeInTheDocument()
     const titles = [...document.querySelectorAll('.pie-block__chart title')].map((t) => t.textContent)
-    // Pie slices come from the collapse of the server's four words.
+    // Pie slices come from the collapse of the server's six words.
     expect(titles).toHaveLength(3)
     expect(titles.every((title) => title?.includes(' of 8 ('))).toBe(true)
     const tiles = [...document.querySelectorAll('.tile')].map((tile) => tile.textContent)

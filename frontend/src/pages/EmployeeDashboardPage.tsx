@@ -81,6 +81,7 @@ export function EmployeeDashboardPage() {
   const [notice, setNotice] = useState<string | null>(null)
   const [validation, setValidation] = useState<SelfEvaluationValidation | null>(null)
   const [confirmingSubmit, setConfirmingSubmit] = useState(false)
+  const [submitOutcome, setSubmitOutcome] = useState<'success' | 'failed' | null>(null)
   const [sectionIndex, setSectionIndex] = useState(0)
   const [questionIndex, setQuestionIndex] = useState(0)
   const lastResumeRef = useRef('')
@@ -206,24 +207,16 @@ export function EmployeeDashboardPage() {
   const errorFor = (questionId: AssessmentQuestionId): string | null =>
     validation?.fieldErrors.questionErrors[questionId] ?? null
 
-  /** Section completeness drives the wizard's forward gating: an open review
-      must be answered section by section before the next one unlocks. The
-      forward commitments are the deliberate exception — they are optional
-      content, so the step never blocks navigation; the submit validator (and
-      the backend behind it) still requires the first commitment at the end. */
+  /** Section completeness drives the Next control within a section: an open
+      review must answer the current question (or the overall pair) before
+      Next carries it forward. The sections *nav* is deliberately uncharged —
+      the employee may jump across sections in any order; completeness gates
+      only the Next button, and the submit validator (and the backend behind
+      it) remains the single authority on what a complete submission needs. */
   const sectionComplete = (index: number): boolean => {
     if (index === 0) return draft.questions.every((q) => q.employeeResponse.trim() !== '')
     if (index === 1) return draft.overallRating !== null && draft.overallSummary.trim() !== ''
     return true
-  }
-
-  const sectionUnlocked = (index: number): boolean => {
-    if (!answersEditable) return true
-    let unlocked = true
-    for (let i = 0; i < index; i += 1) {
-      unlocked = unlocked && sectionComplete(i)
-    }
-    return unlocked
   }
 
   /** Edits land in local state; the hook decides when they go to the API. */
@@ -266,8 +259,8 @@ export function EmployeeDashboardPage() {
   }
 
   const goToSection = (index: number): void => {
-    // Jumping ahead through the steps nav obeys the same unlock chain.
-    if (index > sectionIndex && !sectionUnlocked(index)) return
+    // Free navigation: the steps nav is the employee's own map. Next is the
+    // controlled gear; jumping sections never owes completeness.
     setSectionIndex(Math.min(Math.max(index, 0), STEPS.length - 1))
   }
 
@@ -311,8 +304,10 @@ export function EmployeeDashboardPage() {
         if (result.ok) {
           setRecord(mergeRecordFromApi(recordRef.current ?? record, result.data))
           setNotice('Submitted successfully.')
+          setSubmitOutcome('success')
         } else {
           setNotice(result.detail)
+          setSubmitOutcome('failed')
         }
       })
       .finally(() => setSubmitting(false))
@@ -351,7 +346,6 @@ export function EmployeeDashboardPage() {
                     key={stepEntry.key}
                     type="button"
                     className={classes}
-                    disabled={!sectionUnlocked(index)}
                     aria-current={index === sectionIndex ? 'step' : undefined}
                     onClick={() => goToSection(index)}
                   >
@@ -476,6 +470,36 @@ export function EmployeeDashboardPage() {
           >
             OK
           </Button>
+        </div>
+      </Modal>
+      <Modal
+        open={submitOutcome === 'success'}
+        label="Submission complete"
+        onClose={() => setSubmitOutcome(null)}
+      >
+        <div className="modal__body">
+          <p>Your self-evaluation was submitted successfully.</p>
+          <p className="muted">
+            It is with your manager for the review discussion and sign-off.
+          </p>
+        </div>
+        <div className="modal__actions">
+          <Button onClick={() => setSubmitOutcome(null)}>OK</Button>
+        </div>
+      </Modal>
+      <Modal
+        open={submitOutcome === 'failed'}
+        label="Submission failed"
+        onClose={() => setSubmitOutcome(null)}
+      >
+        <div className="modal__body">
+          <p>Your self-evaluation was not submitted. Please try again.</p>
+          {notice !== null ? (
+            <p className="muted">{notice}</p>
+          ) : null}
+        </div>
+        <div className="modal__actions">
+          <Button onClick={() => setSubmitOutcome(null)}>OK</Button>
         </div>
       </Modal>
     </div>

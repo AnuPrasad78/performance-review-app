@@ -8,7 +8,6 @@ import type {
   RawReviewStatus,
   ReviewBoardPage,
   ReviewBoardResult,
-  ReviewStatus,
   ReviewStatusWire,
   SelfEvaluationApiResult,
   SelfEvaluationPartial,
@@ -19,6 +18,7 @@ import type {
   TopicResponses,
 } from './types'
 import { isIsoInstant } from './dates'
+import { RAW_TO_DISPLAY } from './reviewStatusStore'
 
 /** Same-origin /api by default (Vite dev proxy in dev); VITE_API_URL points at
     a direct, absolute API base where the frontend is served separately. */
@@ -302,7 +302,10 @@ export async function applyRosterImport(payload: {
   return { ok: true, importedCount: parsed.importedCount, updatedCount: parsed.updatedCount }
 }
 
-const BOARD_STATUSES = ['not_started', 'in_progress', 'submitted', 'signed_off'] as const
+/** The board parse trusts exactly the backend's six wire words — the keys of
+    RAW_TO_DISPLAY — and reuses that module's collapse, so the display
+    mapping exists once (lib/reviewStatusStore), never re-coded here. */
+const BOARD_STATUSES = Object.keys(RAW_TO_DISPLAY) as RawReviewStatus[]
 
 function reviewStatusFrom(value: unknown): ReviewStatusWire | null {
   if (!isRecord(value)) return null
@@ -310,8 +313,7 @@ function reviewStatusFrom(value: unknown): ReviewStatusWire | null {
   if (employee === null) return null
   const wireStatus = value.status as RawReviewStatus
   if (!BOARD_STATUSES.includes(wireStatus)) return null
-  const status: ReviewStatus = wireStatus === 'signed_off' ? 'submitted' : wireStatus
-  return { employee, status }
+  return { employee, status: RAW_TO_DISPLAY[wireStatus] }
 }
 
 export type BoardQuery = { page: number; status: StatusFilter }

@@ -1,4 +1,3 @@
-
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
@@ -237,7 +236,7 @@ describe('App — signed-out users are routed to sign-in', () => {
 
   it('shows the sign-in page when no session exists', async () => {
     render(renderApp(['/users']))
-    expect(await screen.findByRole('heading', { name: 'Welcome back', level: 1 })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Welcome', level: 1 })).toBeInTheDocument()
   })
 
   it('returns to the guarded route after a successful sign-in', async () => {

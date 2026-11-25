@@ -66,8 +66,8 @@ function openWire(overrides: Record<string, unknown> = {}): Record<string, unkno
     deadlinePassed: false,
     submittedAt: null,
     employeeSignedAt: null,
-    // Open-review wires default to an answerable form: the wizard's forward
-    // gating requires each question answered before Next, so tests that walk
+    // Open-review wires default to an answerable form: the wizard's Next
+    // requires each question answered before it advances, so tests that walk
     // the steps start from a complete draft unless they override these.
     responses: {
       contribution: 'Delivered the intake rewrite.',
@@ -286,7 +286,8 @@ describe('EmployeeDashboardPage — forward gating', () => {
     expect(screen.getByText('Question 2 of 4')).toBeInTheDocument()
   })
 
-  it('keeps future sections locked in the steps nav until earlier ones are complete', async () => {
+  it('lets the employee move across sections in any order from the steps nav', async () => {
+    // Section navigation is free: an untouched section is reachable directly.
     vi.stubGlobal(
       'fetch',
       apiReturning(
@@ -298,11 +299,18 @@ describe('EmployeeDashboardPage — forward gating', () => {
 
     render(page())
     await screen.findByDisplayValue('Delivered the intake rewrite.')
-    // The steps-nav buttons carry "N <title>" accessible names.
-    expect(screen.getByRole('button', { name: /Overall Rating & Feedback/ })).toBeDisabled()
-    expect(screen.getByRole('button', { name: /Forward Commitments for 2027/ })).toBeDisabled()
-    // Going backwards is never locked; the current section stays clickable.
+    // The steps-nav buttons carry "N <title>" accessible names and none of
+    // them lock.
     expect(screen.getByRole('button', { name: /Self Evaluation/ })).toBeEnabled()
+    expect(screen.getByRole('button', { name: /Overall Rating & Feedback/ })).toBeEnabled()
+    expect(screen.getByRole('button', { name: /Forward Commitments for 2027/ })).toBeEnabled()
+    expect(screen.getByRole('button', { name: /Sign-Off/ })).toBeEnabled()
+
+    // A straight jump to the last section works with nothing answered behind.
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: /Sign-Off/ }))
+    expect(await screen.findByRole('button', { name: 'Submit' })).toBeInTheDocument()
+    expect(screen.queryByText('Question 1 of 4')).not.toBeInTheDocument()
   })
 
   it('unlocks the overall step as soon as a rating and a summary exist, and no POST ever fires early', async () => {
@@ -349,7 +357,7 @@ describe('EmployeeDashboardPage — submit gate', () => {
     expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled()
   })
 
-  it('submits through the API and renders the review read-only', async () => {
+  it('submits through the API, confirms the success popup, and renders the review read-only', async () => {
     const user = userEvent.setup()
     // The endpoint's lifecycle: GET returns the open review; the PATCH preamble
     // echoes it; POST /submit returns the frozen server state.
@@ -408,6 +416,15 @@ describe('EmployeeDashboardPage — submit gate', () => {
 
     const submitCall = calls.find((call) => call.method === 'POST')
     expect(submitCall?.url).toContain('/api/evaluations/me')
+    // The success popup names the outcome; dismissing it reveals the
+    // read-only state.
+    const successDialog = await screen.findByRole('dialog', { name: 'Submission complete' })
+    expect(
+      within(successDialog).getByText(/was submitted successfully/),
+    ).toBeInTheDocument()
+    await user.click(within(successDialog).getByRole('button', { name: 'OK' }))
+    expect(screen.queryByRole('dialog', { name: 'Submission complete' })).not.toBeInTheDocument()
+
     expect(await screen.findByText('Submitted successfully.')).toBeInTheDocument()
     expect(
       await screen.findByText('Your self-evaluation was submitted. The form is read-only now.'),
@@ -416,9 +433,57 @@ describe('EmployeeDashboardPage — submit gate', () => {
     expect(screen.queryByRole('button', { name: 'Save commitments' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Submit' })).not.toBeInTheDocument()
   })
+
+  it('pops the failure state and keeps the form open when the API refuses the submit', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        calls.push({
+          url: String(input),
+          method: init?.method,
+        })
+        const method = init?.method ?? 'GET'
+        if (method === 'POST') {
+          // The server refuses: the envelope flows to the failure popup.
+          return {
+            ok: false,
+            status: 409,
+            json: async () => ({
+              detail: 'This self-evaluation was already submitted.',
+              code: 'already_submitted',
+            }),
+          } as unknown as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => openWire(),
+        } as unknown as Response
+      }) as unknown as typeof fetch,
+    )
+
+    render(page())
+    await screen.findByDisplayValue('Delivered the intake rewrite.')
+    for (let step = 0; step < 6; step += 1) {
+      await user.click(screen.getByRole('button', { name: 'Next' }))
+    }
+    await user.click(screen.getByRole('button', { name: 'Submit' }))
+    await user.click(within(await screen.findByRole('dialog', { name: 'Confirm submission' })).getByRole('button', { name: 'OK' }))
+
+    const failureDialog = await screen.findByRole('dialog', { name: 'Submission failed' })
+    expect(within(failureDialog).getByText('Your self-evaluation was not submitted. Please try again.')).toBeInTheDocument()
+    expect(within(failureDialog).getByText('This self-evaluation was already submitted.')).toBeInTheDocument()
+    await user.click(within(failureDialog).getByRole('button', { name: 'OK' }))
+
+    // The form stays open and editable — a refused submit is not a submit.
+    expect(screen.getByRole('button', { name: 'Save draft' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Submit' })).toBeInTheDocument()
+  })
 })
 
-describe('EmployeeDashboardPage — forward commitments', () => {  it('adds and removes optional commitments but never leaves the list empty', async () => {
+describe('EmployeeDashboardPage — forward commitments', () => {
+  it('adds and removes optional commitments but never leaves the list empty', async () => {
     const user = userEvent.setup()
     vi.stubGlobal('fetch', apiReturning(openWire()))
 

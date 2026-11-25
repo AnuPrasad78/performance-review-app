@@ -95,10 +95,11 @@ function renderApp(): React.ReactElement {
 describe('LoginPage', () => {
   it('renders the redesigned sign-in form with SSO below the divider', () => {
     render(renderApp())
-    expect(screen.getByRole('heading', { name: 'Welcome back', level: 1 })).toBeInTheDocument()
-    // The email form is the primary option; SSO is the secondary one.
+    expect(screen.getByRole('heading', { name: 'Welcome', level: 1 })).toBeInTheDocument()
+    // The email form is the primary option; SSO is the secondary one —
+    // and the divider copy names the email path.
     expect(screen.getByRole('button', { name: 'Sign in with Emids SSO' })).toBeEnabled()
-    expect(screen.getByText('or continue with')).toBeInTheDocument()
+    expect(screen.getByText('or sign in with your email')).toBeInTheDocument()
   })
 
   it('explains that SSO is not wired for this release when it is clicked', async () => {
@@ -133,7 +134,7 @@ describe('LoginPage', () => {
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('This address is not on the review roster.')
-    expect(screen.getByRole('heading', { name: 'Welcome back', level: 1 })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Welcome', level: 1 })).toBeInTheDocument()
   })
 
   it('signs the admin in to the admin console', async () => {
