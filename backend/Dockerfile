@@ -3,7 +3,8 @@
 #   * the migration job runs the same image with `alembic upgrade head`,
 #     so the code that migrates is always the code that will serve.
 #
-# Build from backend/:  docker build -t performance-review-api .
+# Built in Azure by scripts/azure/deploy.sh (`az acr build`), or locally from
+# backend/:  docker build -t performance-review-api .
 
 FROM python:3.13-slim AS build
 
@@ -22,7 +23,11 @@ ENV PATH=/opt/venv/bin:$PATH \
     PYTHONUNBUFFERED=1 \
     # Uvicorn worker processes per replica. Scale out with replicas first;
     # every worker holds its own connection pool (see docs/deployment.md).
-    WEB_CONCURRENCY=2
+    WEB_CONCURRENCY=2 \
+    # Trust store for `?ssl=verify-full` database URLs. asyncpg otherwise
+    # looks for ~/.postgresql/root.crt (this user has no home) and refuses;
+    # the system bundle holds the roots Azure Database for PostgreSQL uses.
+    PGSSLROOTCERT=/etc/ssl/certs/ca-certificates.crt
 
 RUN groupadd --system --gid 10001 app \
     && useradd --system --uid 10001 --gid app --no-create-home --shell /usr/sbin/nologin app

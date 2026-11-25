@@ -79,9 +79,10 @@ jobs:
       - run: docker build -t performance-review-api:ci backend
       - run: docker build -t performance-review-web:ci frontend
 
-  infra:
+  deploy-scripts:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: az bicep install
-      - run: az bicep build --file infra/main.bicep --stdout > /dev/null
+      # The Azure release path (scripts/azure, docs/deployment.md) runs from a
+      # terminal, so CI's job is to keep it lint-clean.
+      - run: shellcheck -x -P scripts/azure scripts/azure/*.sh
