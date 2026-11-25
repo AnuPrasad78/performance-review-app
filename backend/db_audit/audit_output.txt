@@ -1,0 +1,172 @@
+      database      | connected_as | timezone |                                                       postgres_version                                                       
+--------------------+--------------+----------+------------------------------------------------------------------------------------------------------------------------------
+ performance_review | hrdesk_user  | UTC      | PostgreSQL 17.11 (Debian 17.11-1.pgdg12+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 12.2.0-14+deb12u1) 12.2.0, 64-bit
+(1 row)
+
+  tablename  
+-------------
+ departments
+ employees
+ evaluations
+(3 rows)
+
+ table_name  | ordinal_position |        column_name        |          data_type          | char_len | is_nullable |          column_default          
+-------------+------------------+---------------------------+-----------------------------+----------+-------------+----------------------------------
+ departments |                1 | department_id             | integer                     |          | NO          | 
+ departments |                2 | department_name           | character varying           | 150      | NO          | 
+ departments |                3 | created_at                | timestamp without time zone |          | YES         | CURRENT_TIMESTAMP
+ employees   |                1 | employee_id               | character varying           | 50       | NO          | 
+ employees   |                2 | employee_name             | character varying           | 150      | NO          | 
+ employees   |                3 | email                     | character varying           | 255      | YES         | 
+ employees   |                4 | designation               | character varying           | 150      | YES         | 
+ employees   |                5 | joining_date              | date                        |          | YES         | 
+ employees   |                6 | location                  | character varying           | 150      | YES         | 
+ employees   |                7 | department_id             | integer                     |          | YES         | 
+ employees   |                8 | reporting_manager         | character varying           | 150      | YES         | 
+ employees   |                9 | delivery_manager          | character varying           | 150      | YES         | 
+ employees   |               10 | delivery_partner_head     | character varying           | 150      | YES         | 
+ employees   |               11 | employment_status         | character varying           | 50       | YES         | 
+ employees   |               12 | created_at                | timestamp without time zone |          | YES         | CURRENT_TIMESTAMP
+ employees   |               13 | updated_at                | timestamp without time zone |          | YES         | CURRENT_TIMESTAMP
+ evaluations |                1 | evaluation_id             | bigint                      |          | NO          | 
+ evaluations |                2 | employee_id               | character varying           | 50       | NO          | 
+ evaluations |                3 | review_year               | integer                     |          | NO          | 2026
+ evaluations |                4 | status                    | character varying           | 30       | NO          | 'IN_PROGRESS'::character varying
+ evaluations |                5 | q1_employee_response      | text                        |          | YES         | 
+ evaluations |                6 | q2_employee_response      | text                        |          | YES         | 
+ evaluations |                7 | q3_employee_response      | text                        |          | YES         | 
+ evaluations |                8 | q4_employee_response      | text                        |          | YES         | 
+ evaluations |                9 | self_rating               | smallint                    |          | YES         | 
+ evaluations |               10 | employee_overall_comments | text                        |          | YES         | 
+ evaluations |               11 | q1_manager_comments       | text                        |          | YES         | 
+ evaluations |               12 | q2_manager_comments       | text                        |          | YES         | 
+ evaluations |               13 | q3_manager_comments       | text                        |          | YES         | 
+ evaluations |               14 | q4_manager_comments       | text                        |          | YES         | 
+ evaluations |               15 | manager_rating            | smallint                    |          | YES         | 
+ evaluations |               16 | manager_overall_comments  | text                        |          | YES         | 
+ evaluations |               17 | forward_commitments       | jsonb                       |          | NO          | '[]'::jsonb
+ evaluations |               18 | review_discussion_date    | date                        |          | YES         | 
+ evaluations |               19 | employee_signed_at        | timestamp with time zone    |          | YES         | 
+ evaluations |               20 | manager_signed_at         | timestamp with time zone    |          | YES         | 
+ evaluations |               21 | reopened_at               | timestamp with time zone    |          | YES         | 
+ evaluations |               22 | reopen_reason             | text                        |          | YES         | 
+ evaluations |               23 | created_at                | timestamp with time zone    |          | NO          | CURRENT_TIMESTAMP
+ evaluations |               24 | updated_at                | timestamp with time zone    |          | NO          | CURRENT_TIMESTAMP
+(40 rows)
+
+ schema_name | table_name  |             conname              |                                                                                                 constraint_definition                                                                                                  
+-------------+-------------+----------------------------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ public      | departments | departments_department_name_key  | UNIQUE (department_name)
+ public      | departments | departments_pkey                 | PRIMARY KEY (department_id)
+ public      | employees   | employees_department_id_fkey     | FOREIGN KEY (department_id) REFERENCES departments(department_id)
+ public      | employees   | employees_email_key              | UNIQUE (email)
+ public      | employees   | employees_pkey                   | PRIMARY KEY (employee_id)
+ public      | evaluations | both_signatures_required         | CHECK ((((status)::text <> 'COMPLETED'::text) OR ((employee_signed_at IS NOT NULL) AND (manager_signed_at IS NOT NULL))))
+ public      | evaluations | evaluations_employee_id_fkey     | FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON DELETE RESTRICT
+ public      | evaluations | evaluations_manager_rating_check | CHECK (((manager_rating >= 1) AND (manager_rating <= 5)))
+ public      | evaluations | evaluations_pkey                 | PRIMARY KEY (evaluation_id)
+ public      | evaluations | evaluations_self_rating_check    | CHECK (((self_rating >= 1) AND (self_rating <= 5)))
+ public      | evaluations | unique_employee_review           | UNIQUE (employee_id, review_year)
+ public      | evaluations | valid_forward_commitments        | CHECK (((jsonb_typeof(forward_commitments) = 'array'::text) AND (jsonb_array_length(forward_commitments) <= 3)))
+ public      | evaluations | valid_review_status              | CHECK (((status)::text = ANY ((ARRAY['IN_PROGRESS'::character varying, 'SUBMITTED'::character varying, 'MANAGER_REVIEW'::character varying, 'REOPENED'::character varying, 'COMPLETED'::character varying])::text[])))
+ public      | evaluations | valid_review_year                | CHECK ((review_year >= 2026))
+(14 rows)
+
+  tablename  |            indexname            |                                                indexdef                                                 
+-------------+---------------------------------+---------------------------------------------------------------------------------------------------------
+ departments | departments_department_name_key | CREATE UNIQUE INDEX departments_department_name_key ON public.departments USING btree (department_name)
+ departments | departments_pkey                | CREATE UNIQUE INDEX departments_pkey ON public.departments USING btree (department_id)
+ employees   | employees_email_key             | CREATE UNIQUE INDEX employees_email_key ON public.employees USING btree (email)
+ employees   | employees_pkey                  | CREATE UNIQUE INDEX employees_pkey ON public.employees USING btree (employee_id)
+ evaluations | evaluations_pkey                | CREATE UNIQUE INDEX evaluations_pkey ON public.evaluations USING btree (evaluation_id)
+ evaluations | idx_evaluations_status          | CREATE INDEX idx_evaluations_status ON public.evaluations USING btree (status)
+ evaluations | unique_employee_review          | CREATE UNIQUE INDEX unique_employee_review ON public.evaluations USING btree (employee_id, review_year)
+(7 rows)
+
+ table_name  | row_count 
+-------------+-----------
+ departments |         0
+ employees   |         0
+ evaluations |         0
+(3 rows)
+
+ status | rows 
+--------+------
+(0 rows)
+
+ review_year | rows 
+-------------+------
+(0 rows)
+
+ self_rating | rows 
+-------------+------
+(0 rows)
+
+ manager_rating | rows 
+----------------+------
+(0 rows)
+
+ employee_id | review_year | rows 
+-------------+-------------+------
+(0 rows)
+
+ null_email_rows 
+-----------------
+               0
+(1 row)
+
+ email | rows 
+-------+------
+(0 rows)
+
+ employee_id | employee_name | department_id 
+-------------+---------------+---------------
+(0 rows)
+
+ evaluation_id | employee_id 
+---------------+-------------
+(0 rows)
+
+ no_department_rows 
+--------------------
+                  0
+(1 row)
+
+ employment_status | rows 
+-------------------+------
+(0 rows)
+
+ reporting_manager | rows 
+-------------------+------
+(0 rows)
+
+ table_name  |   grantee   | privilege_type 
+-------------+-------------+----------------
+ departments | hrdesk_user | DELETE
+ departments | hrdesk_user | INSERT
+ departments | hrdesk_user | REFERENCES
+ departments | hrdesk_user | SELECT
+ departments | hrdesk_user | TRIGGER
+ departments | hrdesk_user | TRUNCATE
+ departments | hrdesk_user | UPDATE
+ employees   | hrdesk_user | DELETE
+ employees   | hrdesk_user | INSERT
+ employees   | hrdesk_user | REFERENCES
+ employees   | hrdesk_user | SELECT
+ employees   | hrdesk_user | TRIGGER
+ employees   | hrdesk_user | TRUNCATE
+ employees   | hrdesk_user | UPDATE
+ evaluations | hrdesk_user | DELETE
+ evaluations | hrdesk_user | INSERT
+ evaluations | hrdesk_user | REFERENCES
+ evaluations | hrdesk_user | SELECT
+ evaluations | hrdesk_user | TRIGGER
+ evaluations | hrdesk_user | TRUNCATE
+ evaluations | hrdesk_user | UPDATE
+(21 rows)
+
+ extname | extversion 
+---------+------------
+ plpgsql | 1.0
+(1 row)
+

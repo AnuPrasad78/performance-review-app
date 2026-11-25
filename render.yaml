@@ -1,0 +1,52 @@
+# Render blueprint for the performance-review app.
+#
+# Three services were considered; this deploys two, because Postgres already
+# exists on your Render account and is reused (the same instance local dev
+# connects to). The database URL is therefore a secret — `sync: false` means
+# Render prompts for its value at blueprint-apply time instead of storing it
+# in the repo.
+#
+# Service names double as the routing contract: the API supports one origin
+# (the frontend's *.onrender.com host) and the frontend points VITE_API_URL
+# at the API's host. If Render reports a name is taken, change the name AND
+# the corresponding URL constant below.
+
+services:
+  - type: web
+    name: performance-review-api
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    # Two-phase boot: migrations first, then the server. Render injects $PORT;
+    # create_app needs --factory because the app is built by a factory call.
+    startCommand: alembic upgrade head && uvicorn app.main:create_app --factory --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.13.0"
+      # Local .env format: postgresql+asyncpg://user:pass@host/db — same
+      # string the local dev server already uses against this database.
+      - key: PR_DATABASE_URL
+        sync: false
+      # Same-origin contract with the static site below.
+      - key: PR_CORS_ORIGINS
+        value: '["https://performance-review-frontend.onrender.com"]'
+      # The admin console persona; comma-free JSON list. Set at apply time.
+      - key: PR_STUB_ADMIN_EMAILS
+        sync: false
+
+  - type: web
+    name: performance-review-frontend
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      # Same-origin contract with the API service above.
+      - key: VITE_API_URL
+        value: "https://performance-review-api.onrender.com"
+    routes:
+      # SPA fallback: every unknown path serves the client router's entry.
+      - type: rewrite
+        source: /*
+        destination: /index.html

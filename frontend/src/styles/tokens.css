@@ -1,0 +1,35 @@
+/* Design tokens — extracted from the approved reference CSS (ui.md §1).
+   Components consume these variables; raw hex values live nowhere else. */
+:root {
+  --teal: #47a2b0;
+  --teal-deep: #2a7682;
+  --teal-mid: #72b3be;
+  --teal-light: #abc7ca;
+  --teal-wash: #eef5f6;
+  --grad: linear-gradient(90deg, #9dc6cc 0%, #72b3be 50%, #57a6b3 100%);
+  /* Harbor mock — deep green-teal used for review section headings */
+  --band-green: #0b8174;
+
+  --black: #0e0e0e;
+  --ink: #171a19;
+  --ink-2: #4d5553;
+  --ink-3: #7c8684;
+  --canvas: #f2f2f0;
+  --surface: #ffffff;
+  --hairline: #dbdbd7;
+  --hairline-2: #e7e7e3;
+
+  --green: #45bda0;
+  --green-wash: #e8f5f0;
+  --blue: #00b9f9;
+  --blue-wash: #e9f7fe;
+  --red: #e04f4f;
+  --red-deep: #b83838;
+  --red-wash: #fdecec;
+
+  --font: 'Plus Jakarta Sans Variable', 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'Plus Jakarta Sans Variable', 'Plus Jakarta Sans', system-ui, sans-serif;
+
+  --ease-resolve: cubic-bezier(0.2, 0, 0, 1);
+  --ease-process: cubic-bezier(0.4, 0, 0.2, 1);
+}
