@@ -1,9 +1,8 @@
 """GET /api/evaluations — the admin review-status board: roster × evaluations
-for the current cycle, the four derived statuses, and the admin role gate.
+for the current cycle, the six stored statuses, and the admin role gate.
 Repositories are stubbed, so no database is involved."""
 
 from tests.evaluation_fixtures import (
-    CYCLE,
     evaluation,
     make_board_client,
     roster_employee,
@@ -22,9 +21,9 @@ def test_board_joins_roster_rows_with_evaluation_states() -> None:
     cara = roster_employee("EMP-V003", "Cara Fernandes")
     devika = roster_employee("EMP-V004", "Devika Nair")
     rows = [
-        evaluation("IN_PROGRESS", employee_id="EMP-V001", q1_employee_response="An answer."),
-        evaluation("IN_PROGRESS", employee_id="EMP-V002"),
-        evaluation("SUBMITTED", employee_id="EMP-V003"),
+        evaluation("SELF_EVALUATION_IN_PROGRESS", employee_id="EMP-V001"),
+        evaluation("NOT_STARTED", employee_id="EMP-V002"),
+        evaluation("IN_MANAGER_REVIEW", employee_id="EMP-V003"),
     ]
     client = make_board_client([asha, bilal, cara, devika], rows, admin_emails=[ASHA_EMAIL])
 
@@ -34,10 +33,10 @@ def test_board_joins_roster_rows_with_evaluation_states() -> None:
     payload = response.json()
     statuses = {entry["employee"]["employeeId"]: entry["status"] for entry in payload["reviews"]}
     assert statuses == {
-        "EMP-V001": "in_progress",  # started: an answer exists
-        "EMP-V002": "not_started",  # open row with nothing in it
-        "EMP-V003": "submitted",
-        "EMP-V004": "not_started",  # roster-only: no evaluation row at all
+        "EMP-V001": "self_evaluation_in_progress",  # the stored word, in wire form
+        "EMP-V002": "not_started",  # opened, nothing saved yet
+        "EMP-V003": "in_manager_review",
+        "EMP-V004": "not_started",  # no evaluation row at all
     }
     # Roster order drives the board, not evaluation-row order.
     assert [entry["employee"]["employeeId"] for entry in payload["reviews"]] == [
@@ -52,8 +51,8 @@ def test_board_joins_roster_rows_with_evaluation_states() -> None:
     assert payload["pageSize"] == 10
     assert payload["statusCounts"] == {
         "not_started": 2,
-        "in_progress": 1,
-        "submitted": 1,
+        "self_evaluation_in_progress": 1,
+        "in_manager_review": 1,
     }
 
 
@@ -91,8 +90,8 @@ def test_board_filter_narrows_rows_and_total_not_counts() -> None:
     bilal = roster_employee("EMP-V002", "Bilal Khan")
     cara = roster_employee("EMP-V003", "Cara Fernandes")
     rows = [
-        evaluation("IN_PROGRESS", employee_id="EMP-V001", q1_employee_response="An answer."),
-        evaluation("SUBMITTED", employee_id="EMP-V003"),
+        evaluation("SELF_EVALUATION_IN_PROGRESS", employee_id="EMP-V001"),
+        evaluation("MANAGER_EVALUATION_COMPLETED", employee_id="EMP-V003"),
     ]
     client = make_board_client([asha, bilal, cara], rows, admin_emails=[ASHA_EMAIL])
 
@@ -103,26 +102,34 @@ def test_board_filter_narrows_rows_and_total_not_counts() -> None:
         client.get("/api/evaluations", params={"status": "completed"}, headers={"X-Stub-User": ASHA_EMAIL})
     ).json()
 
-    assert [entry["status"] for entry in pending["reviews"]] == ["in_progress", "not_started"]
+    # Pending = the employee still owns the review: an in-progress form and
+    # a roster row without any evaluation both qualify.
+    assert [entry["status"] for entry in pending["reviews"]] == [
+        "self_evaluation_in_progress",
+        "not_started",
+    ]
     assert pending["total"] == 2
-    assert pending["statusCounts"]["submitted"] == 1
-    assert [entry["status"] for entry in completed["reviews"]] == ["submitted"]
+    # Counts stay whole-roster whatever the filter narrows.
+    assert pending["statusCounts"].get("manager_evaluation_completed") == 1
+    assert [entry["status"] for entry in completed["reviews"]] == ["manager_evaluation_completed"]
     assert completed["total"] == 1
     assert completed["statusCounts"]["not_started"] == 1
 
 
-def test_employee_signature_means_signed_off() -> None:
+def test_manager_phase_words_render_verbatim() -> None:
+    # The stored status is the whole rule: every lifecycle word the column
+    # allows reaches the board as its own wire word — no bucketing server-side.
     reflect = roster_employee("EMP-V001", "Asha Menon")
     reflect.email = ASHA_EMAIL
     bilal = roster_employee("EMP-V002", "Bilal Khan")
     bilal.email = "bilal_khan@emids.com"
     rows = [
         evaluation(
-            "COMPLETED",
+            "MANAGER_EVALUATION_IN_PROGRESS",
             employee_id="EMP-V001",
-            employee_signed_at="2026-12-01 10:00:00+00:00",
+            manager_started_at="2027-01-20 09:00:00+00:00",
         ),
-        evaluation("REOPENED", employee_id="EMP-V002"),
+        evaluation("SELF_EVALUATION_COMPLETED", employee_id="EMP-V002"),
     ]
     client = make_board_client([reflect, bilal], rows, admin_emails=[ASHA_EMAIL])
 
@@ -131,10 +138,8 @@ def test_employee_signature_means_signed_off() -> None:
         for entry in board_response(client, ASHA_EMAIL).json()["reviews"]
     }
 
-    # signed_off is the employee signature's own view; REOPENED without a
-    # signature still freezes the employee, so it reads as submitted.
-    assert statuses["V001"] == "signed_off"
-    assert statuses["V002"] == "submitted"
+    assert statuses["V001"] == "manager_evaluation_in_progress"
+    assert statuses["V002"] == "self_evaluation_completed"
 
 
 def test_the_board_refuses_a_non_admin_identity() -> None:

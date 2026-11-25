@@ -14,6 +14,10 @@ from app.repositories.employee_repository import (
     EmployeeRepository,
     get_employee_repository,
 )
+from app.repositories.evaluation_repository import (
+    EvaluationRepository,
+    get_evaluation_repository,
+)
 from app.schemas.employee import (
     EmployeeList,
     RosterApplyPayload,
@@ -43,8 +47,11 @@ async def analyze_roster_import(
 async def confirm_roster_import(
     payload: RosterApplyPayload,
     repository: Annotated[EmployeeRepository, Depends(get_employee_repository)],
+    evaluation_repository: Annotated[
+        EvaluationRepository, Depends(get_evaluation_repository)
+    ],
 ) -> RosterApplyReport:
-    return await apply_roster(payload, repository)
+    return await apply_roster(payload, repository, evaluation_repository)
 
 
 @router.get("/employees", response_model=EmployeeList)

@@ -51,7 +51,7 @@ def test_no_evaluation_row_reads_as_an_empty_open_form() -> None:
 
 def test_open_evaluation_marries_q_columns_to_topics() -> None:
     row = evaluation(
-        "IN_PROGRESS",
+        "SELF_EVALUATION_IN_PROGRESS",
         q1_employee_response="Delivered the intake rewrite.",
         q2_employee_response="Data modeling holds up.",
         q3_employee_response="Deep Kafka work.",
@@ -91,7 +91,7 @@ def test_open_evaluation_marries_q_columns_to_topics() -> None:
 
 def test_submitted_status_derives_the_wire_dates() -> None:
     row = evaluation(
-        "SUBMITTED",
+        "SELF_EVALUATION_COMPLETED",
         updated_at=datetime.datetime(2026, 11, 20, 9, 30, tzinfo=UTC),
         employee_signed_at=datetime.datetime(2026, 11, 21, 10, 0, tzinfo=UTC),
     )
@@ -102,9 +102,11 @@ def test_submitted_status_derives_the_wire_dates() -> None:
     assert payload["employeeSignedAt"] == "2026-11-21"
 
 
-def test_reopened_still_reads_as_submitted() -> None:
+def test_manager_phase_still_reads_as_submitted() -> None:
+    # Past the active pair, submitted_at holds: the manager window's words
+    # describe the manager's side, not a reopened employee form.
     row = evaluation(
-        "REOPENED",
+        "IN_MANAGER_REVIEW",
         updated_at=datetime.datetime(2026, 11, 20, 9, 30, tzinfo=UTC),
     )
     client, _ = make_client(evaluation_row=row)
@@ -120,4 +122,3 @@ def test_missing_cycle_is_a_404_envelope() -> None:
 
     assert response.status_code == 404
     assert response.json()["code"] == "cycle_missing"
-

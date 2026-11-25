@@ -18,8 +18,18 @@ from typing import Literal
 from app.schemas.base import ApiModel
 from app.schemas.employee import RosterEmployeeOut
 
-#: The board's status words — the frontend's ReviewStatus union, verbatim.
-BoardStatus = Literal["not_started", "in_progress", "submitted", "signed_off"]
+#: The board's status words — the frontend's RawReviewStatus union, verbatim:
+#: the stored status vocabulary (models/evaluation.py) in wire (lower-cased)
+#: form. The client's display words collapse from this union in
+#: lib/reviewStatusStore.
+BoardStatus = Literal[
+    "not_started",
+    "self_evaluation_in_progress",
+    "self_evaluation_completed",
+    "in_manager_review",
+    "manager_evaluation_in_progress",
+    "manager_evaluation_completed",
+]
 
 
 class QuestionResponses(ApiModel):
@@ -64,7 +74,7 @@ class ReviewStatusEntry(ApiModel):
 class ReviewStatusList(ApiModel):
     """One board page plus the roster-wide facts the tiles and pie render:
     `total` counts the filtered vocabulary, `statusCounts` the whole roster
-    (its words are the stored BoardStatus values, never camelCase)."""
+    (its words are the stored statuses' wire form, never camelCase)."""
 
     reviews: list[ReviewStatusEntry]
     total: int

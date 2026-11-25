@@ -27,7 +27,7 @@ def complete_row() -> object:
 
     answers = full_answers()
     return evaluation(
-        "IN_PROGRESS",
+        "SELF_EVALUATION_IN_PROGRESS",
         q1_employee_response=answers["contribution"],
         q2_employee_response=answers["strengths"],
         q3_employee_response=answers["development"],
@@ -46,13 +46,13 @@ def test_first_partial_save_opens_the_row_in_progress() -> None:
     assert response.status_code == 200
     assert response.json()["responses"]["contribution"] == "Delivered the intake rewrite."
     assert evaluations.row is not None
-    assert evaluations.row.status == "IN_PROGRESS"
+    assert evaluations.row.status == "SELF_EVALUATION_IN_PROGRESS"
     assert evaluations.row.q1_employee_response == "Delivered the intake rewrite."
 
 
 def test_partial_saves_replace_only_the_members_they_carry() -> None:
     row = __import__("tests.evaluation_fixtures", fromlist=["evaluation"]).evaluation(
-        "IN_PROGRESS", q1_employee_response="Preexisting answer."
+        "SELF_EVALUATION_IN_PROGRESS", q1_employee_response="Preexisting answer."
     )
     client, evaluations = make_client(evaluation_row=row)
 
@@ -95,15 +95,25 @@ def test_more_commitments_than_the_cap_is_rejected() -> None:
 
 
 def test_submitted_answers_are_frozen() -> None:
-    client, _ = make_client(evaluation_row=evaluation("SUBMITTED"))
+    client, _ = make_client(evaluation_row=evaluation("SELF_EVALUATION_COMPLETED"))
     response = save(client, {"responses": full_answers()})
     assert response.status_code == 409
     assert response.json()["code"] == "review_frozen"
 
 
+def test_manager_phase_rows_stay_frozen_for_the_employee() -> None:
+    # The manager window's words are all past the active pair: answers and
+    # rating stay locked no matter how far the review advanced.
+    for word in ("IN_MANAGER_REVIEW", "MANAGER_EVALUATION_IN_PROGRESS", "MANAGER_EVALUATION_COMPLETED"):
+        client, _ = make_client(evaluation_row=evaluation(word))
+        response = save(client, {"selfRating": 4})
+        assert response.status_code == 409, word
+        assert response.json()["code"] == "review_frozen", word
+
+
 def test_commitments_stay_editable_inside_the_manager_window() -> None:
     client, evaluations = make_client(
-        evaluation_row=evaluation("SUBMITTED")
+        evaluation_row=evaluation("SELF_EVALUATION_COMPLETED")
     )
     response = save(
         client,
@@ -123,7 +133,7 @@ def test_commitments_stay_editable_inside_the_manager_window() -> None:
 def test_commitments_lock_after_the_manager_window() -> None:
     client, _ = make_client(
         cycle=PASSED_CYCLE,
-        evaluation_row=evaluation("SUBMITTED"),
+        evaluation_row=evaluation("MANAGER_EVALUATION_COMPLETED"),
     )
     response = save(
         client,
@@ -136,13 +146,23 @@ def test_commitments_lock_after_the_manager_window() -> None:
 def test_read_reports_the_lock_so_the_ui_never_rederives_the_window() -> None:
     client, _ = make_client(
         cycle=PASSED_CYCLE,
-        evaluation_row=evaluation("SUBMITTED"),
+        evaluation_row=evaluation("MANAGER_EVALUATION_COMPLETED"),
     )
 
     response = client.get("/api/evaluations/me", headers=IDENTITY)
 
     assert response.status_code == 200
     assert response.json()["commitmentsEditable"] is False
+
+
+def test_not_started_row_advances_on_first_save() -> None:
+    # The remap's word for "opened but nothing saved": the first content that
+    # lands starts the lifecycle, exactly like a fresh row's creation does.
+    client, evaluations = make_client(evaluation_row=evaluation("NOT_STARTED"))
+    response = save(client, {"selfRating": 4})
+
+    assert response.status_code == 200
+    assert evaluations.row.status == "SELF_EVALUATION_IN_PROGRESS"
 
 
 def test_submit_needs_a_started_review() -> None:
@@ -152,10 +172,19 @@ def test_submit_needs_a_started_review() -> None:
     assert response.json()["code"] == "evaluation_not_started"
 
 
+def test_never_saved_row_refuses_submit_the_same_word() -> None:
+    # NOT_STARTED carries nothing to submit: the same not-started envelope a
+    # missing row gets, because both are "the review has no content yet".
+    client, _ = make_client(evaluation_row=evaluation("NOT_STARTED"))
+    response = submit(client)
+    assert response.status_code == 409
+    assert response.json()["code"] == "evaluation_not_started"
+
+
 def test_submit_requires_every_piece() -> None:
     client, _ = make_client(
         evaluation_row=evaluation(
-            "IN_PROGRESS", q1_employee_response="Only one answer exists."
+            "SELF_EVALUATION_IN_PROGRESS", q1_employee_response="Only one answer exists."
         )
     )
     response = submit(client)
@@ -172,14 +201,23 @@ def test_submit_completes_the_review() -> None:
 
     assert response.status_code == 200
     assert response.json()["submittedAt"] is None  # exact date is A6's stamp
-    assert evaluations.row.status == "SUBMITTED"
+    assert evaluations.row.status == "SELF_EVALUATION_COMPLETED"
 
 
 def test_submit_lands_on_an_already_submitted_review() -> None:
-    client, _ = make_client(evaluation_row=evaluation("SUBMITTED"))
+    client, _ = make_client(evaluation_row=evaluation("SELF_EVALUATION_COMPLETED"))
     response = submit(client)
     assert response.status_code == 409
     assert response.json()["code"] == "already_submitted"
+
+
+def test_submit_refuses_every_manager_phase_word() -> None:
+    # A review under (or past) manager review is closed to the employee.
+    for word in ("IN_MANAGER_REVIEW", "MANAGER_EVALUATION_IN_PROGRESS", "MANAGER_EVALUATION_COMPLETED"):
+        client, _ = make_client(evaluation_row=evaluation(word))
+        response = submit(client)
+        assert response.status_code == 409, word
+        assert response.json()["code"] == "already_submitted", word
 
 
 def test_submit_after_the_deadline_is_refused() -> None:

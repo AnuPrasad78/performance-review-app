@@ -8,6 +8,16 @@ columns are mapped here for reads only.
 forward_commitments is plain JSON at the storage layer; the Pydantic schema
 layer owns structural validation of commitment entries, and A8 (a later,
 feature-tied migration) raises the persistent cap above today's 3.
+
+Two de-normalizations live on this table and each owns its boundary:
+- email is the employee roster's address, mirrored low-cased and re-synced by
+  the roster apply path (evaluation_repository.sync_emails). A display/
+  filtering convenience — never a key, never an authorization input; the
+  FK's employee_id stays the sole ownership discriminator.
+- manager_started_at is state-machine scaffolding: the stamp that will one
+  day move a row from IN_MANAGER_REVIEW to MANAGER_EVALUATION_IN_PROGRESS,
+  planted
+  so the manager-phase feature ships without another schema trip.
 """
 
 import datetime
@@ -42,15 +52,40 @@ RESPONSE_TOPICS: tuple[tuple[str, str, str], ...] = (
     ("support", "q4_employee_response", "q4_manager_comments"),
 )
 
-#: The stored workflow words behind the status column.
-STATUS_IN_PROGRESS = "IN_PROGRESS"
-STATUS_SUBMITTED = "SUBMITTED"
+#: The stored workflow words behind the status column — the six-state 2026
+#: lifecycle (pr_0006). The CHECK constraint below (evaluations_status_check,
+#: created in the same migration) owns the closed vocabulary; these constants
+#: are the Python side of that same list. The spelling rule is the single
+#: vocabulary's whole point: the wire word (schema BoardStatus, frontend
+#: reviewStatusStore) is the lower-cased stored word — no layer maps between
+#: two spellings, so none can drift.
+STATUS_NOT_STARTED = "NOT_STARTED"
+STATUS_SELF_EVALUATION_IN_PROGRESS = "SELF_EVALUATION_IN_PROGRESS"
+STATUS_SELF_EVALUATION_COMPLETED = "SELF_EVALUATION_COMPLETED"
+STATUS_IN_MANAGER_REVIEW = "IN_MANAGER_REVIEW"
+STATUS_MANAGER_EVALUATION_IN_PROGRESS = "MANAGER_EVALUATION_IN_PROGRESS"
+STATUS_MANAGER_EVALUATION_COMPLETED = "MANAGER_EVALUATION_COMPLETED"
+
+#: The same words as one tuple, the constraint's text builds from it: the
+#: vocabulary exists once, in this list.
+EVALUATION_STATUSES = (
+    STATUS_NOT_STARTED,
+    STATUS_SELF_EVALUATION_IN_PROGRESS,
+    STATUS_SELF_EVALUATION_COMPLETED,
+    STATUS_IN_MANAGER_REVIEW,
+    STATUS_MANAGER_EVALUATION_IN_PROGRESS,
+    STATUS_MANAGER_EVALUATION_COMPLETED,
+)
 
 
 class Evaluation(Base):
     __tablename__ = "evaluations"
     __table_args__ = (
         UniqueConstraint("employee_id", "review_year", name="unique_employee_review"),
+        CheckConstraint(
+            f"status IN ({', '.join(repr(word) for word in EVALUATION_STATUSES)})",
+            name="evaluations_status_check",
+        ),
         CheckConstraint(
             "self_rating IS NULL OR (self_rating >= 1 AND self_rating <= 5)",
             name="evaluations_self_rating_check",
@@ -72,8 +107,15 @@ class Evaluation(Base):
         ForeignKey("employees.employee_id", ondelete="RESTRICT", onupdate="CASCADE"),
         nullable=False,
     )
+    email: Mapped[str] = mapped_column(String(255))
     review_year: Mapped[int]
-    status: Mapped[str] = mapped_column(String(30))
+    # varchar(40) per pr_0006: the longest lifecycle word rests at 30, never
+    # at the column's edge. Default NOT_STARTED — an insert that omits status
+    # says "no content yet" (the old 'IN_PROGRESS' default breached the new
+    # CHECK by construction).
+    status: Mapped[str] = mapped_column(
+        String(40), server_default="NOT_STARTED"
+    )
     q1_employee_response: Mapped[str | None] = mapped_column(Text())
     q2_employee_response: Mapped[str | None] = mapped_column(Text())
     q3_employee_response: Mapped[str | None] = mapped_column(Text())
@@ -92,6 +134,9 @@ class Evaluation(Base):
         DateTime(timezone=True)
     )
     manager_signed_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+    manager_started_at: Mapped[datetime.datetime | None] = mapped_column(
         DateTime(timezone=True)
     )
     reopened_at: Mapped[datetime.datetime | None] = mapped_column(

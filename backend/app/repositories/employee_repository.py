@@ -12,19 +12,19 @@ from collections.abc import AsyncIterator, Sequence
 from typing import Annotated, NamedTuple
 
 from fastapi import Depends
-from sqlalchemy import ColumnElement, and_, case, func, or_, select
+from sqlalchemy import ColumnElement, and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session
 from app.models.employee import Employee
-from app.models.evaluation import RESPONSE_TOPICS, STATUS_IN_PROGRESS, Evaluation
+from app.models.evaluation import Evaluation
 from app.schemas.employee import ROSTER_ATTRIBUTES
 
 
 class RosterYearPage(NamedTuple):
     """One page of the admin roster read: employee rows beside their year's
     evaluation (None where the roster row stands alone), the page slice's
-    total under the applied filter, and the derived-status distribution over
+    total under the applied filter, and the status distribution over
     the whole roster."""
 
     rows: list[tuple[Employee, Evaluation | None]]
@@ -32,29 +32,17 @@ class RosterYearPage(NamedTuple):
     status_counts: dict[str, int]
 
 
-def _evaluation_answered() -> ColumnElement[bool]:
-    """Whether any of the evaluation's employee-response columns hold text."""
-    columns = (getattr(Evaluation, topic[1]) for topic in RESPONSE_TOPICS)
-    return or_(*(func.coalesce(column, "") != "" for column in columns))
+def _board_status() -> ColumnElement[str]:
+    """The board's status word for one roster × evaluation join row.
 
-
-def _derived_status() -> ColumnElement[str]:
-    """The board's derived status word for one roster × evaluation join row.
-
-    Python mirror: services.self_evaluation._board_status owns the rule; this
-    is the same workflow fact expressed as SQL so filtering and counting stay
-    in the database. Keep the pair in step.
+    The stored status *is* the word (six-state column, pr_0006): the wire
+    form is the lower-cased stored value, and roster rows without an
+    evaluation read "not_started" — the word the no-row case owns. Python
+    mirror: services.self_evaluation._board_status. Keep the pair in step.
     """
     return case(
         (Evaluation.employee_id.is_(None), "not_started"),
-        (
-            Evaluation.status == STATUS_IN_PROGRESS,
-            case((_evaluation_answered(), "in_progress"), else_="not_started"),
-        ),
-        else_=case(
-            (Evaluation.employee_signed_at.is_not(None), "signed_off"),
-            else_="submitted",
-        ),
+        else_=func.lower(Evaluation.status),
     )
 
 
@@ -109,10 +97,10 @@ class EmployeeRepository:
         page: int,
         page_size: int,
     ) -> RosterYearPage:
-        """The admin board read: `statuses` (derived words; None = all) may
+        """The admin board read: `statuses` (wire words; None = all) may
         narrow both the page and the total, while counts always cover the
         whole roster. Roster order: name, then id."""
-        derived = _derived_status()
+        status_word = _board_status()
         join_on = and_(
             Evaluation.employee_id == Employee.employee_id,
             Evaluation.review_year == review_year,
@@ -121,17 +109,17 @@ class EmployeeRepository:
             select(func.count())
             .select_from(Employee)
             .outerjoin(Evaluation, join_on)
-            .where(derived.in_(statuses))
+            .where(status_word.in_(statuses))
         ) if statuses is not None else (
             select(func.count()).select_from(Employee)
         )
         total = await self._session.scalar(filtered) or 0
 
         grouped = (
-            select(derived, func.count())
+            select(status_word, func.count())
             .select_from(Employee)
             .outerjoin(Evaluation, join_on)
-            .group_by(derived)
+            .group_by(status_word)
         )
         status_counts = {
             row[0]: row[1] for row in await self._session.execute(grouped)
@@ -142,7 +130,7 @@ class EmployeeRepository:
             .outerjoin(Evaluation, join_on)
         )
         if statuses is not None:
-            rows_statement = rows_statement.where(derived.in_(statuses))
+            rows_statement = rows_statement.where(status_word.in_(statuses))
         result = await self._session.execute(
             rows_statement
             .order_by(Employee.employee_name, Employee.employee_id)

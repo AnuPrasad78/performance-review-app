@@ -42,6 +42,16 @@ class StubEmployeeRepository:
         return set(self.updated_to)
 
 
+class StubEvaluationRepository:
+    """Records the sync_emails calls the apply path owes the mirror."""
+
+    def __init__(self) -> None:
+        self.synced: list[str] = []
+
+    async def sync_emails(self, employee_ids: list[str]) -> None:
+        self.synced = employee_ids
+
+
 def fixture_rows() -> list[RosterEmployeeOut]:
     fixture = Path(__file__).parent / "fixtures" / "roster_valid.csv"
     return parse_roster_csv(fixture.read_bytes()).rows
@@ -51,7 +61,7 @@ async def test_apply_inserts_every_declared_new_row() -> None:
     rows = fixture_rows()
     repository = StubEmployeeRepository()
     report = await apply_roster(
-        RosterApplyPayload(inserts=rows[:2], updates=[]), repository
+        RosterApplyPayload(inserts=rows[:2], updates=[]), repository, StubEvaluationRepository()
     )
     assert report.imported_count == 2
     assert report.updated_count == 0
@@ -63,7 +73,7 @@ async def test_apply_updates_chosen_rows_only() -> None:
     rows = fixture_rows()
     repository = StubEmployeeRepository([to_employee(rows[0])])
     report = await apply_roster(
-        RosterApplyPayload(inserts=[], updates=[rows[0]]), repository
+        RosterApplyPayload(inserts=[], updates=[rows[0]]), repository, StubEvaluationRepository()
     )
     assert report.updated_count == 1
     assert repository.updated_from == [rows[0].employee_id]
@@ -77,18 +87,37 @@ async def test_apply_moves_employee_id_of_updated_row() -> None:
     repository = StubEmployeeRepository([to_employee(rows[0])])
     moved = rows[0].model_copy(update={"employee_id": "EMP-Moved"})
     report = await apply_roster(
-        RosterApplyPayload(inserts=[], updates=[moved]), repository
+        RosterApplyPayload(inserts=[], updates=[moved]), repository, StubEvaluationRepository()
     )
     assert report.updated_count == 1
     assert repository.updated_from == [rows[0].employee_id]
     assert repository.updated_to == ["EMP-Moved"]
 
 
+async def test_apply_resyncs_the_email_mirror_of_updated_rows() -> None:
+    # Rewritten rows are exactly the ones whose mirror must re-derive; the
+    # resync keys on the written IDs, moved ones included. Inserts need none:
+    # a fresh employee cannot own evaluations.
+    rows = fixture_rows()
+    repository = StubEmployeeRepository([to_employee(rows[0])])
+    moved = rows[0].model_copy(update={"employee_id": "EMP-Moved"})
+    evaluations = StubEvaluationRepository()
+    report = await apply_roster(
+        RosterApplyPayload(inserts=rows[1:2], updates=[moved]), repository, evaluations
+    )
+    assert report.updated_count == 1
+    assert evaluations.synced == ["EMP-Moved"]
+
+
 async def test_apply_refuses_insert_when_email_already_stored() -> None:
     rows = fixture_rows()
     repository = StubEmployeeRepository([to_employee(rows[0])])
     with pytest.raises(AppError) as excinfo:
-        await apply_roster(RosterApplyPayload(inserts=rows[:1], updates=[]), repository)
+        await apply_roster(
+            RosterApplyPayload(inserts=rows[:1], updates=[]),
+            repository,
+            StubEvaluationRepository(),
+        )
     assert excinfo.value.code == "roster_insert_conflict"
     assert excinfo.value.status_code == 409
 
@@ -99,7 +128,7 @@ async def test_apply_match_is_case_insensitive() -> None:
     stored.email = rows[0].email.upper()
     repository = StubEmployeeRepository([stored])
     report = await apply_roster(
-        RosterApplyPayload(inserts=[], updates=[rows[0]]), repository
+        RosterApplyPayload(inserts=[], updates=[rows[0]]), repository, StubEvaluationRepository()
     )
     assert report.updated_count == 1
     assert repository.updated_to == [stored.employee_id]
@@ -109,6 +138,10 @@ async def test_apply_refuses_update_when_email_vanished() -> None:
     rows = fixture_rows()
     repository = StubEmployeeRepository()
     with pytest.raises(AppError) as excinfo:
-        await apply_roster(RosterApplyPayload(inserts=[], updates=[rows[0]]), repository)
+        await apply_roster(
+            RosterApplyPayload(inserts=[], updates=[rows[0]]),
+            repository,
+            StubEvaluationRepository(),
+        )
     assert excinfo.value.code == "roster_update_missing"
     assert excinfo.value.status_code == 409
