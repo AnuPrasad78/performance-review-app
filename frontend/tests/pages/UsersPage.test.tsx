@@ -16,10 +16,6 @@ vi.mock('../../src/lib/api', async (importOriginal) => ({
   fetchEmployeeFacets: fetchEmployeeFacetsMock,
   setApiIdentity: vi.fn(),
 }))
-  fetchEmployees: fetchEmployeesMock,
-  fetchEmployeeFacets: fetchEmployeeFacetsMock,
-  setApiIdentity: vi.fn(),
-}))
 
 function employee(employeeId: string, name: string, email: string): Employee {
   return {
