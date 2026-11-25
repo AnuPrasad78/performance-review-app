@@ -25,6 +25,7 @@ function wireReview(email: string, name: string, status: ReviewStatusWire['statu
       designation: 'Engineer',
       location: 'India',
       org: 'Delivery',
+      businessUnit: 'Payer Digital',
       project: 'Cigna One',
       deliveryHead: 'Arumugam Thiraviam',
       deliveryManager: 'Priya Raghavan',
@@ -86,7 +87,7 @@ beforeEach(() => {
   fetchEmployeeFacetsMock.mockReset()
   fetchEmployeeFacetsMock.mockResolvedValue({
     ok: true,
-    facets: { designations: ['Engineer'], locations: ['India'], orgs: ['Delivery', 'Quality'], reportingManagers: ['Priya Raghavan'], employmentStatuses: ['Active'] },
+    facets: { designations: ['Engineer'], locations: ['India'], orgs: ['Delivery', 'Quality'], businessUnits: ['Payer Digital'], reportingManagers: ['Priya Raghavan'], employmentStatuses: ['Active'] },
   })
 })
 
@@ -159,6 +160,19 @@ describe('ReviewStatusPage', () => {
     await user.type(screen.getByRole('searchbox', { name: 'Search by employee name or designation' }), 'ash')
     await waitFor(() => {
       expect(fetchReviewBoardMock).toHaveBeenLastCalledWith({ page: 1, status: 'pending', org: 'Quality', search: 'ash' })
+    })
+  })
+
+  it('narrows the board by business unit', async () => {
+    render(page())
+    const user = userEvent.setup()
+    await screen.findByRole('table')
+
+    await user.click(screen.getByRole('button', { name: /Search, filter and sort/ }))
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Filter by Business unit' }), 'Payer Digital')
+
+    await waitFor(() => {
+      expect(fetchReviewBoardMock).toHaveBeenLastCalledWith({ page: 1, status: 'pending', businessUnit: 'Payer Digital' })
     })
   })
 

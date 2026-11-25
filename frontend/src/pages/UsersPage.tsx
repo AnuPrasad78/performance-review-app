@@ -3,7 +3,10 @@ import { useEmployees } from '../hooks/useEmployees'
 import { UsersTableCard } from '../components/organisms/UsersTableCard'
 import { TableQueryControls, type TableFilterSpec } from '../components/molecules/TableQueryControls'
 import { AdminTemplate } from '../components/templates/AdminTemplate'
-import { fetchEmployeeFacets } from '../lib/api'
+import { useAdminStore } from '../state/AdminContext'
+import { fetchEmployeeFacets, fetchRosterCsvExport } from '../lib/api'
+import { saveCsvBlob } from '../lib/csvDownload'
+import { COMPLETION_FILTERS } from '../lib/reviewStatusStore'
 import type { RosterFacets, RosterQuery, RosterSortField, SortOrder } from '../lib/types'
 
 type UsersQuery = RosterQuery & { page: number }
@@ -29,10 +32,22 @@ const withAny = (label: string, values: string[] | null) => [
 ]
 
 export function UsersPage() {
+  const { notify } = useAdminStore()
   const [query, setQuery] = useState<UsersQuery>(EMPTY_QUERY)
   const [facets, setFacets] = useState<RosterFacets | null>(null)
   const roster = useEmployees(query)
   const pageCount = Math.max(1, Math.ceil(roster.total / roster.pageSize))
+
+  /** The server exports every employee the composed query matches (not just
+      this page's slice) as the roster CSV; failures surface as a toast. */
+  async function downloadCsv(): Promise<void> {
+    const result = await fetchRosterCsvExport(query)
+    if (result.ok) {
+      saveCsvBlob(result.blob, 'employee-roster.csv')
+      return
+    }
+    notify('error', result.detail)
+  }
 
   // The filter dropdowns serve whole-roster values once; they never change
   // with the query, so they fetch only on mount.
@@ -68,6 +83,12 @@ export function UsersPage() {
 
   const filters: readonly TableFilterSpec[] = [
     {
+      key: 'status',
+      label: 'Form status',
+      options: COMPLETION_FILTERS,
+      value: query.status ?? 'all',
+    },
+    {
       key: 'designation',
       label: 'Designation',
       options: withAny('Any', facets?.designations ?? null),
@@ -84,6 +105,12 @@ export function UsersPage() {
       label: 'Org',
       options: withAny('Any', facets?.orgs ?? null),
       value: query.org ?? '',
+    },
+    {
+      key: 'businessUnit',
+      label: 'Business unit',
+      options: withAny('Any', facets?.businessUnits ?? null),
+      value: query.businessUnit ?? '',
     },
     {
       key: 'reportingManager',
@@ -122,6 +149,7 @@ export function UsersPage() {
               ? 'No employees match this search or filter. Loosen it in Search & filter.'
               : 'No employees loaded. Upload a roster CSV to get started.'
           }
+          onDownloadCsv={downloadCsv}
           tableControls={
             <TableQueryControls
               search={query.search ?? ''}
@@ -142,14 +170,18 @@ export function UsersPage() {
   )
 }
 
-/** Search + every non-blank dropdown — the trigger badge's count. */
+/** Search + every non-blank dropdown — the trigger badge's count. The
+    form-status word only counts when it narrows (All is the no-filter noun). */
 function activeQueryCount(query: RosterQuery): number {
   return [
     query.search,
     query.designation,
     query.location,
     query.org,
+    query.businessUnit,
     query.reportingManager,
     query.employmentStatus,
-  ].filter((word) => word !== undefined && word !== '').length
+  ].filter((word) => word !== undefined && word !== '').length + (
+    query.status !== undefined && query.status !== 'all' ? 1 : 0
+  )
 }

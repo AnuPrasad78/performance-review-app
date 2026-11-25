@@ -64,6 +64,7 @@ const OPEN_EVALUATION: SelfEvaluationWire = {
     designation: 'Software Engineer',
     location: 'India',
     org: 'Delivery',
+    businessUnit: 'Payer Digital',
     project: 'Cigna One',
     deliveryHead: 'Arumugam Thiraviam',
     deliveryManager: 'Priya Raghavan',
@@ -129,7 +130,7 @@ beforeEach(() => {
   fetchEmployeesMock.mockResolvedValue({ ok: true, employees: [], total: 0, page: 1, pageSize: 10 })
   fetchEmployeeFacetsMock.mockResolvedValue({
     ok: true,
-    facets: { designations: [], locations: [], orgs: [], reportingManagers: [], employmentStatuses: [] },
+    facets: { designations: [], locations: [], orgs: [], businessUnits: [], reportingManagers: [], employmentStatuses: [] },
   })
   fetchReviewBoardMock.mockResolvedValue({
     ok: true,
@@ -195,6 +196,7 @@ describe('App — routed pages', () => {
       designation: 'Engineer',
       location: 'India',
       org: 'Delivery',
+      businessUnit: 'Payer Digital',
       project: 'Cigna One',
       deliveryHead: 'Arumugam Thiraviam',
       deliveryManager: 'Priya Raghavan',

@@ -10,6 +10,7 @@ export const EMPLOYEE_FIELD_TITLES: Readonly<Record<keyof Employee, string>> = {
   designation: 'Designation',
   location: 'Location',
   org: 'Org',
+  businessUnit: 'Business Unit',
   project: 'Current Account / Project',
   deliveryHead: 'Delivery Head',
   deliveryManager: 'Delivery Manager',

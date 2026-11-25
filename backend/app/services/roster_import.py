@@ -6,7 +6,7 @@ per CLAUDE.md the backend rule is authoritative, the frontend only renders.
 Accepted shape (the all-valid / managers roster):
 
     Employee Name, Employee ID, Email, Designation, Location, Org,
-    Current Account / Project, Delivery Head, Delivery Manager,
+    Business Unit, Current Account / Project, Delivery Head, Delivery Manager,
     Business Partner, Reporting Manager, Status
 
 Row rules: employee name, employee ID, email, and reporting manager are
@@ -37,6 +37,7 @@ ROSTER_HEADER_COLUMNS = [
     "designation",
     "location",
     "org",
+    "business unit",
     "current account / project",
     "delivery head",
     "delivery manager",
@@ -197,6 +198,7 @@ def parse_roster_csv(data: bytes) -> ParsedRoster:
                 designation=_cell(row_index, cells, "designation"),
                 location=_cell(row_index, cells, "location"),
                 org=_cell(row_index, cells, "org"),
+                business_unit=_cell(row_index, cells, "business unit"),
                 project=_cell(row_index, cells, "current account / project"),
                 delivery_head=_cell(row_index, cells, "delivery head"),
                 delivery_manager=_cell(row_index, cells, "delivery manager"),

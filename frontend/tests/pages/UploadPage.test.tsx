@@ -28,6 +28,7 @@ function employee(employeeId: string, name: string, email: string): Employee {
     designation: 'Engineer',
     location: 'India',
     org: 'Delivery',
+    businessUnit: 'Payer Digital',
     project: 'Cigna One',
     deliveryHead: 'Arumugam Thiraviam',
     deliveryManager: 'Priya Raghavan',

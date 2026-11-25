@@ -6,15 +6,22 @@ import { AuthProvider } from '../../src/state/AuthContext'
 import { UsersPage } from '../../src/pages/UsersPage'
 import type { Employee, RosterFacets } from '../../src/lib/types'
 
-const { fetchEmployeesMock, fetchEmployeeFacetsMock } = vi.hoisted(() => ({
-  fetchEmployeesMock: vi.fn(),
-  fetchEmployeeFacetsMock: vi.fn(),
-}))
+const { fetchEmployeesMock, fetchEmployeeFacetsMock, fetchRosterCsvExportMock, saveCsvBlobMock } =
+  vi.hoisted(() => ({
+    fetchEmployeesMock: vi.fn(),
+    fetchEmployeeFacetsMock: vi.fn(),
+    fetchRosterCsvExportMock: vi.fn(),
+    saveCsvBlobMock: vi.fn(),
+  }))
 vi.mock('../../src/lib/api', async (importOriginal) => ({
   ...(await importOriginal()),
   fetchEmployees: fetchEmployeesMock,
   fetchEmployeeFacets: fetchEmployeeFacetsMock,
+  fetchRosterCsvExport: fetchRosterCsvExportMock,
   setApiIdentity: vi.fn(),
+}))
+vi.mock('../../src/lib/csvDownload', () => ({
+  saveCsvBlob: saveCsvBlobMock,
 }))
 
 function employee(employeeId: string, name: string, email: string): Employee {
@@ -25,6 +32,7 @@ function employee(employeeId: string, name: string, email: string): Employee {
     designation: 'Engineer',
     location: 'India',
     org: 'Delivery',
+    businessUnit: 'Payer Digital',
     project: 'Cigna One',
     deliveryHead: 'Arumugam Thiraviam',
     deliveryManager: 'Priya Raghavan',
@@ -41,6 +49,7 @@ const FACETS: RosterFacets = {
   designations: ['Engineer', 'Product Manager'],
   locations: ['India', 'Singapore'],
   orgs: ['Delivery', 'Quality'],
+  businessUnits: ['Payer Digital', 'Provider Solutions'],
   reportingManagers: ['Priya Raghavan'],
   employmentStatuses: ['Active'],
 }
@@ -68,6 +77,8 @@ beforeEach(() => {
   window.localStorage.clear()
   fetchEmployeesMock.mockReset()
   fetchEmployeeFacetsMock.mockReset()
+  fetchRosterCsvExportMock.mockReset()
+  saveCsvBlobMock.mockReset()
   fetchEmployeeFacetsMock.mockResolvedValue({ ok: true, facets: FACETS })
 })
 
@@ -208,5 +219,89 @@ describe('UsersPage', () => {
     })
     render(page())
     expect(await screen.findByText('Could not reach the review API.')).toBeInTheDocument()
+  })
+
+  it('filters by the form-status nouns the review board uses', async () => {
+    fetchEmployeesMock.mockResolvedValue(pageResult([ASHA], 1))
+    render(page())
+    const user = userEvent.setup()
+    await screen.findByText('Roster · 1 employee')
+
+    await openQueryControls(user)
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Filter by Form status' }), 'completed')
+
+    expect(fetchEmployeesMock).toHaveBeenLastCalledWith({ page: 1, status: 'completed' })
+
+    // Choosing All resets the read to the filterless query; the word drops
+    // from the encoded wire in the api layer, like the board's does.
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Filter by Form status' }), 'all')
+
+    expect(fetchEmployeesMock).toHaveBeenLastCalledWith({ page: 1, status: 'all' })
+  })
+
+  it('filters by business unit from the facet list', async () => {
+    fetchEmployeesMock.mockResolvedValue(pageResult([ASHA], 1))
+    render(page())
+    const user = userEvent.setup()
+    await screen.findByText('Roster · 1 employee')
+
+    await openQueryControls(user)
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Filter by Business unit' }), 'Provider Solutions')
+
+    expect(fetchEmployeesMock).toHaveBeenLastCalledWith({ page: 1, businessUnit: 'Provider Solutions' })
+  })
+
+  it('downloads the server CSV of every matched employee, not the page slice', async () => {
+    fetchEmployeesMock.mockResolvedValue(pageResult([ASHA], 42, 1))
+    fetchRosterCsvExportMock.mockResolvedValue({ ok: true, blob: new Blob(['csv']) })
+    render(page())
+    const user = userEvent.setup()
+    await screen.findByText('Roster · 1 employee')
+
+    await user.click(screen.getByRole('button', { name: 'Download CSV' }))
+
+    await waitFor(() => {
+      expect(fetchRosterCsvExportMock).toHaveBeenCalledWith({ page: 1 })
+      expect(saveCsvBlobMock).toHaveBeenCalledWith(new Blob(['csv']), 'employee-roster.csv')
+    })
+  })
+
+  it('downloads with the composed search and filters in force', async () => {
+    fetchEmployeesMock.mockResolvedValue(pageResult([ASHA], 1))
+    fetchRosterCsvExportMock.mockResolvedValue({ ok: true, blob: new Blob(['csv']) })
+    render(page())
+    const user = userEvent.setup()
+    await screen.findByText('Roster · 1 employee')
+
+    await openQueryControls(user)
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Filter by Org' }), 'Quality')
+    await user.type(screen.getByRole('searchbox', { name: 'Search by employee name or designation' }), 'ash')
+    // Let the search's debounce land before the export reads the query.
+    await waitFor(() => {
+      expect(fetchEmployeesMock).toHaveBeenLastCalledWith({ page: 1, org: 'Quality', search: 'ash' })
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Download CSV' }))
+
+    await waitFor(() => {
+      expect(fetchRosterCsvExportMock).toHaveBeenLastCalledWith({ page: 1, org: 'Quality', search: 'ash' })
+    })
+  })
+
+  it('surfaces a failed export as a toast', async () => {
+    fetchEmployeesMock.mockResolvedValue(pageResult([ASHA], 1))
+    fetchRosterCsvExportMock.mockResolvedValue({
+      ok: false,
+      detail: 'The roster export failed.',
+      code: 'request_failed',
+    })
+    render(page())
+    const user = userEvent.setup()
+    await screen.findByText('Roster · 1 employee')
+
+    await user.click(screen.getByRole('button', { name: 'Download CSV' }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent('The roster export failed.')
+    expect(saveCsvBlobMock).not.toHaveBeenCalled()
   })
 })

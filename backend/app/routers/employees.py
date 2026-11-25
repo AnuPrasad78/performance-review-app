@@ -3,14 +3,16 @@
 /import parses and validates a CSV, then reports what would change against the
 stored table; /import/apply commits the admin-reviewed decision. The list
 endpoint serves the admin Users table with the shared table query (search,
-filters, sort); /employees/facets serves the filter dropdowns' option lists
-behind the admin role gate. The import endpoints remain a documented
-auth-opt-out, per CLAUDE.md's stub-auth phase.
+filters, sort, and the board's form-status noun), /employees/export streams
+the matched rows as the roster CSV, and /employees/facets serves the filter
+dropdowns' option lists; those three sit behind the admin role gate. The
+import endpoints remain a documented auth-opt-out, per CLAUDE.md's stub-auth
+phase.
 """
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi import APIRouter, Depends, File, UploadFile, Response
 
 from app.core.auth import AuthUser, get_admin_user
 from app.repositories.employee_repository import (
@@ -20,6 +22,10 @@ from app.repositories.employee_repository import (
 from app.repositories.evaluation_repository import (
     EvaluationRepository,
     get_evaluation_repository,
+)
+from app.repositories.review_cycle_repository import (
+    ReviewCycleRepository,
+    get_review_cycle_repository,
 )
 from app.schemas.employee import (
     EmployeeList,
@@ -34,6 +40,7 @@ from app.services.roster_apply import apply_roster
 from app.services.roster_diff import diff_roster
 from app.services.roster_import import parse_roster_csv
 from app.services.roster_mapping import to_row
+from app.services.roster_read import employees_page, employees_to_export
 
 router = APIRouter(tags=["employees"])
 
@@ -62,15 +69,33 @@ async def confirm_roster_import(
 @router.get("/employees", response_model=EmployeeList)
 async def list_employees(
     repository: Annotated[EmployeeRepository, Depends(get_employee_repository)],
+    cycle_repository: Annotated[ReviewCycleRepository, Depends(get_review_cycle_repository)],
     bounds: Annotated[Paging, Depends(paging)],
     query: Annotated[TableQuery, Depends(roster_query)],
 ) -> EmployeeList:
-    stored, total = await repository.paged(query, bounds.page, bounds.page_size)
+    stored, total = await employees_page(
+        repository, cycle_repository, query, bounds.page, bounds.page_size
+    )
     return EmployeeList(
         employees=[to_row(one) for one in stored],
         total=total,
         page=bounds.page,
         page_size=bounds.page_size,
+    )
+
+
+@router.get("/employees/export")
+async def export_employees(
+    _admin: Annotated[AuthUser, Depends(get_admin_user)],
+    repository: Annotated[EmployeeRepository, Depends(get_employee_repository)],
+    cycle_repository: Annotated[ReviewCycleRepository, Depends(get_review_cycle_repository)],
+    query: Annotated[TableQuery, Depends(roster_query)],
+) -> Response:
+    content = await employees_to_export(repository, cycle_repository, query)
+    return Response(
+        content=content,
+        media_type="application/csv;charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="employee-roster.csv"'},
     )
 
 
@@ -84,6 +109,7 @@ async def list_employee_facets(
         designations=facets.designations,
         locations=facets.locations,
         orgs=facets.orgs,
+        business_units=facets.business_units,
         reporting_managers=facets.reporting_managers,
         employment_statuses=facets.employment_statuses,
     )

@@ -1,7 +1,7 @@
 /** Mirrors the roster CSV the backend validates (see POST /api/employees/import):
     Employee Name, Employee ID, Email, Designation, Location, Org,
-    Current Account / Project, Delivery Head, Delivery Manager, Business
-    Partner, Reporting Manager, Status. */
+    Business Unit, Current Account / Project, Delivery Head, Delivery Manager,
+    Business Partner, Reporting Manager, Status. */
 export type EmployeeStatus = 'Active' | 'Inactive'
 
 export interface Employee {
@@ -11,6 +11,7 @@ export interface Employee {
   designation: string
   location: string
   org: string
+  businessUnit: string
   project: string
   deliveryHead: string
   deliveryManager: string
@@ -80,6 +81,13 @@ export type EmployeeListResult =
   | { ok: true; employees: readonly Employee[]; total: number; page: number; pageSize: number }
   | { ok: false; detail: string; code: string }
 
+/** GET /api/employees/export: the server's roster CSV of every employee the
+    composed query matches (admin-gated; fetched as a blob for the browser's
+    download seam). */
+export type RosterCsvExportResult =
+  | { ok: true; blob: Blob }
+  | { ok: false; detail: string; code: string }
+
 /** Sort words the backend whitelists for the two admin tables (camelCase wire,
     mirror of schemas/table_query.py); `status` exists on the board only,
     ordering by the server's workflow rank. */
@@ -90,21 +98,25 @@ export type RosterSortField =
   | 'designation'
   | 'location'
   | 'org'
+  | 'businessUnit'
   | 'reportingManager'
   | 'employmentStatus'
 
 export type SortOrder = 'asc' | 'desc'
 
 /** The admin Users table's composed read: every word is optional and blank
-    means "any" — search (name or designation), the five dropdown filters, and
-    the sort; the page rides along as `{ page }`. */
+    means "any" — search (name or designation), the six dropdown filters, the
+    board's form-status noun (all | pending | completed), and the sort; the
+    page rides along as `{ page }`. */
 export interface RosterQuery {
   search?: string
   designation?: string
   location?: string
   org?: string
+  businessUnit?: string
   reportingManager?: string
   employmentStatus?: string
+  status?: StatusFilter
   sortBy?: RosterSortField
   sortOrder?: SortOrder
 }
@@ -118,6 +130,7 @@ export interface RosterFacets {
   designations: string[]
   locations: string[]
   orgs: string[]
+  businessUnits: string[]
   reportingManagers: string[]
   employmentStatuses: string[]
 }

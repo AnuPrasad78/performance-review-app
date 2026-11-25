@@ -20,7 +20,13 @@ class _ListingStub:
         self._stored = list(employees)
 
     async def paged(
-        self, query: TableQuery, page: int, page_size: int
+        self,
+        query: TableQuery,
+        page: int,
+        page_size: int,
+        *,
+        review_year: int | None = None,
+        statuses: list[str] | None = None,
     ) -> tuple[list[Employee], int]:
         rows = [one for one in self._stored if matches_query(one, query)]
         order_by_query(rows, query)
@@ -40,7 +46,10 @@ def make_client(employees: list[Employee]) -> TestClient:
 
 
 def _employees() -> list[Employee]:
+    # roster_employee stamps business_unit "Payer Digital"; Asha alone moves
+    # to another unit so the filter has exactly one match.
     asha = roster_employee("EMP-V001", "Asha Menon")
+    asha.business_unit = "Provider Solutions"
     bilal = roster_employee("EMP-V002", "Bilal Khan")
     bilal.org = "Quality"
     cara = roster_employee("EMP-V003", "Cara Fernandes")
@@ -67,6 +76,15 @@ def test_the_list_composes_search_filter_and_sort() -> None:
         "EMP-V001",
     ]
     assert sorted_desc["total"] == 3
+
+
+def test_the_list_filters_by_business_unit() -> None:
+    client = make_client(_employees())
+
+    filtered = client.get("/api/employees", params={"businessUnit": "Provider Solutions"}).json()
+
+    assert [row["employeeId"] for row in filtered["employees"]] == ["EMP-V001"]
+    assert filtered["employees"][0]["businessUnit"] == "Provider Solutions"
 
 
 def test_the_list_rejects_an_unknown_sort_word() -> None:

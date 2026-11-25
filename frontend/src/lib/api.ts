@@ -4,6 +4,7 @@ import type {
   Employee,
   EmployeeListResult,
   RosterApplyResult,
+  RosterCsvExportResult,
   RosterFacets,
   RosterFacetsResult,
   RosterImportResult,
@@ -85,6 +86,7 @@ function employeeFrom(value: unknown): Employee | null {
     designation: stringField('designation'),
     location: stringField('location'),
     org: stringField('org'),
+    businessUnit: stringField('businessUnit'),
     project: stringField('project'),
     deliveryHead: stringField('deliveryHead'),
     deliveryManager: stringField('deliveryManager'),
@@ -190,6 +192,7 @@ function employeeToWire(employee: Employee): Record<string, string> {
     designation: employee.designation,
     location: employee.location,
     org: employee.org,
+    businessUnit: employee.businessUnit,
     project: employee.project,
     deliveryHead: employee.deliveryHead,
     deliveryManager: employee.deliveryManager,
@@ -407,6 +410,33 @@ export async function fetchEmployees(query: RosterQuery & { page: number }): Pro
   return { ok: true, employees: employeesFrom(parsed.employees), total: parsed.total, page: parsed.page, pageSize: parsed.pageSize }
 }
 
+export async function fetchRosterCsvExport(
+  query: RosterQuery,
+): Promise<RosterCsvExportResult> {
+  let response: Response
+  try {
+    // The export covers the whole matched set — the page slice never rides it.
+    const { page: _page, ...matched } = query as Record<string, string | number | undefined>
+    response = await fetch(
+      `${API_BASE}/api/employees/export?${tableQueryParams(matched)}`,
+      { headers: identityHeaders() },
+    )
+  } catch {
+    return { ok: false, detail: NETWORK_UNAVAILABLE.detail, code: NETWORK_UNAVAILABLE.code }
+  }
+  if (!response.ok) {
+    const parsed = await envelopeOf(response)
+    if (parsed === null) {
+      return { ok: false, detail: UNSUPPORTED_ENV_ERROR.detail, code: 'unsupported_environment' }
+    }
+    return { ok: false, ...envelopeFields(parsed) }
+  }
+  if (!(response.headers.get('content-type') ?? '').startsWith('application/csv')) {
+    return { ok: false, detail: UNSUPPORTED_ENV_ERROR.detail, code: 'unsupported_environment' }
+  }
+  return { ok: true, blob: await response.blob() }
+}
+
 function facetsFrom(parsed: Record<string, unknown>): RosterFacets | null {
   const wordList = (key: string): string[] | null => {
     if (!Array.isArray(parsed[key])) return null
@@ -416,18 +446,20 @@ function facetsFrom(parsed: Record<string, unknown>): RosterFacets | null {
   const designations = wordList('designations')
   const locations = wordList('locations')
   const orgs = wordList('orgs')
+  const businessUnits = wordList('businessUnits')
   const reportingManagers = wordList('reportingManagers')
   const employmentStatuses = wordList('employmentStatuses')
   if (
     designations === null ||
     locations === null ||
     orgs === null ||
+    businessUnits === null ||
     reportingManagers === null ||
     employmentStatuses === null
   ) {
     return null
   }
-  return { designations, locations, orgs, reportingManagers, employmentStatuses }
+  return { designations, locations, orgs, businessUnits, reportingManagers, employmentStatuses }
 }
 
 export async function fetchEmployeeFacets(): Promise<RosterFacetsResult> {
