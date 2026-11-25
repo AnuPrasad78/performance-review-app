@@ -151,16 +151,24 @@ def _render(
     )
 
 
-async def _scoped(
-    user: AuthUser,
-    evaluation_repository: EvaluationRepository,
-    cycle_repository: ReviewCycleRepository,
-) -> tuple[ReviewCycle, Evaluation | None]:
+async def current_cycle(cycle_repository: ReviewCycleRepository) -> ReviewCycle:
+    """The cycle every review read/write operates on, or the 404 envelope the
+    client treats as "nothing configured yet" — the single raise the employee
+    view and the admin board/users listings all consume."""
     cycle = await cycle_repository.current()
     if cycle is None:
         raise AppError(
             "No review cycle is configured yet.", code="cycle_missing", status_code=404
         )
+    return cycle
+
+
+async def _scoped(
+    user: AuthUser,
+    evaluation_repository: EvaluationRepository,
+    cycle_repository: ReviewCycleRepository,
+) -> tuple[ReviewCycle, Evaluation | None]:
+    cycle = await current_cycle(cycle_repository)
     evaluation = await evaluation_repository.get_for_employee(
         user.employee_id, cycle.review_year
     )
@@ -394,11 +402,7 @@ async def list_review_statuses(
     paging: Paging,
     query: TableQuery,
 ) -> ReviewStatusList:
-    cycle = await cycle_repository.current()
-    if cycle is None:
-        raise AppError(
-            "No review cycle is configured yet.", code="cycle_missing", status_code=404
-        )
+    cycle = await current_cycle(cycle_repository)
     words = FILTER_STATUS_WORDS[query.status]
     page_slice = await employee_repository.roster_year_page(
         cycle.review_year,

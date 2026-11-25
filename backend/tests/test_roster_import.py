@@ -166,6 +166,7 @@ def test_parsed_rows_mirror_csv_fields() -> None:
     assert first.delivery_manager == "Priya Raghavan"
     assert first.reporting_manager == "Priya Raghavan"
     assert first.org == "Delivery"
+    assert first.business_unit == "Payer Digital"
     assert first.business_partner == "John D"
     assert first.status == "Active"
 

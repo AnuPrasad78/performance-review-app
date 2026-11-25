@@ -25,6 +25,7 @@ RosterSortKey = Literal[
     "designation",
     "location",
     "org",
+    "businessUnit",
     "reportingManager",
     "employmentStatus",
 ]
@@ -35,6 +36,7 @@ BoardSortKey = Literal[
     "employeeName",
     "email",
     "org",
+    "businessUnit",
     "reportingManager",
     "designation",
     "location",
@@ -54,6 +56,7 @@ class TableQuery:
     designation: str = ""
     location: str = ""
     org: str = ""
+    business_unit: str = ""
     reporting_manager: str = ""
     employment_status: str = ""
     status: BoardStatusFilter = "all"
@@ -70,6 +73,7 @@ def _build_table_query(
     designation: str,
     location: str,
     org: str,
+    business_unit: str,
     reporting_manager: str,
     employment_status: str,
     sort_by: BoardSortKey,
@@ -81,6 +85,7 @@ def _build_table_query(
         designation=_term(designation),
         location=_term(location),
         org=_term(org),
+        business_unit=_term(business_unit),
         reporting_manager=_term(reporting_manager),
         employment_status=_term(employment_status),
         status=status,
@@ -94,14 +99,16 @@ def roster_query(
     designation: str = Query("", alias="designation"),
     location: str = Query("", alias="location"),
     org: str = Query("", alias="org"),
+    business_unit: str = Query("", alias="businessUnit"),
     reporting_manager: str = Query("", alias="reportingManager"),
     employment_status: str = Query("", alias="employmentStatus"),
+    status: BoardStatusFilter = Query("all", alias="status"),
     sort_by: RosterSortKey = Query("employeeName", alias="sortBy"),
     sort_order: SortOrder = Query("asc", alias="sortOrder"),
 ) -> TableQuery:
     return _build_table_query(
-        search, designation, location, org,
-        reporting_manager, employment_status, sort_by, sort_order,
+        search, designation, location, org, business_unit,
+        reporting_manager, employment_status, sort_by, sort_order, status,
     )
 
 
@@ -110,6 +117,7 @@ def board_query(
     designation: str = Query("", alias="designation"),
     location: str = Query("", alias="location"),
     org: str = Query("", alias="org"),
+    business_unit: str = Query("", alias="businessUnit"),
     reporting_manager: str = Query("", alias="reportingManager"),
     employment_status: str = Query("", alias="employmentStatus"),
     status: BoardStatusFilter = Query("all", alias="status"),
@@ -117,6 +125,6 @@ def board_query(
     sort_order: SortOrder = Query("asc", alias="sortOrder"),
 ) -> TableQuery:
     return _build_table_query(
-        search, designation, location, org,
+        search, designation, location, org, business_unit,
         reporting_manager, employment_status, sort_by, sort_order, status,
     )

@@ -20,6 +20,7 @@ class RosterEmployeeOut(ApiModel):
     designation: str
     location: str
     org: str
+    business_unit: str
     project: str
     delivery_head: str
     delivery_manager: str
@@ -86,6 +87,7 @@ class RosterFacets(ApiModel):
     designations: list[str]
     locations: list[str]
     orgs: list[str]
+    business_units: list[str]
     reporting_managers: list[str]
     employment_statuses: list[str]
 
@@ -103,6 +105,7 @@ ROSTER_ATTRIBUTES: tuple[tuple[str, str], ...] = (
     ("designation", "designation"),
     ("location", "location"),
     ("org", "org"),
+    ("business_unit", "business_unit"),
     ("project", "current_account_project"),
     ("delivery_head", "delivery_head"),
     ("delivery_manager", "delivery_manager"),

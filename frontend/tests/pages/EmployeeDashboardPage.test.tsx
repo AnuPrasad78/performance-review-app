@@ -48,6 +48,7 @@ function profileWire(overrides: Record<string, unknown> = {}): Record<string, un
     designation: 'Software Engineer',
     location: 'India',
     org: 'Delivery',
+    businessUnit: 'Payer Digital',
     project: 'Cigna One',
     deliveryHead: 'Arumugam Thiraviam',
     deliveryManager: 'Priya Raghavan',

@@ -122,6 +122,12 @@ export function ReviewStatusPage() {
       options: withAny('Any', facets?.orgs ?? null),
       value: query.org ?? '',
     },
+    {
+      key: 'businessUnit',
+      label: 'Business unit',
+      options: withAny('Any', facets?.businessUnits ?? null),
+      value: query.businessUnit ?? '',
+    },
   ]
 
   return (

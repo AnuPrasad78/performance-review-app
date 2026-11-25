@@ -59,6 +59,7 @@ def roster_employee(employee_id: str = "EMP-V001", name: str = "Asha Menon") -> 
     employee.email = f"{name.lower().replace(' ', '_')}@emids.com"
     employee.designation = "Software Engineer"
     employee.org = "Delivery"
+    employee.business_unit = "Payer Digital"
     employee.reporting_manager = "Priya Raghavan"
     employee.employment_status = "Active"
     return employee
@@ -94,6 +95,7 @@ _FILTER_FIELDS = (
     "designation",
     "location",
     "org",
+    "business_unit",
     "reporting_manager",
     "employment_status",
 )
@@ -123,6 +125,7 @@ SORT_FIELDS: dict[str, str] = {
     "designation": "designation",
     "location": "location",
     "org": "org",
+    "businessUnit": "business_unit",
     "reportingManager": "reporting_manager",
     "employmentStatus": "employment_status",
 }
