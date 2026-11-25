@@ -42,9 +42,12 @@ RESPONSE_TOPICS: tuple[tuple[str, str, str], ...] = (
     ("support", "q4_employee_response", "q4_manager_comments"),
 )
 
-#: The stored workflow words behind the status column.
-STATUS_IN_PROGRESS = "IN_PROGRESS"
-STATUS_SUBMITTED = "SUBMITTED"
+#: The stored workflow words behind the status column — the vocabulary the
+#: deployed schema's evaluations_status_check enforces (applied migrations
+#: pr_0006/pr_0007 are not in this checkout; keep these words and that
+#: constraint in lockstep when their migration lands).
+STATUS_IN_PROGRESS = "SELF_EVALUATION_IN_PROGRESS"
+STATUS_SUBMITTED = "SELF_EVALUATION_COMPLETED"
 
 
 class Evaluation(Base):
@@ -73,6 +76,10 @@ class Evaluation(Base):
         nullable=False,
     )
     review_year: Mapped[int]
+    #: Denormalized display mirror of employees.email, applied to the production
+    #: schema by migration pr_0007_email_display_mirror (not in this checkout).
+    #: The storage column is NOT NULL, so every create path must set it.
+    email: Mapped[str] = mapped_column(String(255), nullable=False)
     status: Mapped[str] = mapped_column(String(30))
     q1_employee_response: Mapped[str | None] = mapped_column(Text())
     q2_employee_response: Mapped[str | None] = mapped_column(Text())

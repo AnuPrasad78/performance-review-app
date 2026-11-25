@@ -11,6 +11,7 @@ from tests.evaluation_fixtures import (
     save,
     submit,
 )
+from app.models.evaluation import STATUS_IN_PROGRESS, STATUS_SUBMITTED
 
 
 def full_answers() -> dict[str, str]:
@@ -27,7 +28,7 @@ def complete_row() -> object:
 
     answers = full_answers()
     return evaluation(
-        "IN_PROGRESS",
+        STATUS_IN_PROGRESS,
         q1_employee_response=answers["contribution"],
         q2_employee_response=answers["strengths"],
         q3_employee_response=answers["development"],
@@ -46,13 +47,27 @@ def test_first_partial_save_opens_the_row_in_progress() -> None:
     assert response.status_code == 200
     assert response.json()["responses"]["contribution"] == "Delivered the intake rewrite."
     assert evaluations.row is not None
-    assert evaluations.row.status == "IN_PROGRESS"
+    assert evaluations.row.status == STATUS_IN_PROGRESS
     assert evaluations.row.q1_employee_response == "Delivered the intake rewrite."
+
+
+def test_first_save_writes_the_email_display_mirror() -> None:
+    # The deployed schema (pr_0007_email_display_mirror) requires the
+    # denormalized email on create; a row written without it 500s at the
+    # storage layer — the regression that left freshly deleted accounts
+    # unsaveable and unsendable.
+    client, evaluations = make_client()
+
+    response = save(client, {"responses": full_answers()})
+
+    assert response.status_code == 200
+    assert evaluations.row is not None
+    assert evaluations.row.email == "asha_menon@emids.com"
 
 
 def test_partial_saves_replace_only_the_members_they_carry() -> None:
     row = __import__("tests.evaluation_fixtures", fromlist=["evaluation"]).evaluation(
-        "IN_PROGRESS", q1_employee_response="Preexisting answer."
+        STATUS_IN_PROGRESS, q1_employee_response="Preexisting answer."
     )
     client, evaluations = make_client(evaluation_row=row)
 
@@ -95,7 +110,7 @@ def test_more_commitments_than_the_cap_is_rejected() -> None:
 
 
 def test_submitted_answers_are_frozen() -> None:
-    client, _ = make_client(evaluation_row=evaluation("SUBMITTED"))
+    client, _ = make_client(evaluation_row=evaluation(STATUS_SUBMITTED))
     response = save(client, {"responses": full_answers()})
     assert response.status_code == 409
     assert response.json()["code"] == "review_frozen"
@@ -103,7 +118,7 @@ def test_submitted_answers_are_frozen() -> None:
 
 def test_commitments_stay_editable_inside_the_manager_window() -> None:
     client, evaluations = make_client(
-        evaluation_row=evaluation("SUBMITTED")
+        evaluation_row=evaluation(STATUS_SUBMITTED)
     )
     response = save(
         client,
@@ -123,7 +138,7 @@ def test_commitments_stay_editable_inside_the_manager_window() -> None:
 def test_commitments_lock_after_the_manager_window() -> None:
     client, _ = make_client(
         cycle=PASSED_CYCLE,
-        evaluation_row=evaluation("SUBMITTED"),
+        evaluation_row=evaluation(STATUS_SUBMITTED),
     )
     response = save(
         client,
@@ -136,7 +151,7 @@ def test_commitments_lock_after_the_manager_window() -> None:
 def test_read_reports_the_lock_so_the_ui_never_rederives_the_window() -> None:
     client, _ = make_client(
         cycle=PASSED_CYCLE,
-        evaluation_row=evaluation("SUBMITTED"),
+        evaluation_row=evaluation(STATUS_SUBMITTED),
     )
 
     response = client.get("/api/evaluations/me", headers=IDENTITY)
@@ -155,7 +170,7 @@ def test_submit_needs_a_started_review() -> None:
 def test_submit_requires_every_piece() -> None:
     client, _ = make_client(
         evaluation_row=evaluation(
-            "IN_PROGRESS", q1_employee_response="Only one answer exists."
+            STATUS_IN_PROGRESS, q1_employee_response="Only one answer exists."
         )
     )
     response = submit(client)
@@ -172,11 +187,11 @@ def test_submit_completes_the_review() -> None:
 
     assert response.status_code == 200
     assert response.json()["submittedAt"] is None  # exact date is A6's stamp
-    assert evaluations.row.status == "SUBMITTED"
+    assert evaluations.row.status == STATUS_SUBMITTED
 
 
 def test_submit_lands_on_an_already_submitted_review() -> None:
-    client, _ = make_client(evaluation_row=evaluation("SUBMITTED"))
+    client, _ = make_client(evaluation_row=evaluation(STATUS_SUBMITTED))
     response = submit(client)
     assert response.status_code == 409
     assert response.json()["code"] == "already_submitted"
