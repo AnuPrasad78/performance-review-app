@@ -12,7 +12,7 @@ type FailureState = { detail: string; rowErrors: RosterRowError[] } | null
 
 export function UploadPage() {
   const { notify } = useAdminStore()
-  const roster = useEmployees(1)
+  const roster = useEmployees({ page: 1 })
   const [analyzing, setAnalyzing] = useState(false)
   const [applying, setApplying] = useState(false)
   const [failure, setFailure] = useState<FailureState>(null)

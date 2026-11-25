@@ -139,6 +139,66 @@ a { color: var(--teal-deep); }
 
 /* data table */
 .table-toolbar { display: flex; justify-content: flex-end; margin-bottom: 12px; }
+
+/* table query controls — popover anchored to the trigger, bottom-left 10px
+   soft corner (dropdown panels are its one allowed home, ui.md §7) */
+.table-query-anchor { position: relative; display: inline-flex; margin-left: 10px; }
+.table-query-trigger {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--ink-2);
+  background: transparent;
+  border: 1px solid var(--hairline);
+  padding: 9px 14px;
+  cursor: pointer;
+  transition: background 120ms linear, color 120ms linear;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+}
+.table-query-trigger:hover { background: var(--canvas); color: var(--ink); }
+.table-query-trigger[aria-expanded='true'] { border-color: var(--teal); color: var(--teal-deep); }
+.table-query-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 45;
+  width: 320px;
+  background: var(--surface);
+  border: 1px solid var(--hairline-2);
+  border-radius: 10px 0 0 0;
+  padding: 20px;
+  animation: popover-pop 200ms var(--ease-resolve);
+  transform-origin: top right;
+}
+.table-query-popover__section { display: flex; flex-direction: column; gap: 8px; }
+.table-query-popover__section + .table-query-popover__section {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--hairline-2);
+}
+.table-query-popover__heading {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--teal-deep);
+}
+.table-query-popover__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.table-query-popover__field-label { flex: 0 0 116px; font-size: 10px; color: var(--ink-2); }
+.table-query-popover__row .select { min-width: 0; flex: 1; }
+.table-query-popover__actions {
+  border-top: 1px solid var(--hairline-2);
+  padding-top: 14px;
+  display: flex;
+  justify-content: flex-end;
+}
+
 .pager { display: flex; align-items: center; justify-content: center; gap: 12px; padding-top: 14px; }
 .pager__status {
   font-size: 10px;

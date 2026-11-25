@@ -1,12 +1,12 @@
+import type { ReactNode } from 'react'
 import { Card } from '../atoms/Card'
 import { DataTable, type DataTableColumn } from '../molecules/DataTable'
 import { Pager } from '../molecules/Pager'
 import { PieChart } from '../molecules/PieChart'
 import { ReviewStatusPill } from '../molecules/ReviewStatusPill'
-import { SegmentedFilter } from '../molecules/SegmentedFilter'
 import { StatTile } from '../molecules/StatTile'
 import { REVIEW_STATUS_LABELS } from '../../lib/selfEvaluationStore'
-import { COMPLETION_FILTERS, displayCounts, type CompletionFilter, type EmployeeReviewStatus } from '../../lib/reviewStatusStore'
+import { displayCounts, type EmployeeReviewStatus } from '../../lib/reviewStatusStore'
 import type { RawReviewStatus, ReviewStatus } from '../../lib/types'
 
 const STATUS_ORDER: readonly ReviewStatus[] = ['not_started', 'in_progress', 'submitted']
@@ -45,9 +45,10 @@ export interface ReviewStatusBoardProps {
   total: number
   page: number
   pageCount: number
-  filter: CompletionFilter
-  onFilterChange: (filter: CompletionFilter) => void
   onPageChange: (page: number) => void
+  /** The page's composed search/filter/sort controls, slotted into the
+      table toolbar — the status noun they carry replaced the chips row. */
+  tableControls?: ReactNode
 }
 
 export function ReviewStatusBoard({
@@ -56,9 +57,8 @@ export function ReviewStatusBoard({
   total,
   page,
   pageCount,
-  filter,
-  onFilterChange,
   onPageChange,
+  tableControls,
 }: ReviewStatusBoardProps) {
   const counts = displayCounts(statusCounts)
   const rosterTotal = counts.not_started + counts.in_progress + counts.submitted
@@ -108,16 +108,13 @@ export function ReviewStatusBoard({
           />
         </Card>
       </div>
-      <SegmentedFilter
-        options={COMPLETION_FILTERS}
-        value={filter}
-        onChange={onFilterChange}
-        ariaLabel="Filter employees by review completion"
-      />
       <Card
         caption={`Employees · ${total} of ${rosterTotal}`}
         captionAccent
       >
+        {tableControls !== null && tableControls !== undefined ? (
+          <div className="table-toolbar">{tableControls}</div>
+        ) : null}
         <DataTable
           columns={columns}
           rows={entries}

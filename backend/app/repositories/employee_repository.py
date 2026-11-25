@@ -12,13 +12,14 @@ from collections.abc import AsyncIterator, Sequence
 from typing import Annotated, NamedTuple
 
 from fastapi import Depends
-from sqlalchemy import ColumnElement, and_, case, func, or_, select
+from sqlalchemy import ColumnElement, and_, asc, case, desc, distinct, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session
 from app.models.employee import Employee
 from app.models.evaluation import RESPONSE_TOPICS, STATUS_IN_PROGRESS, Evaluation
 from app.schemas.employee import ROSTER_ATTRIBUTES
+from app.schemas.table_query import RosterSortKey, SortOrder, TableQuery
 
 
 class RosterYearPage(NamedTuple):
@@ -30,6 +31,16 @@ class RosterYearPage(NamedTuple):
     rows: list[tuple[Employee, Evaluation | None]]
     total: int
     status_counts: dict[str, int]
+
+
+class RosterFacetColumns(NamedTuple):
+    """Distinct, non-blank dropdown values per filterable roster column."""
+
+    designations: list[str]
+    locations: list[str]
+    orgs: list[str]
+    reporting_managers: list[str]
+    employment_statuses: list[str]
 
 
 def _evaluation_answered() -> ColumnElement[bool]:
@@ -56,6 +67,71 @@ def _derived_status() -> ColumnElement[str]:
             else_="submitted",
         ),
     )
+
+
+_SEARCH_COLUMNS = (Employee.employee_name, Employee.designation)
+
+_FILTER_COLUMNS = (
+    ("designation", Employee.designation),
+    ("location", Employee.location),
+    ("org", Employee.org),
+    ("reporting_manager", Employee.reporting_manager),
+    ("employment_status", Employee.employment_status),
+)
+
+_ROSTER_SORTS: dict[RosterSortKey, ColumnElement] = {
+    "employeeName": Employee.employee_name,
+    "employeeId": Employee.employee_id,
+    "email": Employee.email,
+    "designation": Employee.designation,
+    "location": Employee.location,
+    "org": Employee.org,
+    "reportingManager": Employee.reporting_manager,
+    "employmentStatus": Employee.employment_status,
+}
+
+
+def _search_conditions(search: str) -> list[ColumnElement[bool]]:
+    needle = f"%{search}%"
+    return [or_(*(column.ilike(needle) for column in _SEARCH_COLUMNS))]
+
+
+def _roster_conditions(query: TableQuery) -> list[ColumnElement[bool]]:
+    """The joint WHERE for a roster read: one touchpoint so the page's count
+    and slice always agree. Blank terms mean "any" and contribute nothing."""
+    conditions: list[ColumnElement[bool]] = []
+    if query.search:
+        conditions.extend(_search_conditions(query.search))
+    conditions.extend(
+        column == getattr(query, field)
+        for field, column in _FILTER_COLUMNS
+        if getattr(query, field)
+    )
+    return conditions
+
+
+def _roster_order(
+    query: TableQuery, derived: ColumnElement[str] | None
+) -> list[ColumnElement]:
+    """Ordering with the workflow tiebreakers after the admin's choice; the
+    board's derived status sorts by the workflow rank (not started → in
+    progress → submitted → signed off), never alphabetically."""
+    direction = asc if query.sort_order == "asc" else desc
+    if derived is not None and query.sort_by == "status":
+        rank = case(
+            (derived == "not_started", 0),
+            (derived == "in_progress", 1),
+            (derived == "submitted", 2),
+            else_=3,
+        )
+        lead: ColumnElement = rank
+    else:
+        lead = _ROSTER_SORTS[query.sort_by]
+    return [
+        direction(lead),
+        asc(Employee.employee_name),
+        asc(Employee.employee_id),
+    ]
 
 
 class EmployeeRepository:
@@ -90,13 +166,19 @@ class EmployeeRepository:
         rows = await self._session.scalars(statement)
         return {row.employee_id: row for row in rows}
 
-    async def paged(self, page: int, page_size: int) -> tuple[list[Employee], int]:
-        """One roster page (roster order: name, then id) with the table's
-        total row count — list endpoints never load the whole roster."""
-        total = await self._session.scalar(select(func.count()).select_from(Employee))
+    async def paged(
+        self, query: TableQuery, page: int, page_size: int
+    ) -> tuple[list[Employee], int]:
+        """One roster page under the composed `query` with the filtered total
+        — list endpoints never load the whole roster."""
+        conditions = _roster_conditions(query)
+        total = await self._session.scalar(
+            select(func.count()).select_from(Employee).where(*conditions)
+        )
         result = await self._session.scalars(
             select(Employee)
-            .order_by(Employee.employee_name, Employee.employee_id)
+            .where(*conditions)
+            .order_by(*_roster_order(query, derived=None))
             .offset((page - 1) * page_size)
             .limit(page_size)
         )
@@ -105,14 +187,18 @@ class EmployeeRepository:
     async def roster_year_page(
         self,
         review_year: int,
+        query: TableQuery,
         statuses: Sequence[str] | None,
         page: int,
         page_size: int,
     ) -> RosterYearPage:
-        """The admin board read: `statuses` (derived words; None = all) may
-        narrow both the page and the total, while counts always cover the
-        whole roster. Roster order: name, then id."""
+        """The admin board read: `statuses` (derived words the service maps
+        from `query.status`; None = all) narrows both the page and the total,
+        while the employee columns of `query` filter alongside and the status
+        counts always cover the whole roster — the board's tiles describe the
+        roster for the cycle, not the filtered view."""
         derived = _derived_status()
+        conditions = _roster_conditions(query)
         join_on = and_(
             Evaluation.employee_id == Employee.employee_id,
             Evaluation.review_year == review_year,
@@ -121,9 +207,12 @@ class EmployeeRepository:
             select(func.count())
             .select_from(Employee)
             .outerjoin(Evaluation, join_on)
-            .where(derived.in_(statuses))
+            .where(*conditions, derived.in_(statuses))
         ) if statuses is not None else (
-            select(func.count()).select_from(Employee)
+            select(func.count())
+            .select_from(Employee)
+            .outerjoin(Evaluation, join_on)
+            .where(*conditions)
         )
         total = await self._session.scalar(filtered) or 0
 
@@ -140,12 +229,13 @@ class EmployeeRepository:
         rows_statement = (
             select(Employee, Evaluation)
             .outerjoin(Evaluation, join_on)
+            .where(*conditions)
         )
         if statuses is not None:
             rows_statement = rows_statement.where(derived.in_(statuses))
         result = await self._session.execute(
             rows_statement
-            .order_by(Employee.employee_name, Employee.employee_id)
+            .order_by(*_roster_order(query, derived=derived))
             .offset((page - 1) * page_size)
             .limit(page_size)
         )
@@ -153,6 +243,26 @@ class EmployeeRepository:
             rows=[(employee, evaluation) for employee, evaluation in result],
             total=total,
             status_counts=status_counts,
+        )
+
+    async def facet_values(self) -> RosterFacetColumns:
+        """Distinct non-blank values per filterable column, sorted — the
+        filter dropdowns' option lists. Whole-roster, independent of any
+        current filter."""
+        async def values(column) -> list[str]:
+            rows = await self._session.scalars(
+                select(distinct(column))
+                .where(column.is_not(None), func.trim(column) != "")
+                .order_by(column)
+            )
+            return list(rows)
+
+        return RosterFacetColumns(
+            designations=await values(Employee.designation),
+            locations=await values(Employee.location),
+            orgs=await values(Employee.org),
+            reporting_managers=await values(Employee.reporting_manager),
+            employment_statuses=await values(Employee.employment_status),
         )
 
     async def insert_many(self, employees: list[Employee]) -> None:

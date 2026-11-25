@@ -3,6 +3,7 @@ the cycle variants, and stub repositories wired through dependency
 overrides (provider-callable pattern, per test_roster_import.py)."""
 
 import datetime
+from collections.abc import Callable
 
 from fastapi.testclient import TestClient
 
@@ -15,6 +16,11 @@ from app.repositories.evaluation_repository import get_evaluation_repository
 from app.repositories.employee_repository import RosterYearPage, get_employee_repository
 from app.repositories.review_cycle_repository import get_review_cycle_repository
 from app.schemas.employee import ROSTER_ATTRIBUTES
+from app.schemas.table_query import TableQuery
+
+#: Board's derived words in workflow order — the real repository's
+#: _derived_status CASE rank mirrored for stub sorting.
+STATUS_RANK = {"not_started": 0, "in_progress": 1, "submitted": 2, "signed_off": 3}
 
 #: The open window: everything (submit deadline, manager window) in the future.
 #: The deadline is an aware UTC instant — late on its day, so real now()
@@ -76,6 +82,63 @@ class _StubEmployeeRepository:
         return self._employee
 
 
+_FILTER_FIELDS = (
+    "designation",
+    "location",
+    "org",
+    "reporting_manager",
+    "employment_status",
+)
+
+
+def matches_query(employee: Employee, query: TableQuery) -> bool:
+    """The real repository's roster WHERE for one row, mirrored: search hits
+    the employee name or designation, dropdown fields match exactly."""
+    if query.search:
+        needle = query.search.lower()
+        if (
+            needle not in (employee.employee_name or "").lower()
+            and needle not in (employee.designation or "").lower()
+        ):
+            return False
+    return all(
+        not getattr(query, field) or getattr(employee, field) == getattr(query, field)
+        for field in _FILTER_FIELDS
+    )
+
+
+#: The wire sort words against the Employee attributes they order.
+SORT_FIELDS: dict[str, str] = {
+    "employeeName": "employee_name",
+    "employeeId": "employee_id",
+    "email": "email",
+    "designation": "designation",
+    "location": "location",
+    "org": "org",
+    "reportingManager": "reporting_manager",
+    "employmentStatus": "employment_status",
+}
+
+
+def order_by_query(
+    employees: list[Employee],
+    query: TableQuery,
+    status_word: Callable[[Employee], str] | None = None,
+) -> None:
+    """In-place stub of the real repository's ordering. Two stable passes so
+    a descending lead keeps the ascending name/id tiebreakers — the same
+    order the real repository's SQL yields."""
+    employees.sort(key=lambda one: (one.employee_name, one.employee_id))
+
+    def lead_value(employee: Employee) -> object:
+        if query.sort_by == "status":
+            assert status_word is not None
+            return STATUS_RANK[status_word(employee)]
+        return getattr(employee, SORT_FIELDS[query.sort_by])
+
+    employees.sort(key=lead_value, reverse=query.sort_order == "desc")
+
+
 class _RosterRepository:
     """Board-side stub: employees beside that year's evaluations, paged the
     way the real repository slices (filter → order → offset/limit)."""
@@ -101,6 +164,7 @@ class _RosterRepository:
     async def roster_year_page(
         self,
         review_year: int,
+        query: TableQuery,
         statuses: list[str] | None,
         page: int,
         page_size: int,
@@ -112,9 +176,21 @@ class _RosterRepository:
         for _, row in pairs:
             word = _board_status(row)
             counts[word] = counts.get(word, 0) + 1
+        pairs = [pair for pair in pairs if matches_query(pair[0], query)]
         if statuses is not None:
             pairs = [pair for pair in pairs if _board_status(pair[1]) in set(statuses)]
-        pairs.sort(key=lambda pair: (pair[0].employee_name, pair[0].employee_id))
+
+        # order_by_query works on Employee lists; the status word derives
+        # from that employee's evaluation (None for roster-only rows).
+        def status_for(employee: Employee) -> str:
+            return _board_status(
+                self._rows.get(employee.employee_id)
+            )
+
+        rows = [pair[0] for pair in pairs]
+        order_by_query(rows, query, status_word=status_for)
+        by_id = {pair[0].employee_id: pair for pair in pairs}
+        pairs = [by_id[one.employee_id] for one in rows]
         offset = (page - 1) * page_size
         return RosterYearPage(
             rows=pairs[offset : offset + page_size],

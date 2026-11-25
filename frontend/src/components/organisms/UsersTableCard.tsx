@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Card } from '../atoms/Card'
 import { Button } from '../atoms/Button'
 import { DataTable, type DataTableColumn } from '../molecules/DataTable'
@@ -13,6 +13,12 @@ export interface UsersTableCardProps {
   page: number
   pageCount: number
   onPage: (page: number) => void
+  /** Empty state next move: a filtered no-match reads differently from an
+      unloaded roster — the page, which owns the query, picks it. */
+  emptyMessage: string
+  /** The page's composed search/filter/sort controls, slotted into the
+      toolbar beside Download CSV — the organism renders, never owns, them. */
+  tableControls?: ReactNode
 }
 
 const columns: readonly DataTableColumn<Employee>[] = [
@@ -30,7 +36,7 @@ const columns: readonly DataTableColumn<Employee>[] = [
   { key: 'status', header: 'Status', cell: (employee) => employee.status, hideOnMobile: true },
 ]
 
-export function UsersTableCard({ employees, page, pageCount, onPage }: UsersTableCardProps) {
+export function UsersTableCard({ employees, page, pageCount, onPage, emptyMessage, tableControls }: UsersTableCardProps) {
   const [selectedEmail, setSelectedEmail] = useState<string | null>(null)
   const selected: Employee | null =
     selectedEmail === null
@@ -50,12 +56,13 @@ export function UsersTableCard({ employees, page, pageCount, onPage }: UsersTabl
         <Button variant="ghost" size="sm" onClick={downloadRoster} disabled={employees.length === 0}>
           Download CSV
         </Button>
+        {tableControls ?? null}
       </div>
       <DataTable
         columns={columns}
         rows={employees}
         rowKey={(employee) => employee.email}
-        emptyMessage="No employees loaded. Upload a roster CSV to get started."
+        emptyMessage={emptyMessage}
         onRowClick={(employee) => setSelectedEmail(employee.email)}
         activeRowKey={selected?.email ?? null}
       />

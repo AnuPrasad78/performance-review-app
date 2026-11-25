@@ -1,13 +1,17 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { vi } from 'vitest'
+import { beforeEach, vi } from 'vitest'
 import { AdminStoreProvider } from '../../src/state/AdminContext'
 import { ReviewStatusPage } from '../../src/pages/ReviewStatusPage'
 import type { ReviewBoardPage, ReviewStatusWire } from '../../src/lib/types'
 
-const { fetchReviewBoardMock } = vi.hoisted(() => ({ fetchReviewBoardMock: vi.fn() }))
+const { fetchReviewBoardMock, fetchEmployeeFacetsMock } = vi.hoisted(() => ({
+  fetchReviewBoardMock: vi.fn(),
+  fetchEmployeeFacetsMock: vi.fn(),
+}))
 vi.mock('../../src/lib/api', () => ({
   fetchReviewBoard: fetchReviewBoardMock,
+  fetchEmployeeFacets: fetchEmployeeFacetsMock,
   setApiIdentity: vi.fn(),
 }))
 
@@ -66,6 +70,11 @@ beforeEach(() => {
   window.localStorage.clear()
   fetchReviewBoardMock.mockReset()
   fetchReviewBoardMock.mockResolvedValue({ ok: true, board: PAGE_ONE })
+  fetchEmployeeFacetsMock.mockReset()
+  fetchEmployeeFacetsMock.mockResolvedValue({
+    ok: true,
+    facets: { designations: ['Engineer'], locations: ['India'], orgs: ['Delivery', 'Quality'], reportingManagers: ['Priya Raghavan'], employmentStatuses: ['Active'] },
+  })
 })
 
 describe('ReviewStatusPage', () => {
@@ -102,7 +111,7 @@ describe('ReviewStatusPage', () => {
     expect(within(table).queryByText('Submitted')).not.toBeInTheDocument()
   })
 
-  it('pager walks server pages and the filter re-opens on page one', async () => {
+  it('pager walks server pages and Query changes land back on page one', async () => {
     render(page())
     const user = userEvent.setup()
     await screen.findByRole('table')
@@ -112,10 +121,32 @@ describe('ReviewStatusPage', () => {
     expect(fetchReviewBoardMock).toHaveBeenLastCalledWith({ page: 2, status: 'pending' })
     expect(await screen.findByText('Cara Fernandes')).toBeInTheDocument()
 
-    fetchReviewBoardMock.mockResolvedValue({ ok: true, board: { ...PAGE_TWO, total: 8, page: 1, reviews: PAGE_ONE.reviews } })
-    await user.click(screen.getByRole('button', { name: 'All' }))
-    expect(fetchReviewBoardMock).toHaveBeenLastCalledWith({ page: 1, status: 'all' })
+    // The status filter moved into the pop-up: switching to All rides it,
+    // and the query change hands the read back to page one.
+    fetchReviewBoardMock.mockResolvedValue({ ok: true, board: { ...PAGE_TWO, page: 1, reviews: PAGE_ONE.reviews } })
+    await user.click(screen.getByRole('button', { name: /Search, filter and sort/ }))
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Filter by Form status' }), 'all')
+    await waitFor(() => {
+      expect(fetchReviewBoardMock).toHaveBeenLastCalledWith({ page: 1, status: 'all' })
+    })
     expect(await screen.findByText('Bilal Khan')).toBeInTheDocument()
+  })
+
+  it('search and the org filter compose into the one board call', async () => {
+    render(page())
+    const user = userEvent.setup()
+    await screen.findByRole('table')
+
+    await user.click(screen.getByRole('button', { name: /Search, filter and sort/ }))
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Filter by Org' }), 'Quality')
+
+    await waitFor(() => {
+      expect(fetchReviewBoardMock).toHaveBeenLastCalledWith({ page: 1, status: 'pending', org: 'Quality' })
+    })
+    await user.type(screen.getByRole('searchbox', { name: 'Search by employee name or designation' }), 'ash')
+    await waitFor(() => {
+      expect(fetchReviewBoardMock).toHaveBeenLastCalledWith({ page: 1, status: 'pending', org: 'Quality', search: 'ash' })
+    })
   })
 
   it('states the failure when the board endpoint cannot be reached', async () => {

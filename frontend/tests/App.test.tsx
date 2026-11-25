@@ -12,6 +12,7 @@ import type { RosterImportResult, SelfEvaluationWire } from '../src/lib/types'
 const {
   applyRosterImportMock,
   fetchEmployeesMock,
+  fetchEmployeeFacetsMock,
   fetchReviewBoardMock,
   fetchSelfEvaluationMock,
   fetchSessionMock,
@@ -22,6 +23,7 @@ const {
 } = vi.hoisted(() => ({
   applyRosterImportMock: vi.fn(),
   fetchEmployeesMock: vi.fn(),
+  fetchEmployeeFacetsMock: vi.fn(),
   fetchReviewBoardMock: vi.fn(),
   fetchSelfEvaluationMock: vi.fn(),
   fetchSessionMock: vi.fn(),
@@ -34,6 +36,7 @@ const {
 vi.mock('../src/lib/api', () => ({
   applyRosterImport: applyRosterImportMock,
   fetchEmployees: fetchEmployeesMock,
+  fetchEmployeeFacets: fetchEmployeeFacetsMock,
   fetchReviewBoard: fetchReviewBoardMock,
   fetchSelfEvaluation: fetchSelfEvaluationMock,
   fetchSession: fetchSessionMock,
@@ -124,6 +127,10 @@ function renderSignedInAsEmployee(initial: string[] = ['/']): React.ReactElement
 
 beforeEach(() => {
   fetchEmployeesMock.mockResolvedValue({ ok: true, employees: [], total: 0, page: 1, pageSize: 10 })
+  fetchEmployeeFacetsMock.mockResolvedValue({
+    ok: true,
+    facets: { designations: [], locations: [], orgs: [], reportingManagers: [], employmentStatuses: [] },
+  })
   fetchReviewBoardMock.mockResolvedValue({
     ok: true,
     board: { reviews: [], total: 0, page: 1, pageSize: 10, statusCounts: {} },
