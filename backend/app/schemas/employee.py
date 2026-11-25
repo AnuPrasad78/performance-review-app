@@ -79,6 +79,17 @@ class EmployeeList(ApiModel):
     page_size: int
 
 
+class RosterFacets(ApiModel):
+    """Distinct whole-roster dropdown values per filterable roster column —
+    the admin tables' filter option lists, independent of any current filter."""
+
+    designations: list[str]
+    locations: list[str]
+    orgs: list[str]
+    reporting_managers: list[str]
+    employment_statuses: list[str]
+
+
 #: (RosterEmployeeOut field, employees column) pairs, including the identities.
 #: employee_id — the primary key — is deliberately excluded from the copy-over
 #: loop: it identifies a row, never a copied value. roster_mapping diffs it

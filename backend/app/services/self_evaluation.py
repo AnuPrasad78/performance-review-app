@@ -48,6 +48,7 @@ from app.repositories.employee_repository import EmployeeRepository
 from app.repositories.review_cycle_repository import ReviewCycleRepository
 from app.schemas.employee import RosterEmployeeOut
 from app.schemas.paging import Paging
+from app.schemas.table_query import TableQuery
 from app.schemas.self_evaluation import (
     BoardStatus,
     ForwardCommitmentOut,
@@ -391,16 +392,17 @@ async def list_review_statuses(
     employee_repository: EmployeeRepository,
     cycle_repository: ReviewCycleRepository,
     paging: Paging,
-    status_filter: str,
+    query: TableQuery,
 ) -> ReviewStatusList:
     cycle = await cycle_repository.current()
     if cycle is None:
         raise AppError(
             "No review cycle is configured yet.", code="cycle_missing", status_code=404
         )
-    words = FILTER_STATUS_WORDS[status_filter]
+    words = FILTER_STATUS_WORDS[query.status]
     page_slice = await employee_repository.roster_year_page(
         cycle.review_year,
+        query=query,
         statuses=words if words else None,
         page=paging.page,
         page_size=paging.page_size,

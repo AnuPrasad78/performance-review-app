@@ -11,6 +11,7 @@ import type { RosterImportResult, SelfEvaluationWire } from '../src/lib/types'
 const {
   applyRosterImportMock,
   fetchEmployeesMock,
+  fetchEmployeeFacetsMock,
   fetchReviewBoardMock,
   fetchSelfEvaluationMock,
   fetchSessionMock,
@@ -21,6 +22,7 @@ const {
 } = vi.hoisted(() => ({
   applyRosterImportMock: vi.fn(),
   fetchEmployeesMock: vi.fn(),
+  fetchEmployeeFacetsMock: vi.fn(),
   fetchReviewBoardMock: vi.fn(),
   fetchSelfEvaluationMock: vi.fn(),
   fetchSessionMock: vi.fn(),
@@ -33,6 +35,7 @@ const {
 vi.mock('../src/lib/api', () => ({
   applyRosterImport: applyRosterImportMock,
   fetchEmployees: fetchEmployeesMock,
+  fetchEmployeeFacets: fetchEmployeeFacetsMock,
   fetchReviewBoard: fetchReviewBoardMock,
   fetchSelfEvaluation: fetchSelfEvaluationMock,
   fetchSession: fetchSessionMock,
@@ -123,6 +126,10 @@ function renderSignedInAsEmployee(initial: string[] = ['/']): React.ReactElement
 
 beforeEach(() => {
   fetchEmployeesMock.mockResolvedValue({ ok: true, employees: [], total: 0, page: 1, pageSize: 10 })
+  fetchEmployeeFacetsMock.mockResolvedValue({
+    ok: true,
+    facets: { designations: [], locations: [], orgs: [], reportingManagers: [], employmentStatuses: [] },
+  })
   fetchReviewBoardMock.mockResolvedValue({
     ok: true,
     board: { reviews: [], total: 0, page: 1, pageSize: 10, statusCounts: {} },
@@ -135,9 +142,9 @@ beforeEach(() => {
 })
 
 describe('App — routed pages', () => {
-  it('lands on the Review form status page', () => {
+  it('lands on the Performance Review Progress page', () => {
     render(renderSignedInAsAdmin())
-    expect(screen.getByRole('heading', { name: 'Review form status', level: 1 })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Performance Review Progress', level: 1 })).toBeInTheDocument()
   })
 
   it('serves the employee side as a single page without a sidebar', async () => {
@@ -159,7 +166,7 @@ describe('App — routed pages', () => {
     expect(within(drawer).getAllByRole('link')).toHaveLength(4)
 
     await user.click(within(drawer).getByRole('link', { name: 'Review status' }))
-    expect(screen.getByRole('heading', { name: 'Review form status' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Performance Review Progress' })).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Open navigation' }))
     const drawerAgain = document.querySelector('.drawer')
@@ -176,7 +183,7 @@ describe('App — routed pages', () => {
 
   it('redirects unknown paths to the admin home', () => {
     render(renderSignedInAsAdmin(['/nope']))
-    expect(screen.getByRole('heading', { name: 'Review form status', level: 1 })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Performance Review Progress', level: 1 })).toBeInTheDocument()
   })
 
   it('applies an upload and the Users page reads the roster straight from the API', async () => {

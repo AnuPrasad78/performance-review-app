@@ -9,17 +9,20 @@ import type { SelfEvaluationWire, SessionApiResult, SessionWire } from '../../sr
 
 const {
   fetchEmployeesMock,
+  fetchEmployeeFacetsMock,
   fetchReviewBoardMock,
   fetchSelfEvaluationMock,
   fetchSessionMock,
 } = vi.hoisted(() => ({
   fetchEmployeesMock: vi.fn(),
+  fetchEmployeeFacetsMock: vi.fn(),
   fetchReviewBoardMock: vi.fn(),
   fetchSelfEvaluationMock: vi.fn(),
   fetchSessionMock: vi.fn(),
 }))
 vi.mock('../../src/lib/api', () => ({
   fetchEmployees: fetchEmployeesMock,
+  fetchEmployeeFacets: fetchEmployeeFacetsMock,
   fetchReviewBoard: fetchReviewBoardMock,
   fetchSelfEvaluation: fetchSelfEvaluationMock,
   fetchSession: fetchSessionMock,
@@ -68,6 +71,7 @@ beforeEach(() => {
   fetchSelfEvaluationMock.mockReset()
   fetchSessionMock.mockReset()
   fetchEmployeesMock.mockReset()
+  fetchEmployeeFacetsMock.mockReset()
   fetchReviewBoardMock.mockReset()
   fetchSelfEvaluationMock.mockResolvedValue({
     ok: true,
@@ -77,6 +81,13 @@ beforeEach(() => {
   fetchReviewBoardMock.mockResolvedValue({
     ok: true,
     board: { reviews: [], total: 0, page: 1, pageSize: 10, statusCounts: {} },
+  })
+  // The merged board fetches its filter dropdown options on mount; a benign
+  // refusal keeps the page rendering without asserting facets here.
+  fetchEmployeeFacetsMock.mockResolvedValue({
+    ok: false,
+    detail: 'Facets are out of scope for the sign-in tests.',
+    code: 'unsupported_environment',
   })
 })
 
@@ -148,7 +159,7 @@ describe('LoginPage', () => {
     await user.type(screen.getByLabelText('Password'), 'Portal@2026')
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
-    expect(await screen.findByRole('heading', { name: 'Review form status', level: 1 })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Performance Review Progress', level: 1 })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Open navigation' })).toBeInTheDocument()
   })
 

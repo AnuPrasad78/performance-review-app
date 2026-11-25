@@ -1,6 +1,6 @@
 """GET /api/evaluations — the admin review-status board: roster × evaluations
-for the current cycle, the six stored statuses, and the admin role gate.
-Repositories are stubbed, so no database is involved."""
+for the current cycle, the six stored statuses, composed search/filters, and
+the admin role gate. Repositories are stubbed, so no database is involved."""
 
 from tests.evaluation_fixtures import (
     evaluation,
@@ -171,3 +171,87 @@ def test_board_needs_a_cycle_to_sit_on() -> None:
 
     assert response.status_code == 404
     assert response.json()["code"] == "cycle_missing"
+
+
+def test_board_search_and_dropdown_filters_compose() -> None:
+    asha = roster_employee("EMP-V001", "Asha Menon")
+    bilal = roster_employee("EMP-V002", "Bilal Khan")
+    bilal.org = "Quality"
+    cara = roster_employee("EMP-V003", "Cara Fernandes")
+    cara.designation = "Product Manager"
+    client = make_board_client([asha, bilal, cara], [], admin_emails=[ASHA_EMAIL])
+
+    searched = (
+        client.get(
+            "/api/evaluations", params={"search": "manager"}, headers={"X-Stub-User": ASHA_EMAIL}
+        )
+    ).json()
+    filtered = (
+        client.get("/api/evaluations", params={"org": "Quality"}, headers={"X-Stub-User": ASHA_EMAIL})
+    ).json()
+    composed = (
+        client.get(
+            "/api/evaluations",
+            params={"search": "manager", "org": "Quality"},
+            headers={"X-Stub-User": ASHA_EMAIL},
+        )
+    ).json()
+
+    # Search reaches the designation; the dropdown matches exactly.
+    assert [entry["employee"]["employeeId"] for entry in searched["reviews"]] == ["EMP-V003"]
+    assert [entry["employee"]["employeeId"] for entry in filtered["reviews"]] == ["EMP-V002"]
+    # Search and filter compose: Cara matches the search but not the org.
+    assert composed["reviews"] == []
+    assert composed["total"] == 0
+    # And counts never move off the whole roster.
+    status_counts = composed["statusCounts"]
+    assert status_counts["not_started"] == 3
+
+
+def test_board_sort_by_status_follows_workflow_rank() -> None:
+    asha = roster_employee("EMP-V001", "Asha Menon")
+    bilal = roster_employee("EMP-V002", "Bilal Khan")
+    cara = roster_employee("EMP-V003", "Cara Fernandes")
+    rows = [
+        evaluation("SELF_EVALUATION_COMPLETED", employee_id="EMP-V002"),
+        evaluation("SELF_EVALUATION_IN_PROGRESS", employee_id="EMP-V003"),
+    ]
+    client = make_board_client([asha, bilal, cara], rows, admin_emails=[ASHA_EMAIL])
+
+    ascending = (
+        client.get(
+            "/api/evaluations", params={"sortBy": "status"}, headers={"X-Stub-User": ASHA_EMAIL}
+        )
+    ).json()
+    descending = (
+        client.get(
+            "/api/evaluations",
+            params={"sortBy": "status", "sortOrder": "desc"},
+            headers={"X-Stub-User": ASHA_EMAIL},
+        )
+    ).json()
+
+    # Workflow order — the lifecycle rank (not started first, manager
+    # evaluation completed last), not the words' alphabetical accident.
+    assert [entry["status"] for entry in ascending["reviews"]] == [
+        "not_started",
+        "self_evaluation_in_progress",
+        "self_evaluation_completed",
+    ]
+    assert [entry["status"] for entry in descending["reviews"]] == [
+        "self_evaluation_completed",
+        "self_evaluation_in_progress",
+        "not_started",
+    ]
+
+
+def test_board_rejects_an_unknown_sort_word() -> None:
+    asha = roster_employee()
+    client = make_board_client([asha], [], admin_emails=[ASHA_EMAIL])
+
+    response = client.get(
+        "/api/evaluations", params={"sortBy": "password.hash"}, headers={"X-Stub-User": ASHA_EMAIL}
+    )
+
+    # Whitelisted sort words only — validation rejects before any layer runs.
+    assert response.status_code == 422

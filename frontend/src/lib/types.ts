@@ -80,6 +80,52 @@ export type EmployeeListResult =
   | { ok: true; employees: readonly Employee[]; total: number; page: number; pageSize: number }
   | { ok: false; detail: string; code: string }
 
+/** Sort words the backend whitelists for the two admin tables (camelCase wire,
+    mirror of schemas/table_query.py); `status` exists on the board only,
+    ordering by the server's workflow rank. */
+export type RosterSortField =
+  | 'employeeName'
+  | 'employeeId'
+  | 'email'
+  | 'designation'
+  | 'location'
+  | 'org'
+  | 'reportingManager'
+  | 'employmentStatus'
+
+export type SortOrder = 'asc' | 'desc'
+
+/** The admin Users table's composed read: every word is optional and blank
+    means "any" — search (name or designation), the five dropdown filters, and
+    the sort; the page rides along as `{ page }`. */
+export interface RosterQuery {
+  search?: string
+  designation?: string
+  location?: string
+  org?: string
+  reportingManager?: string
+  employmentStatus?: string
+  sortBy?: RosterSortField
+  sortOrder?: SortOrder
+}
+
+/** The admin board's composed read adds the derived-status noun the chips
+    used to own; the page rides along like the roster's does. */
+export type ReviewBoardQuery = RosterQuery & { status: StatusFilter; page: number }
+
+/** The whole-roster dropdown option lists behind GET /api/employees/facets. */
+export interface RosterFacets {
+  designations: string[]
+  locations: string[]
+  orgs: string[]
+  reportingManagers: string[]
+  employmentStatuses: string[]
+}
+
+export type RosterFacetsResult =
+  | { ok: true; facets: RosterFacets }
+  | { ok: false; detail: string; code: string }
+
 export type CycleSettingsFieldErrors = {
   reviewYear: string | null
   deadlineDate: string | null

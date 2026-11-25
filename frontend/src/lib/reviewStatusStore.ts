@@ -10,12 +10,12 @@ export type EmployeeReviewStatus = {
   status: ReviewStatus
 }
 
-/** The segmented-filter nouns; each names the backend's status= query word. */
+/** The status filter's nouns; each names the backend's status= query word. */
 export type CompletionFilter = StatusFilter
 
 export const COMPLETION_FILTERS: readonly { value: CompletionFilter; label: string }[] = [
-  { value: 'pending', label: 'Pending' },
   { value: 'all', label: 'All' },
+  { value: 'pending', label: 'Pending' },
   { value: 'completed', label: 'Completed' },
 ]
 

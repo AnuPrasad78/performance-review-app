@@ -4,9 +4,13 @@ import type {
   Employee,
   EmployeeListResult,
   RosterApplyResult,
+  RosterFacets,
+  RosterFacetsResult,
   RosterImportResult,
+  RosterQuery,
   RawReviewStatus,
   ReviewBoardPage,
+  ReviewBoardQuery,
   ReviewBoardResult,
   ReviewStatusWire,
   SelfEvaluationApiResult,
@@ -14,7 +18,6 @@ import type {
   SelfEvaluationWire,
   SessionApiResult,
   SessionWire,
-  StatusFilter,
   TopicResponses,
 } from './types'
 import { isIsoInstant } from './dates'
@@ -316,7 +319,25 @@ function reviewStatusFrom(value: unknown): ReviewStatusWire | null {
   return { employee, status: RAW_TO_DISPLAY[wireStatus] }
 }
 
-export type BoardQuery = { page: number; status: StatusFilter }
+/** Wire words the backend treats as defaults — omitting them keeps the query
+    string honest about what the admin actually chose. */
+const QUERY_OMITTED_WORDS: Record<string, string | undefined> = {
+  sortBy: 'employeeName',
+  sortOrder: 'asc',
+  status: 'all',
+}
+
+/** One encoder for both admin tables' composed reads: blank words and the
+    backend's default words are dropped, everything else stays camelCase. */
+function tableQueryParams(query: object): string {
+  const params = new URLSearchParams()
+  for (const [key, value] of Object.entries(query)) {
+    if (typeof value !== 'string' && typeof value !== 'number') continue
+    if (value === '' || QUERY_OMITTED_WORDS[key] === value) continue
+    params.set(key, String(value))
+  }
+  return params.toString()
+}
 
 function boardPageFrom(parsed: Record<string, unknown>): ReviewBoardPage | null {
   if (!Array.isArray(parsed.reviews)) return null
@@ -342,11 +363,13 @@ function boardPageFrom(parsed: Record<string, unknown>): ReviewBoardPage | null 
   }
 }
 
-export async function fetchReviewBoard(query: BoardQuery): Promise<ReviewBoardResult> {
+export async function fetchReviewBoard(query: ReviewBoardQuery): Promise<ReviewBoardResult> {
   let response: Response
   try {
-    const params = `page=${query.page}&status=${query.status}`
-    response = await fetch(`${API_BASE}/api/evaluations?${params}`, { headers: identityHeaders() })
+    response = await fetch(
+      `${API_BASE}/api/evaluations?${tableQueryParams(query)}`,
+      { headers: identityHeaders() },
+    )
   } catch {
     return { ok: false, detail: NETWORK_UNAVAILABLE.detail, code: NETWORK_UNAVAILABLE.code }
   }
@@ -362,10 +385,10 @@ export async function fetchReviewBoard(query: BoardQuery): Promise<ReviewBoardRe
   return { ok: true, board }
 }
 
-export async function fetchEmployees(page = 1): Promise<EmployeeListResult> {
+export async function fetchEmployees(query: RosterQuery & { page: number }): Promise<EmployeeListResult> {
   let response: Response
   try {
-    response = await fetch(`${API_BASE}/api/employees?page=${page}`)
+    response = await fetch(`${API_BASE}/api/employees?${tableQueryParams(query)}`)
   } catch {
     return { ok: false, detail: NETWORK_UNAVAILABLE.detail, code: NETWORK_UNAVAILABLE.code }
   }
@@ -378,6 +401,48 @@ export async function fetchEmployees(page = 1): Promise<EmployeeListResult> {
     return { ok: false, detail: UNSUPPORTED_ENV_ERROR.detail, code: 'unsupported_environment' }
   }
   return { ok: true, employees: employeesFrom(parsed.employees), total: parsed.total, page: parsed.page, pageSize: parsed.pageSize }
+}
+
+function facetsFrom(parsed: Record<string, unknown>): RosterFacets | null {
+  const wordList = (key: string): string[] | null => {
+    if (!Array.isArray(parsed[key])) return null
+    if (!parsed[key].every((word) => typeof word === 'string')) return null
+    return parsed[key] as string[]
+  }
+  const designations = wordList('designations')
+  const locations = wordList('locations')
+  const orgs = wordList('orgs')
+  const reportingManagers = wordList('reportingManagers')
+  const employmentStatuses = wordList('employmentStatuses')
+  if (
+    designations === null ||
+    locations === null ||
+    orgs === null ||
+    reportingManagers === null ||
+    employmentStatuses === null
+  ) {
+    return null
+  }
+  return { designations, locations, orgs, reportingManagers, employmentStatuses }
+}
+
+export async function fetchEmployeeFacets(): Promise<RosterFacetsResult> {
+  let response: Response
+  try {
+    response = await fetch(`${API_BASE}/api/employees/facets`, { headers: identityHeaders() })
+  } catch {
+    return { ok: false, detail: NETWORK_UNAVAILABLE.detail, code: NETWORK_UNAVAILABLE.code }
+  }
+  const parsed = await envelopeOf(response)
+  if (parsed === null) {
+    return { ok: false, detail: UNSUPPORTED_ENV_ERROR.detail, code: 'unsupported_environment' }
+  }
+  if (!response.ok) return { ok: false, ...envelopeFields(parsed) }
+  const facets = facetsFrom(parsed)
+  if (facets === null) {
+    return { ok: false, detail: UNSUPPORTED_ENV_ERROR.detail, code: 'unsupported_environment' }
+  }
+  return { ok: true, facets }
 }
 
 export async function fetchSession(email: string): Promise<SessionApiResult> {
