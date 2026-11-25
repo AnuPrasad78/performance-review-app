@@ -381,6 +381,7 @@ def _board_status(evaluation: Evaluation | None) -> BoardStatus:
 #: (lower-cased) form — the same bucketing the frontend's filtering chips
 #: render (lib/reviewStatusStore).
 _FILTER_BUCKETS: dict[str, tuple[str, ...]] = {
+    "not_started": (STATUS_NOT_STARTED,),
     "pending": (STATUS_NOT_STARTED, STATUS_SELF_EVALUATION_IN_PROGRESS),
     "completed": (
         STATUS_SELF_EVALUATION_COMPLETED,
@@ -391,6 +392,7 @@ _FILTER_BUCKETS: dict[str, tuple[str, ...]] = {
 }
 FILTER_STATUS_WORDS: dict[str, frozenset[str]] = {
     "all": frozenset(),
+    "not_started": frozenset(word.lower() for word in _FILTER_BUCKETS["not_started"]),
     "pending": frozenset(word.lower() for word in _FILTER_BUCKETS["pending"]),
     "completed": frozenset(word.lower() for word in _FILTER_BUCKETS["completed"]),
 }

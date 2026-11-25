@@ -15,6 +15,7 @@ export type CompletionFilter = StatusFilter
 
 export const COMPLETION_FILTERS: readonly { value: CompletionFilter; label: string }[] = [
   { value: 'all', label: 'All' },
+  { value: 'not_started', label: 'Not started' },
   { value: 'pending', label: 'Pending' },
   { value: 'completed', label: 'Completed' },
 ]

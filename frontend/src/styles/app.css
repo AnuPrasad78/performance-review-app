@@ -139,6 +139,8 @@ a { color: var(--teal-deep); }
 
 /* data table */
 .table-toolbar { display: flex; justify-content: flex-end; margin-bottom: 12px; }
+/* a wide table scrolls inside its card; the page itself never widens for it */
+.table-scroll { overflow-x: auto; }
 
 /* table query controls — popover anchored to the trigger, bottom-left 10px
    soft corner (dropdown panels are its one allowed home, ui.md §7) */
@@ -198,6 +200,82 @@ a { color: var(--teal-deep); }
   display: flex;
   justify-content: flex-end;
 }
+
+/* per-column header controls — click-to-sort headers and the column filter
+   funnel live inside the th (header sort is ui.md §7's table consensus) */
+.table__sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  transition: color 120ms linear;
+}
+.table__sort:hover { color: var(--teal-deep); }
+.table th[aria-sort] { color: var(--teal-deep); }
+
+.table-filter-anchor { position: relative; display: inline-flex; margin-left: 7px; vertical-align: middle; }
+.table-filter-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px;
+  background: none;
+  border: none;
+  color: var(--ink-3);
+  cursor: pointer;
+  border-radius: 999px;
+  transition: color 120ms linear, background 120ms linear;
+}
+.table-filter-trigger:hover { color: var(--teal-deep); background: var(--canvas); }
+.table-filter-trigger--active { color: var(--teal-deep); }
+.table-filter-popover {
+  position: fixed;
+  z-index: 46;
+  min-width: 220px;
+  max-height: min(300px, calc(100vh - 24px));
+  overflow: auto;
+  background: var(--surface);
+  border: 1px solid var(--hairline-2);
+  border-radius: 10px 0 0 0;
+  padding: 14px;
+  animation: popover-pop 200ms var(--ease-resolve);
+  transform-origin: top left;
+}
+.table-filter-popover--flip { transform-origin: top right; }
+.table-filter-popover__heading {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--teal-deep);
+  margin-bottom: 8px;
+}
+.table-filter-popover__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.table-filter-popover__list li + li { border-top: 1px solid var(--hairline); }
+.table-filter-popover__option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 8px 6px;
+  background: none;
+  border: none;
+  font-size: 13px;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.table-filter-popover__option:hover { background: var(--teal-wash); }
+.table-filter-popover__option--chosen { font-weight: 600; color: var(--teal-deep); }
 
 .pager { display: flex; align-items: center; justify-content: center; gap: 12px; padding-top: 14px; }
 .pager__status {

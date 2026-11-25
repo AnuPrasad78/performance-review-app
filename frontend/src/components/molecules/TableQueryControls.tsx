@@ -19,11 +19,13 @@ export interface TableQueryControlsProps {
   onSearchChange: (term: string) => void
   filters: readonly TableFilterSpec[]
   onFilterChange: (key: string, value: string) => void
-  sortFields: readonly SelectOption[]
-  sortField: string
-  sortOrder: 'asc' | 'desc'
-  onSortFieldChange: (field: string) => void
-  onSortOrderChange: (order: 'asc' | 'desc') => void
+  /** The Sort block rides a table whose headers do not carry it; a table
+      with click-to-sort headers omits the whole block at once. */
+  sortFields?: readonly SelectOption[]
+  sortField?: string
+  sortOrder?: 'asc' | 'desc'
+  onSortFieldChange?: (field: string) => void
+  onSortOrderChange?: (order: 'asc' | 'desc') => void
   /** Blank-renders every control at once (search, filters, sort). */
   onClear: () => void
 }
@@ -103,27 +105,29 @@ export function TableQueryControls({
                 </label>
               ))}
             </div>
-            <div className="table-query-popover__section">
-              <span className="table-query-popover__heading mono">Sort</span>
-              <label className="table-query-popover__row">
-                <span className="table-query-popover__field-label mono">Sort by</span>
-                <Select
-                  value={sortField}
-                  options={sortFields}
-                  ariaLabel="Sort by"
-                  onChange={onSortFieldChange}
-                />
-              </label>
-              <label className="table-query-popover__row">
-                <span className="table-query-popover__field-label mono">Direction</span>
-                <Select
-                  value={sortOrder}
-                  options={SORT_ORDER_OPTIONS}
-                  ariaLabel="Sort direction"
-                  onChange={(value) => onSortOrderChange(value as 'asc' | 'desc')}
-                />
-              </label>
-            </div>
+            {sortFields !== undefined ? (
+              <div className="table-query-popover__section">
+                <span className="table-query-popover__heading mono">Sort</span>
+                <label className="table-query-popover__row">
+                  <span className="table-query-popover__field-label mono">Sort by</span>
+                  <Select
+                    value={sortField ?? ''}
+                    options={sortFields}
+                    ariaLabel="Sort by"
+                    onChange={onSortFieldChange ?? (() => {})}
+                  />
+                </label>
+                <label className="table-query-popover__row">
+                  <span className="table-query-popover__field-label mono">Direction</span>
+                  <Select
+                    value={sortOrder ?? 'asc'}
+                    options={SORT_ORDER_OPTIONS}
+                    ariaLabel="Sort direction"
+                    onChange={(value) => onSortOrderChange?.(value as 'asc' | 'desc')}
+                  />
+                </label>
+              </div>
+            ) : null}
             <div className="table-query-popover__actions">
               <Button variant="ghost" size="sm" onClick={onClear}>
                 Clear all

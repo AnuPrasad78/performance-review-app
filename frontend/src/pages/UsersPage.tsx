@@ -7,23 +7,11 @@ import { useAdminStore } from '../state/AdminContext'
 import { fetchEmployeeFacets, fetchRosterCsvExport } from '../lib/api'
 import { saveCsvBlob } from '../lib/csvDownload'
 import { COMPLETION_FILTERS } from '../lib/reviewStatusStore'
-import type { RosterFacets, RosterQuery, RosterSortField, SortOrder } from '../lib/types'
+import type { RosterFacets, RosterQuery, RosterSortField } from '../lib/types'
 
 type UsersQuery = RosterQuery & { page: number }
 
 const EMPTY_QUERY: UsersQuery = { page: 1 }
-
-/** Sort dropdown labels reuse the table's column words; values are the wire
-    words the backend whitelists. */
-const SORT_FIELDS: readonly { value: RosterSortField; label: string }[] = [
-  { value: 'employeeName', label: 'Name' },
-  { value: 'employeeId', label: 'Employee ID' },
-  { value: 'email', label: 'Email' },
-  { value: 'designation', label: 'Designation' },
-  { value: 'location', label: 'Location' },
-  { value: 'reportingManager', label: 'Reporting manager' },
-  { value: 'employmentStatus', label: 'Status' },
-]
 
 /** Any-option + one entry per whole-roster value (once facets arrive). */
 const withAny = (label: string, values: string[] | null) => [
@@ -81,24 +69,51 @@ export function UsersPage() {
     updateQuery({ [key]: value || undefined } as Partial<RosterQuery>)
   }
 
+  /** The column headers carry sorting: a first click sorts ascending, a
+      second reverses; a new column starts over at ascending. It flips on the
+      queued state, not the last render's — two quick clicks must still see
+      the first's order. */
+  function chooseSort(sortKey: string): void {
+    setQuery((current) => ({
+      ...current,
+      sortBy: sortKey as RosterSortField,
+      sortOrder: current.sortBy === sortKey && current.sortOrder === 'asc' ? 'desc' : 'asc',
+      page: 1,
+    }))
+  }
+
+  /** The columns that exist in the roster table narrow at their own headers:
+      the key is the column's key, the value the query word it feeds. Org and
+      form-status have no column, so they stay in the toolbar pop-up. */
+  const columnFilters = {
+    designation: {
+      value: query.designation ?? '',
+      options: withAny('Any', facets?.designations ?? null),
+      onChange: (designation: string) => updateQuery({ designation: designation || undefined }),
+    },
+    location: {
+      value: query.location ?? '',
+      options: withAny('Any', facets?.locations ?? null),
+      onChange: (location: string) => updateQuery({ location: location || undefined }),
+    },
+    reportingManager: {
+      value: query.reportingManager ?? '',
+      options: withAny('Any', facets?.reportingManagers ?? null),
+      onChange: (reportingManager: string) => updateQuery({ reportingManager: reportingManager || undefined }),
+    },
+    status: {
+      value: query.employmentStatus ?? '',
+      options: withAny('Any', facets?.employmentStatuses ?? null),
+      onChange: (employmentStatus: string) => updateQuery({ employmentStatus: employmentStatus || undefined }),
+    },
+  }
+
   const filters: readonly TableFilterSpec[] = [
     {
       key: 'status',
       label: 'Form status',
       options: COMPLETION_FILTERS,
       value: query.status ?? 'all',
-    },
-    {
-      key: 'designation',
-      label: 'Designation',
-      options: withAny('Any', facets?.designations ?? null),
-      value: query.designation ?? '',
-    },
-    {
-      key: 'location',
-      label: 'Location',
-      options: withAny('Any', facets?.locations ?? null),
-      value: query.location ?? '',
     },
     {
       key: 'org',
@@ -111,18 +126,6 @@ export function UsersPage() {
       label: 'Business unit',
       options: withAny('Any', facets?.businessUnits ?? null),
       value: query.businessUnit ?? '',
-    },
-    {
-      key: 'reportingManager',
-      label: 'Reporting manager',
-      options: withAny('Any', facets?.reportingManagers ?? null),
-      value: query.reportingManager ?? '',
-    },
-    {
-      key: 'employmentStatus',
-      label: 'Status',
-      options: withAny('Any', facets?.employmentStatuses ?? null),
-      value: query.employmentStatus ?? '',
     },
   ]
 
@@ -150,17 +153,18 @@ export function UsersPage() {
               : 'No employees loaded. Upload a roster CSV to get started.'
           }
           onDownloadCsv={downloadCsv}
+          sort={{
+            sortBy: query.sortBy ?? 'employeeName',
+            sortOrder: query.sortOrder ?? 'asc',
+            onChange: chooseSort,
+          }}
+          columnFilters={columnFilters}
           tableControls={
             <TableQueryControls
               search={query.search ?? ''}
               onSearchChange={(search) => updateQuery({ search: search || undefined })}
               filters={filters}
               onFilterChange={chooseFilter}
-              sortFields={SORT_FIELDS}
-              sortField={query.sortBy ?? 'employeeName'}
-              sortOrder={query.sortOrder ?? 'asc'}
-              onSortFieldChange={(sortBy) => updateQuery({ sortBy: sortBy as RosterSortField })}
-              onSortOrderChange={(orderBy) => updateQuery({ sortOrder: orderBy as SortOrder })}
               onClear={() => setQuery(EMPTY_QUERY)}
             />
           }

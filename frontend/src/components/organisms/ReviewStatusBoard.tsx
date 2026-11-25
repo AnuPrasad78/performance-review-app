@@ -1,6 +1,7 @@
-import type { ReactNode } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import { Card } from '../atoms/Card'
-import { DataTable, type DataTableColumn } from '../molecules/DataTable'
+import { DataTable, type DataTableColumn, type DataTableSort } from '../molecules/DataTable'
+import { ColumnFilterMenu, type FilterMenuControl } from '../molecules/ColumnFilterMenu'
 import { Pager } from '../molecules/Pager'
 import { PieChart } from '../molecules/PieChart'
 import { ReviewStatusPill } from '../molecules/ReviewStatusPill'
@@ -19,19 +20,6 @@ const STATUS_COLORS: Record<ReviewStatus, string> = {
   submitted: 'var(--teal-deep)',
 }
 
-const columns: readonly DataTableColumn<EmployeeReviewStatus>[] = [
-  { key: 'name', header: 'Name', cell: (entry) => entry.employee.name },
-  { key: 'email', header: 'Email', cell: (entry) => entry.employee.email, hideOnMobile: true },
-  { key: 'org', header: 'Org', cell: (entry) => entry.employee.org, hideOnMobile: true },
-  {
-    key: 'reportingManager',
-    header: 'Reporting manager',
-    cell: (entry) => entry.employee.reportingManager,
-    hideOnMobile: true,
-  },
-  { key: 'status', header: 'Form status', cell: (entry) => <ReviewStatusPill status={entry.status} /> },
-]
-
 function percentOf(count: number, total: number): string {
   return total === 0 ? '0.0' : ((count / total) * 100).toFixed(1)
 }
@@ -46,9 +34,17 @@ export interface ReviewStatusBoardProps {
   page: number
   pageCount: number
   onPageChange: (page: number) => void
-  /** The page's composed search/filter/sort controls, slotted into the
-      table toolbar — the status noun they carry replaced the chips row. */
+  /** The page's composed search/filter controls, slotted into the table
+      toolbar — the status noun they carry replaced the chips row. */
   tableControls?: ReactNode
+  /** Click-to-sort headers; the keys are this page's wire sort words. */
+  sort?: DataTableSort
+  /** Status, location, and reporting-manager narrowing, chosen at their own
+      column headers instead of the toolbar pop-up. */
+  statusFilter?: FilterMenuControl
+  orgFilter?: FilterMenuControl
+  locationFilter?: FilterMenuControl
+  managerFilter?: FilterMenuControl
 }
 
 export function ReviewStatusBoard({
@@ -59,10 +55,55 @@ export function ReviewStatusBoard({
   pageCount,
   onPageChange,
   tableControls,
+  sort,
+  statusFilter,
+  orgFilter,
+  locationFilter,
+  managerFilter,
 }: ReviewStatusBoardProps) {
   const counts = displayCounts(statusCounts)
   const rosterTotal = counts.not_started + counts.in_progress + counts.submitted
   const completed = counts.submitted
+
+  const headerAdornments = useMemo(() => {
+    const adornments: Record<string, ReactNode> = {}
+    if (statusFilter !== undefined) {
+      adornments.status = <ColumnFilterMenu label="Form status" control={statusFilter} />
+    }
+    if (orgFilter !== undefined) {
+      adornments.org = <ColumnFilterMenu label="Org" control={orgFilter} />
+    }
+    if (locationFilter !== undefined) {
+      adornments.location = <ColumnFilterMenu label="Location" control={locationFilter} />
+    }
+    if (managerFilter !== undefined) {
+      adornments.reportingManager = <ColumnFilterMenu label="Reporting manager" control={managerFilter} />
+    }
+    return adornments
+  }, [statusFilter, orgFilter, locationFilter, managerFilter])
+
+  /** Sort keys are the wire words the backend whitelists; `status` orders by
+      the server's workflow rank. */
+  const columns: readonly DataTableColumn<EmployeeReviewStatus>[] = [
+    { key: 'name', header: 'Name', sortKey: 'employeeName', cell: (entry) => entry.employee.name },
+    { key: 'email', header: 'Email', sortKey: 'email', cell: (entry) => entry.employee.email, hideOnMobile: true },
+    { key: 'org', header: 'Org', sortKey: 'org', cell: (entry) => entry.employee.org, hideOnMobile: true },
+    {
+      key: 'location',
+      header: 'Location',
+      sortKey: 'location',
+      cell: (entry) => entry.employee.location,
+      hideOnMobile: true,
+    },
+    {
+      key: 'reportingManager',
+      header: 'Reporting manager',
+      sortKey: 'reportingManager',
+      cell: (entry) => entry.employee.reportingManager,
+      hideOnMobile: true,
+    },
+    { key: 'status', header: 'Form status', sortKey: 'status', cell: (entry) => <ReviewStatusPill status={entry.status} /> },
+  ]
 
   return (
     <>
@@ -119,6 +160,8 @@ export function ReviewStatusBoard({
           columns={columns}
           rows={entries}
           rowKey={(entry) => entry.employee.email}
+          sort={sort}
+          headerAdornments={headerAdornments}
           emptyMessage={
             rosterTotal === 0
               ? 'No employees loaded. Upload a roster CSV on the Employee data upload page.'

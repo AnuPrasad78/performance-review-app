@@ -1,4 +1,14 @@
 import type { KeyboardEvent, ReactNode } from 'react'
+import { Icon } from '../atoms/Icon'
+
+export interface DataTableSort {
+  /** The wire word the read currently sorts by and its direction. */
+  sortBy: string
+  sortOrder: 'asc' | 'desc'
+  /** A sortable header click sends its column's sortKey; the owner decides
+      the next room (asc -> desc for the same key, asc for a new one). */
+  onChange: (sortKey: string) => void
+}
 
 export interface DataTableColumn<Row> {
   key: string
@@ -6,6 +16,9 @@ export interface DataTableColumn<Row> {
   cell: (row: Row) => ReactNode
   /** Secondary columns drop out in phone view so the table stays readable. */
   hideOnMobile?: boolean
+  /** The wire sort word this header toggles; the column is sortable only
+      while the table carries a `sort` prop. */
+  sortKey?: string
 }
 
 export interface DataTableProps<Row> {
@@ -16,6 +29,11 @@ export interface DataTableProps<Row> {
   /** Reveals this table's row content elsewhere; rows stay keyboard-reachable. */
   onRowClick?: (row: Row) => void
   activeRowKey?: string | null
+  /** Header sort state; omitted means every header stays plain text. */
+  sort?: DataTableSort
+  /** One node per column key rendered beside the header text — a column
+      filter menu lives here when a table needs one. */
+  headerAdornments?: Readonly<Record<string, ReactNode>>
 }
 
 export function DataTable<Row>({
@@ -25,6 +43,8 @@ export function DataTable<Row>({
   emptyMessage,
   onRowClick,
   activeRowKey = null,
+  sort,
+  headerAdornments,
 }: DataTableProps<Row>) {
   const selectable = onRowClick !== undefined
 
@@ -36,14 +56,40 @@ export function DataTable<Row>({
   }
 
   return (
-    <table className="table">
-      <thead>
-        <tr>
-          {columns.map((column) => (
-            <th key={column.key} scope="col" className={column.hideOnMobile ? 'col-desktop' : undefined}>
-              {column.header}
-            </th>
-          ))}
+    <div className="table-scroll">
+      <table className="table">
+        <thead>
+          <tr>
+            {columns.map((column) => {
+            const sortable = sort !== undefined && column.sortKey !== undefined
+            const active = sortable && sort.sortBy === column.sortKey
+            const adornment = headerAdornments?.[column.key]
+            return (
+              <th
+                key={column.key}
+                scope="col"
+                className={column.hideOnMobile ? 'col-desktop' : undefined}
+                aria-sort={active ? (sort.sortOrder === 'asc' ? 'ascending' : 'descending') : undefined}
+              >
+                {sortable ? (
+                  <button
+                    type="button"
+                    className="table__sort"
+                    aria-label={`Sort by ${column.header}`}
+                    onClick={() => sort.onChange(column.sortKey as string)}
+                  >
+                    {column.header}
+                    {active ? (
+                      <Icon name={sort.sortOrder === 'asc' ? 'chevron-up' : 'chevron-down'} size={11} />
+                    ) : null}
+                  </button>
+                ) : (
+                  column.header
+                )}
+                {adornment ?? null}
+              </th>
+            )
+          })}
         </tr>
       </thead>
       <tbody>
@@ -80,6 +126,7 @@ export function DataTable<Row>({
           })
         )}
       </tbody>
-    </table>
+      </table>
+    </div>
   )
 }

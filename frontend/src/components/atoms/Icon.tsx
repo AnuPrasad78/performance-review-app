@@ -13,6 +13,8 @@ export type IconName =
   | 'lock'
   | 'check'
   | 'chevron-down'
+  | 'chevron-up'
+  | 'funnel'
   | 'user'
   | 'plus'
   | 'minus'
@@ -32,6 +34,8 @@ const GLYPHS: Record<IconName, ReactNode> = {
   ),
   close: <path d="M18 6 6 18M6 6l12 12" />,
   'chevron-down': <path d="m6 9 6 6 6-6" />,
+  'chevron-up': <path d="m6 15 6-6 6 6" />,
+  funnel: <path d="M3 5h18l-7 8.2V19l-4 2.4v-8.2L3 5Z" />,
   check: <path d="m5 12.5 4.5 4.5L19 7.5" />,
   plus: <path d="M12 5v14M5 12h14" />,
   minus: <path d="M5 12h14" />,

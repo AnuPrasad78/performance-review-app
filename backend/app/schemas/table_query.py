@@ -30,7 +30,7 @@ RosterSortKey = Literal[
     "employmentStatus",
 ]
 
-BoardStatusFilter = Literal["all", "pending", "completed"]
+BoardStatusFilter = Literal["all", "pending", "completed", "not_started"]
 
 BoardSortKey = Literal[
     "employeeName",

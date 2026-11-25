@@ -4,7 +4,7 @@ import { TableQueryControls, type TableFilterSpec } from '../components/molecule
 import { AdminTemplate } from '../components/templates/AdminTemplate'
 import { fetchEmployeeFacets, fetchReviewBoard } from '../lib/api'
 import { COMPLETION_FILTERS, type CompletionFilter } from '../lib/reviewStatusStore'
-import type { RosterFacets, RosterQuery, RosterSortField, ReviewBoardPage, SortOrder } from '../lib/types'
+import type { RosterFacets, RosterQuery, RosterSortField, ReviewBoardPage } from '../lib/types'
 
 interface BoardQuery extends RosterQuery {
   status: CompletionFilter
@@ -18,16 +18,6 @@ interface BoardState {
 }
 
 const EMPTY_QUERY: BoardQuery = { status: 'pending', page: 1 }
-
-/** Sort labels reuse the table's column words; values are the wire words the
-    backend whitelists — `status` orders by the server's workflow rank. */
-const SORT_FIELDS: readonly { value: RosterSortField | 'status'; label: string }[] = [
-  { value: 'employeeName', label: 'Name' },
-  { value: 'email', label: 'Email' },
-  { value: 'org', label: 'Org' },
-  { value: 'reportingManager', label: 'Reporting manager' },
-  { value: 'status', label: 'Form status' },
-]
 
 const withAny = (label: string, values: string[] | null) => [
   { value: '', label },
@@ -97,30 +87,28 @@ export function ReviewStatusPage() {
     updateQuery({ [key]: value || undefined } as Omit<Partial<BoardQuery>, 'page'>)
   }
 
+  /** The column headers carry sorting: a first click sorts ascending, a
+      second reverses; a new column starts over at ascending. It flips on the
+      queued state, not the last render's — two quick clicks must still see
+      the first's order. */
+  function chooseSort(sortKey: string): void {
+    setState((current) => ({
+      ...current,
+      query: {
+        ...current.query,
+        sortBy: sortKey as RosterSortField,
+        sortOrder: current.query.sortBy === sortKey && current.query.sortOrder === 'asc' ? 'desc' : 'asc',
+        page: 1,
+      },
+    }))
+  }
+
   const filters: readonly TableFilterSpec[] = [
-    {
-      key: 'status',
-      label: 'Form status',
-      options: COMPLETION_FILTERS,
-      value: query.status,
-    },
     {
       key: 'designation',
       label: 'Designation',
       options: withAny('Any', facets?.designations ?? null),
       value: query.designation ?? '',
-    },
-    {
-      key: 'location',
-      label: 'Location',
-      options: withAny('Any', facets?.locations ?? null),
-      value: query.location ?? '',
-    },
-    {
-      key: 'org',
-      label: 'Org',
-      options: withAny('Any', facets?.orgs ?? null),
-      value: query.org ?? '',
     },
     {
       key: 'businessUnit',
@@ -150,17 +138,37 @@ export function ReviewStatusPage() {
           page={query.page}
           pageCount={pageCount}
           onPageChange={(page) => setState((current) => ({ ...current, query: { ...current.query, page } }))}
+          sort={{
+            sortBy: query.sortBy ?? 'employeeName',
+            sortOrder: query.sortOrder ?? 'asc',
+            onChange: chooseSort,
+          }}
+          statusFilter={{
+            value: query.status,
+            options: COMPLETION_FILTERS,
+            onChange: (status) => updateQuery({ status: status as CompletionFilter }),
+          }}
+          orgFilter={{
+            value: query.org ?? '',
+            options: withAny('Any', facets?.orgs ?? null),
+            onChange: (org) => updateQuery({ org: org || undefined }),
+          }}
+          locationFilter={{
+            value: query.location ?? '',
+            options: withAny('Any', facets?.locations ?? null),
+            onChange: (location) => updateQuery({ location: location || undefined }),
+          }}
+          managerFilter={{
+            value: query.reportingManager ?? '',
+            options: withAny('Any', facets?.reportingManagers ?? null),
+            onChange: (reportingManager) => updateQuery({ reportingManager: reportingManager || undefined }),
+          }}
           tableControls={
             <TableQueryControls
               search={query.search ?? ''}
               onSearchChange={(search) => updateQuery({ search: search || undefined })}
               filters={filters}
               onFilterChange={chooseFilter}
-              sortFields={SORT_FIELDS}
-              sortField={query.sortBy ?? 'employeeName'}
-              sortOrder={query.sortOrder ?? 'asc'}
-              onSortFieldChange={(sortBy) => updateQuery({ sortBy: sortBy as RosterSortField })}
-              onSortOrderChange={(orderBy) => updateQuery({ sortOrder: orderBy as SortOrder })}
               onClear={() => setState((current) => ({ ...current, query: EMPTY_QUERY }))}
             />
           }

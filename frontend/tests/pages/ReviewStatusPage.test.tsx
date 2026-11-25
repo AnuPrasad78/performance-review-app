@@ -135,15 +135,123 @@ describe('ReviewStatusPage', () => {
     expect(fetchReviewBoardMock).toHaveBeenLastCalledWith({ page: 2, status: 'pending' })
     expect(await screen.findByText('Cara Fernandes')).toBeInTheDocument()
 
-    // The status filter moved into the pop-up: switching to All rides it,
-    // and the query change hands the read back to page one.
+    // The status filter hangs off the Form status column's funnel now:
+    // switching to All rides it, and the query change hands the read back
+    // to page one.
     fetchReviewBoardMock.mockResolvedValue({ ok: true, board: { ...PAGE_TWO, page: 1, reviews: PAGE_ONE.reviews } })
-    await user.click(screen.getByRole('button', { name: /Search, filter and sort/ }))
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Filter by Form status' }), 'all')
+    await user.click(screen.getByRole('button', { name: 'Filter by Form status' }))
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'Filter by Form status' })).getByRole('button', { name: 'All' }),
+    )
     await waitFor(() => {
       expect(fetchReviewBoardMock).toHaveBeenLastCalledWith({ page: 1, status: 'all' })
     })
     expect(await screen.findByText('Bilal Khan')).toBeInTheDocument()
+  })
+
+  it('click-to-sort headers toggle the wire order on the board call', async () => {
+    render(page())
+    const user = userEvent.setup()
+    await screen.findByRole('table')
+
+    await user.click(screen.getByRole('button', { name: 'Sort by Reporting manager' }))
+    await waitFor(() => {
+      expect(fetchReviewBoardMock).toHaveBeenLastCalledWith({
+        page: 1,
+        status: 'pending',
+        sortBy: 'reportingManager',
+        sortOrder: 'asc',
+      })
+    })
+
+    // The same header's second click reverses the direction.
+    await user.click(screen.getByRole('button', { name: 'Sort by Reporting manager' }))
+    await waitFor(() => {
+      expect(fetchReviewBoardMock).toHaveBeenLastCalledWith({
+        page: 1,
+        status: 'pending',
+        sortBy: 'reportingManager',
+        sortOrder: 'desc',
+      })
+    })
+  })
+
+  it('the active sort announces itself on the sorted column header', async () => {
+    render(page())
+    const user = userEvent.setup()
+    await screen.findByRole('table')
+
+    const nameHeader = screen.getByRole('button', { name: 'Sort by Name' }).closest('th') as HTMLElement
+    expect(nameHeader).toHaveAttribute('aria-sort', 'ascending')
+
+    await user.click(screen.getByRole('button', { name: 'Sort by Name' }))
+    // Barrier between the clicks: the first click's read is committed when
+    // its wire answer lands, so the second click's toggle reads fresh order.
+    await waitFor(() => {
+      expect(fetchReviewBoardMock).toHaveBeenLastCalledWith({
+        page: 1,
+        status: 'pending',
+        sortBy: 'employeeName',
+        sortOrder: 'asc',
+      })
+    })
+    await user.click(screen.getByRole('button', { name: 'Sort by Name' }))
+    await waitFor(() => {
+      expect(nameHeader).toHaveAttribute('aria-sort', 'descending')
+    })
+  })
+
+  it('the Form status funnel offers the exact not-started stage', async () => {
+    render(page())
+    const user = userEvent.setup()
+    await screen.findByRole('table')
+
+    await user.click(screen.getByRole('button', { name: 'Filter by Form status' }))
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'Filter by Form status' })).getByRole('button', { name: 'Not started' }),
+    )
+
+    await waitFor(() => {
+      expect(fetchReviewBoardMock).toHaveBeenLastCalledWith({ page: 1, status: 'not_started' })
+    })
+  })
+
+  it('the Location column funnel narrows the board without the pop-up', async () => {
+    render(page())
+    const user = userEvent.setup()
+    await screen.findByRole('table')
+
+    await user.click(screen.getByRole('button', { name: 'Filter by Location' }))
+    const dialog = screen.getByRole('dialog', { name: 'Filter by Location' })
+    await user.click(within(dialog).getByRole('button', { name: 'India' }))
+
+    await waitFor(() => {
+      expect(fetchReviewBoardMock).toHaveBeenLastCalledWith({
+        page: 1,
+        status: 'pending',
+        location: 'India',
+      })
+    })
+    // The choice folds its own pop-up away — no Apply step.
+    expect(screen.queryByRole('dialog', { name: 'Filter by Location' })).not.toBeInTheDocument()
+  })
+
+  it('the reporting manager funnel narrows the board from the facet list', async () => {
+    render(page())
+    const user = userEvent.setup()
+    await screen.findByRole('table')
+
+    await user.click(screen.getByRole('button', { name: 'Filter by Reporting manager' }))
+    const dialog = screen.getByRole('dialog', { name: 'Filter by Reporting manager' })
+    await user.click(within(dialog).getByRole('button', { name: 'Priya Raghavan' }))
+
+    await waitFor(() => {
+      expect(fetchReviewBoardMock).toHaveBeenLastCalledWith({
+        page: 1,
+        status: 'pending',
+        reportingManager: 'Priya Raghavan',
+      })
+    })
   })
 
   it('search and the org filter compose into the one board call', async () => {
@@ -151,12 +259,18 @@ describe('ReviewStatusPage', () => {
     const user = userEvent.setup()
     await screen.findByRole('table')
 
-    await user.click(screen.getByRole('button', { name: /Search, filter and sort/ }))
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Filter by Org' }), 'Quality')
+    await user.click(screen.getByRole('button', { name: 'Filter by Org' }))
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'Filter by Org' })).getByRole('button', { name: 'Quality' }),
+    )
 
     await waitFor(() => {
       expect(fetchReviewBoardMock).toHaveBeenLastCalledWith({ page: 1, status: 'pending', org: 'Quality' })
     })
+
+    // Search lives in the toolbar pop-up; the org word came from the column
+    // funnel — the one board call composes both.
+    await user.click(screen.getByRole('button', { name: /Search, filter and sort/ }))
     await user.type(screen.getByRole('searchbox', { name: 'Search by employee name or designation' }), 'ash')
     await waitFor(() => {
       expect(fetchReviewBoardMock).toHaveBeenLastCalledWith({ page: 1, status: 'pending', org: 'Quality', search: 'ash' })

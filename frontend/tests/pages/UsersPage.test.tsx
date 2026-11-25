@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, vi } from 'vitest'
 import { AdminStoreProvider } from '../../src/state/AdminContext'
@@ -177,20 +177,22 @@ describe('UsersPage', () => {
     })
   })
 
-  it('sort choices land on the wire untouched from the pop-up', async () => {
+  it('sort choices ride the column headers onto the wire', async () => {
     fetchEmployeesMock.mockResolvedValue(pageResult([ASHA], 1))
     render(page())
     const user = userEvent.setup()
     await screen.findByText('Roster · 1 employee')
 
-    await openQueryControls(user)
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Sort by' }), 'employeeName')
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Sort direction' }), 'desc')
+    // First click of a new column starts ascending…
+    await user.click(screen.getByRole('button', { name: 'Sort by Email' }))
+    await waitFor(() => {
+      expect(fetchEmployeesMock).toHaveBeenLastCalledWith({ page: 1, sortBy: 'email', sortOrder: 'asc' })
+    })
 
-    expect(fetchEmployeesMock).toHaveBeenLastCalledWith({
-      page: 1,
-      sortBy: 'employeeName',
-      sortOrder: 'desc',
+    // …and the same header's second click reverses it.
+    await user.click(screen.getByRole('button', { name: 'Sort by Email' }))
+    await waitFor(() => {
+      expect(fetchEmployeesMock).toHaveBeenLastCalledWith({ page: 1, sortBy: 'email', sortOrder: 'desc' })
     })
   })
 
@@ -249,6 +251,34 @@ describe('UsersPage', () => {
     await user.selectOptions(screen.getByRole('combobox', { name: 'Filter by Business unit' }), 'Provider Solutions')
 
     expect(fetchEmployeesMock).toHaveBeenLastCalledWith({ page: 1, businessUnit: 'Provider Solutions' })
+  })
+
+  it('the Location column funnel narrows the roster without the pop-up', async () => {
+    fetchEmployeesMock.mockResolvedValue(pageResult([ASHA], 1))
+    render(page())
+    const user = userEvent.setup()
+    await screen.findByText('Roster · 1 employee')
+
+    await user.click(screen.getByRole('button', { name: 'Filter by Location' }))
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'Filter by Location' })).getByRole('button', { name: 'Singapore' }),
+    )
+
+    expect(fetchEmployeesMock).toHaveBeenLastCalledWith({ page: 1, location: 'Singapore' })
+  })
+
+  it('the Status column funnel narrows by the employment word', async () => {
+    fetchEmployeesMock.mockResolvedValue(pageResult([ASHA], 1))
+    render(page())
+    const user = userEvent.setup()
+    await screen.findByText('Roster · 1 employee')
+
+    await user.click(screen.getByRole('button', { name: 'Filter by Status' }))
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'Filter by Status' })).getByRole('button', { name: 'Active' }),
+    )
+
+    expect(fetchEmployeesMock).toHaveBeenLastCalledWith({ page: 1, employmentStatus: 'Active' })
   })
 
   it('downloads the server CSV of every matched employee, not the page slice', async () => {

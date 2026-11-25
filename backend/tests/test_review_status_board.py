@@ -101,6 +101,9 @@ def test_board_filter_narrows_rows_and_total_not_counts() -> None:
     completed = (
         client.get("/api/evaluations", params={"status": "completed"}, headers={"X-Stub-User": ASHA_EMAIL})
     ).json()
+    not_started = (
+        client.get("/api/evaluations", params={"status": "not_started"}, headers={"X-Stub-User": ASHA_EMAIL})
+    ).json()
 
     # Pending = the employee still owns the review: an in-progress form and
     # a roster row without any evaluation both qualify.
@@ -109,6 +112,9 @@ def test_board_filter_narrows_rows_and_total_not_counts() -> None:
         "not_started",
     ]
     assert pending["total"] == 2
+    # The exact stage noun picks the one started-but-incomplete member alone.
+    assert [entry["status"] for entry in not_started["reviews"]] == ["not_started"]
+    assert not_started["total"] == 1
     # Counts stay whole-roster whatever the filter narrows.
     assert pending["statusCounts"].get("manager_evaluation_completed") == 1
     assert [entry["status"] for entry in completed["reviews"]] == ["manager_evaluation_completed"]

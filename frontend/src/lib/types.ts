@@ -324,4 +324,4 @@ export type ReviewBoardResult =
   | { ok: false; detail: string; code: string }
 
 /** The board's server-side filter noun; the chips vocabulary renders it. */
-export type StatusFilter = 'all' | 'pending' | 'completed'
+export type StatusFilter = 'all' | 'pending' | 'completed' | 'not_started'
