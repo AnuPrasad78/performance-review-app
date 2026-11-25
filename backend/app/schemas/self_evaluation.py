@@ -83,6 +83,30 @@ class ReviewStatusList(ApiModel):
     status_counts: dict[str, int]
 
 
+class ReviewDocumentList(ApiModel):
+    """Every completed review document the composed roster query matches —
+    the bulk download's read; no paging, the admin asked for all of them."""
+
+    evaluations: list[SelfEvaluationOut]
+    total: int
+
+
+class CompletedReviewCount(ApiModel):
+    completed_count: int
+
+
+#: The Users page's form-status nouns (lib/reviewStatusStore's filter pair) —
+#: completed covers every past-submission word, pending reviews the employee
+#: still owns. One row's answer for the profile card, served with 200 always:
+#: an open review is a status, not an error.
+FormStatus = Literal["pending", "completed"]
+
+
+class FormStatusOut(ApiModel):
+    employee_id: str
+    form_status: FormStatus
+
+
 class SelfEvaluationPatch(ApiModel):
     """Presence-shaped partial update: a provided member replaces that field,
     omitted members stay untouched. Employee-owned fields only, so manager

@@ -323,5 +323,33 @@ export type ReviewBoardResult =
   | { ok: true; board: ReviewBoardPage }
   | { ok: false; detail: string; code: string }
 
+/** GET /api/evaluations/export/count: how many reviews the composed roster
+    query would download — the bulk button's live number. */
+export type ReviewCountResult =
+  | { ok: true; count: number }
+  | { ok: false; detail: string; code: string }
+
+/** GET /api/evaluations/export: every completed review document the composed
+    roster query matches, each in the /evaluations/me wire shape so one
+    parser covers the review board's downloads and the employee's own read. */
+export type ReviewDocumentsResult =
+  | { ok: true; reviews: readonly SelfEvaluationWire[] }
+  | { ok: false; detail: string; code: string }
+
+/** The Users page's form-status nouns (GET /api/evaluations/{id}/status) —
+    completed covers every past-submission word, pending the open ones. The
+    profile card reads it as its probe; the endpoint answers 200 either way. */
+export type FormStatus = 'pending' | 'completed'
+
+export type FormStatusResult =
+  | { ok: true; formStatus: FormStatus }
+  | { ok: false; detail: string; code: string }
+
+/** PATCH /api/employees/{id}: the profile card's employment-status flip —
+    the stored roster row comes back, already re-striped. */
+export type EmployeeStatusPatchResult =
+  | { ok: true; employee: Employee }
+  | { ok: false; detail: string; code: string }
+
 /** The board's server-side filter noun; the chips vocabulary renders it. */
 export type StatusFilter = 'all' | 'pending' | 'completed' | 'not_started'

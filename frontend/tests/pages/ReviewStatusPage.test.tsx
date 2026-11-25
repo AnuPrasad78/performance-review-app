@@ -5,15 +5,27 @@ import { AdminStoreProvider } from '../../src/state/AdminContext'
 import { ReviewStatusPage } from '../../src/pages/ReviewStatusPage'
 import type { ReviewBoardPage, ReviewStatusWire } from '../../src/lib/types'
 
-const { fetchReviewBoardMock, fetchEmployeeFacetsMock } = vi.hoisted(() => ({
+const {
+  fetchReviewBoardMock,
+  fetchEmployeeFacetsMock,
+  fetchCompletedCountMock,
+  downloadCompletedReviewZipMock,
+} = vi.hoisted(() => ({
   fetchReviewBoardMock: vi.fn(),
   fetchEmployeeFacetsMock: vi.fn(),
+  fetchCompletedCountMock: vi.fn(),
+  downloadCompletedReviewZipMock: vi.fn(),
 }))
 vi.mock('../../src/lib/api', async (importOriginal) => ({
   ...(await importOriginal()),
   fetchReviewBoard: fetchReviewBoardMock,
   fetchEmployeeFacets: fetchEmployeeFacetsMock,
+  fetchCompletedCount: fetchCompletedCountMock,
   setApiIdentity: vi.fn(),
+}))
+vi.mock('../../src/lib/reviewDownloads', () => ({
+  downloadCompletedReviewZip: downloadCompletedReviewZipMock,
+  saveReviewPdf: vi.fn(),
 }))
 
 function wireReview(email: string, name: string, status: ReviewStatusWire['status'], index: number): ReviewStatusWire {
@@ -89,6 +101,10 @@ beforeEach(() => {
     ok: true,
     facets: { designations: ['Engineer'], locations: ['India'], orgs: ['Delivery', 'Quality'], businessUnits: ['Payer Digital'], reportingManagers: ['Priya Raghavan'], employmentStatuses: ['Active'] },
   })
+  fetchCompletedCountMock.mockReset()
+  fetchCompletedCountMock.mockResolvedValue({ ok: true, count: 2 })
+  downloadCompletedReviewZipMock.mockReset()
+  downloadCompletedReviewZipMock.mockResolvedValue({ ok: true, count: 2 })
 })
 
 describe('ReviewStatusPage', () => {
@@ -299,6 +315,93 @@ describe('ReviewStatusPage', () => {
     render(page())
 
     expect(await screen.findByText('Could not reach the review API.')).toBeInTheDocument()
+  })
+
+  it('announces the matched completed count and streams the ZIP on click', async () => {
+    render(page())
+    const user = userEvent.setup()
+    await screen.findByRole('table')
+
+    const button = await screen.findByRole('button', { name: 'Download submitted reviews (2)' })
+    await user.click(button)
+
+    await waitFor(() => {
+      expect(downloadCompletedReviewZipMock).toHaveBeenCalledWith(
+        expect.objectContaining({ page: 1, status: 'pending' }),
+      )
+    })
+  })
+
+  it('the completed-count read follows the composed roster filters, not the status word', async () => {
+    render(page())
+    const user = userEvent.setup()
+    await screen.findByRole('table')
+
+    expect(fetchCompletedCountMock).toHaveBeenCalledWith({ page: 1, status: 'pending' })
+
+    await user.click(screen.getByRole('button', { name: 'Filter by Location' }))
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'Filter by Location' })).getByRole('button', { name: 'India' }),
+    )
+
+    await waitFor(() => {
+      expect(fetchCompletedCountMock).toHaveBeenLastCalledWith({
+        page: 1,
+        status: 'pending',
+        location: 'India',
+      })
+    })
+  })
+
+  it('a failed count read stays disabled until the next query, and a failed ZIP becomes a toast', async () => {
+    fetchCompletedCountMock.mockResolvedValue({ ok: true, count: 0 })
+    render(page())
+    const user = userEvent.setup()
+
+    expect(
+      await screen.findByRole('button', { name: 'Download submitted reviews' }),
+    ).toBeDisabled()
+
+    // Any query change re-reads the count; a real number arms the trigger.
+    fetchCompletedCountMock.mockResolvedValue({ ok: true, count: 3 })
+    await user.click(screen.getByRole('button', { name: 'Filter by Location' }))
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'Filter by Location' })).getByRole('button', { name: 'India' }),
+    )
+    const armed = await screen.findByRole('button', { name: 'Download submitted reviews (3)' })
+
+    downloadCompletedReviewZipMock.mockResolvedValue({ ok: false, detail: 'The ZIP failed.', code: 'request_failed' })
+    await user.click(armed)
+
+    expect(await screen.findByRole('status')).toHaveTextContent('The ZIP failed.')
+  })
+
+  it("a submitted row's card carries Download review, an open row's does not", async () => {
+    render(page())
+    const user = userEvent.setup()
+    await screen.findByRole('table')
+
+    // Hours the board's own pill decides: a pending row hides the button.
+    await user.click(screen.getByText('Bilal Khan'))
+    await screen.findByRole('dialog', { name: 'More about Bilal Khan' })
+    expect(screen.queryByRole('button', { name: 'Download review' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Close' }))
+
+    // PAGE_ONE's table has no submitted row... but the board serves one once
+    // the pending filter drops: switch to All, where Cara's row reads submitted.
+    fetchReviewBoardMock.mockResolvedValue({
+      ok: true,
+      board: { ...PAGE_ONE, page: 1, total: 2, reviews: PAGE_TWO.reviews },
+    })
+    await user.click(screen.getByRole('button', { name: 'Filter by Form status' }))
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'Filter by Form status' })).getByRole('button', { name: 'All' }),
+    )
+    await screen.findByText('Cara Fernandes')
+
+    await user.click(screen.getByText('Cara Fernandes'))
+    const dialog = await screen.findByRole('dialog', { name: 'More about Cara Fernandes' })
+    expect(within(dialog).getByRole('button', { name: 'Download review' })).toBeInTheDocument()
   })
 
   it('shows the empty-roster next move when no employees are loaded', async () => {

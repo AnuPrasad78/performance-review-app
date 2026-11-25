@@ -113,14 +113,14 @@ describe('UploadPage', () => {
       .mockResolvedValueOnce({ ok: true, employees: [PRIYA], total: 1, page: 1, pageSize: 10 })
     render(page())
 
-    expect(await screen.findByText('ROSTER NOW · 0 EMPLOYEES')).toBeInTheDocument()
+    expect(await screen.findByText('CURRENT ROSTER · 0 EMPLOYEES')).toBeInTheDocument()
     await uploadCsv()
 
     expect(await screen.findByRole('status', {}, { timeout: 3000 })).toHaveTextContent(
       'Roster updated: 1 employee added.',
     )
     expect(applyRosterImportMock).toHaveBeenCalledWith({ inserts: [PRIYA], updates: [] })
-    expect(await screen.findByText('ROSTER NOW · 1 EMPLOYEE')).toBeInTheDocument()
+    expect(await screen.findByText('CURRENT ROSTER · 1 EMPLOYEE')).toBeInTheDocument()
   })
 
   it('pops every validation error in a dialog and changes nothing', async () => {

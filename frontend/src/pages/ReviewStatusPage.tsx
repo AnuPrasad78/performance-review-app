@@ -1,10 +1,20 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ReviewStatusBoard } from '../components/organisms/ReviewStatusBoard'
 import { TableQueryControls, type TableFilterSpec } from '../components/molecules/TableQueryControls'
+import { ReviewDownloadsButton } from '../components/molecules/ReviewDownloadsButton'
 import { AdminTemplate } from '../components/templates/AdminTemplate'
-import { fetchEmployeeFacets, fetchReviewBoard } from '../lib/api'
+import { useCompletedReviews } from '../hooks/useCompletedReviews'
+import { type ProfileReviewActions } from '../hooks/useProfileReview'
+import { fetchEmployeeFacets, fetchEmployeeEvaluation, fetchReviewBoard } from '../lib/api'
+import { saveReviewPdf } from '../lib/reviewDownloads'
 import { COMPLETION_FILTERS, type CompletionFilter } from '../lib/reviewStatusStore'
-import type { RosterFacets, RosterQuery, RosterSortField, ReviewBoardPage } from '../lib/types'
+import { useAdminStore } from '../state/AdminContext'
+import type {
+  RosterFacets,
+  RosterQuery,
+  RosterSortField,
+  ReviewBoardPage,
+} from '../lib/types'
 
 interface BoardQuery extends RosterQuery {
   status: CompletionFilter
@@ -30,7 +40,33 @@ const withAny = (label: string, values: string[] | null) => [
 export function ReviewStatusPage() {
   const [state, setState] = useState<BoardState>({ query: EMPTY_QUERY, board: null, error: null })
   const [facets, setFacets] = useState<RosterFacets | null>(null)
+  const { notify } = useAdminStore()
   const { query, board, error } = state
+  const completedReviews = useCompletedReviews(query)
+
+  /** The bulk ZIP of completed review PDFs under the composed query — the
+      page turns the shared hook's failure word into the toast. */
+  async function downloadCompletedZips(): Promise<void> {
+    const result = await completedReviews.download()
+    if (!result.ok) notify('error', result.detail)
+  }
+
+  /** One employee's review document: the page reads and saves a single
+      profile card's PDF through the shared review downloads seam; the card
+      shows the download only when the row's pill already reads submitted. */
+  const reviewActions = useMemo<ProfileReviewActions>(
+    () => ({
+      download: async (employee) => {
+        const result = await fetchEmployeeEvaluation(employee.employeeId)
+        if (result.ok) {
+          saveReviewPdf(result.data)
+          return
+        }
+        notify('error', result.detail)
+      },
+    }),
+    [notify],
+  )
 
   // The filter dropdowns serve whole-roster values once; they never change
   // with the query, so they fetch only on mount.
@@ -122,7 +158,7 @@ export function ReviewStatusPage() {
     <AdminTemplate
       eyebrow="Admin · Reviews"
       title="Performance Review Progress"
-      lead="Completion status of every employee's review form for this cycle. Search, filter and sort the roster from Search & filter."
+      lead="Track every employee's review progress for this cycle. Search, filter, and sort employees using Search & Filter."
     >
       {error !== null ? (
         <p style={{ color: 'var(--red-deep)' }}>{error}</p>
@@ -163,6 +199,14 @@ export function ReviewStatusPage() {
             options: withAny('Any', facets?.reportingManagers ?? null),
             onChange: (reportingManager) => updateQuery({ reportingManager: reportingManager || undefined }),
           }}
+          tableActions={
+            <ReviewDownloadsButton
+              count={completedReviews.count}
+              busy={completedReviews.busy}
+              onDownload={() => void downloadCompletedZips()}
+            />
+          }
+          review={reviewActions}
           tableControls={
             <TableQueryControls
               search={query.search ?? ''}

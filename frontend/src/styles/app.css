@@ -590,6 +590,10 @@ a { color: var(--teal-deep); }
 /* the users table's row-reveal popup: text values instead of inputs */
 .employee-detail-grid { margin-top: 18px; text-align: left; }
 .employee-detail__value { font-size: 14px; line-height: 1.5; color: var(--ink); }
+/* the Status cell's inline Active/Inactive pair rides the value's row height */
+.employee-detail__status { display: flex; align-items: center; }
+.employee-detail__status .chip { padding: 3px 10px; }
+.employee-detail__status.seg, .employee-detail__status .seg { flex-wrap: nowrap; }
 
 /* review question panels */
 .question-panel { display: flex; flex-direction: column; gap: 14px; }
