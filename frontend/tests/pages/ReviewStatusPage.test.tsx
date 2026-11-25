@@ -1,14 +1,18 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { vi } from 'vitest'
+import { beforeEach, vi } from 'vitest'
 import { AdminStoreProvider } from '../../src/state/AdminContext'
 import { ReviewStatusPage } from '../../src/pages/ReviewStatusPage'
 import type { ReviewBoardPage, ReviewStatusWire } from '../../src/lib/types'
 
-const { fetchReviewBoardMock } = vi.hoisted(() => ({ fetchReviewBoardMock: vi.fn() }))
+const { fetchReviewBoardMock, fetchEmployeeFacetsMock } = vi.hoisted(() => ({
+  fetchReviewBoardMock: vi.fn(),
+  fetchEmployeeFacetsMock: vi.fn(),
+}))
 vi.mock('../../src/lib/api', async (importOriginal) => ({
   ...(await importOriginal()),
   fetchReviewBoard: fetchReviewBoardMock,
+  fetchEmployeeFacets: fetchEmployeeFacetsMock,
   setApiIdentity: vi.fn(),
 }))
 
@@ -21,6 +25,7 @@ function wireReview(email: string, name: string, status: ReviewStatusWire['statu
       designation: 'Engineer',
       location: 'India',
       org: 'Delivery',
+      businessUnit: 'Payer Digital',
       project: 'Cigna One',
       deliveryHead: 'Arumugam Thiraviam',
       deliveryManager: 'Priya Raghavan',
@@ -33,7 +38,9 @@ function wireReview(email: string, name: string, status: ReviewStatusWire['statu
 }
 
 /** Two board pages (pageSize 2) over an eight-person roster: row slices the
-    server decided, so the test only states what the endpoint returns. */
+    server decided, so the test only states what the endpoint returns. Rows
+    carry display words (the page-facing shape); statusCounts carries raw
+    lifecycle words — 4 not-started, 2 in-progress, 2 past-submission. */
 const PAGE_ONE: ReviewBoardPage = {
   reviews: [
     wireReview('asha_menon@emids.com', 'Asha Menon', 'in_progress', 0),
@@ -42,7 +49,12 @@ const PAGE_ONE: ReviewBoardPage = {
   total: 6,
   page: 1,
   pageSize: 2,
-  statusCounts: { not_started: 4, in_progress: 2, submitted: 2, signed_off: 0 },
+  statusCounts: {
+    not_started: 4,
+    self_evaluation_in_progress: 2,
+    self_evaluation_completed: 1,
+    in_manager_review: 1,
+  },
 }
 const PAGE_TWO: ReviewBoardPage = {
   reviews: [
@@ -52,7 +64,12 @@ const PAGE_TWO: ReviewBoardPage = {
   total: 2,
   page: 2,
   pageSize: 2,
-  statusCounts: { not_started: 4, in_progress: 2, submitted: 2, signed_off: 0 },
+  statusCounts: {
+    not_started: 4,
+    self_evaluation_in_progress: 2,
+    self_evaluation_completed: 1,
+    in_manager_review: 1,
+  },
 }
 
 function page(): React.ReactElement {
@@ -67,6 +84,11 @@ beforeEach(() => {
   window.localStorage.clear()
   fetchReviewBoardMock.mockReset()
   fetchReviewBoardMock.mockResolvedValue({ ok: true, board: PAGE_ONE })
+  fetchEmployeeFacetsMock.mockReset()
+  fetchEmployeeFacetsMock.mockResolvedValue({
+    ok: true,
+    facets: { designations: ['Engineer'], locations: ['India'], orgs: ['Delivery', 'Quality'], businessUnits: ['Payer Digital'], reportingManagers: ['Priya Raghavan'], employmentStatuses: ['Active'] },
+  })
 })
 
 describe('ReviewStatusPage', () => {
@@ -74,12 +96,12 @@ describe('ReviewStatusPage', () => {
     render(page())
     await screen.findByRole('table')
 
-    expect(screen.getByRole('heading', { name: 'Review form status' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Performance Review Progress' })).toBeInTheDocument()
     expect(
       screen.getByRole('img', { name: 'Review completion split by status' }),
     ).toBeInTheDocument()
     const titles = [...document.querySelectorAll('.pie-block__chart title')].map((t) => t.textContent)
-    // Pie slices come from the collapse of the server's four words.
+    // Pie slices come from the collapse of the server's six words.
     expect(titles).toHaveLength(3)
     expect(titles.every((title) => title?.includes(' of 8 ('))).toBe(true)
     const tiles = [...document.querySelectorAll('.tile')].map((tile) => tile.textContent)
@@ -103,7 +125,7 @@ describe('ReviewStatusPage', () => {
     expect(within(table).queryByText('Submitted')).not.toBeInTheDocument()
   })
 
-  it('pager walks server pages and the filter re-opens on page one', async () => {
+  it('pager walks server pages and Query changes land back on page one', async () => {
     render(page())
     const user = userEvent.setup()
     await screen.findByRole('table')
@@ -113,10 +135,45 @@ describe('ReviewStatusPage', () => {
     expect(fetchReviewBoardMock).toHaveBeenLastCalledWith({ page: 2, status: 'pending' })
     expect(await screen.findByText('Cara Fernandes')).toBeInTheDocument()
 
-    fetchReviewBoardMock.mockResolvedValue({ ok: true, board: { ...PAGE_TWO, total: 8, page: 1, reviews: PAGE_ONE.reviews } })
-    await user.click(screen.getByRole('button', { name: 'All' }))
-    expect(fetchReviewBoardMock).toHaveBeenLastCalledWith({ page: 1, status: 'all' })
+    // The status filter moved into the pop-up: switching to All rides it,
+    // and the query change hands the read back to page one.
+    fetchReviewBoardMock.mockResolvedValue({ ok: true, board: { ...PAGE_TWO, page: 1, reviews: PAGE_ONE.reviews } })
+    await user.click(screen.getByRole('button', { name: /Search, filter and sort/ }))
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Filter by Form status' }), 'all')
+    await waitFor(() => {
+      expect(fetchReviewBoardMock).toHaveBeenLastCalledWith({ page: 1, status: 'all' })
+    })
     expect(await screen.findByText('Bilal Khan')).toBeInTheDocument()
+  })
+
+  it('search and the org filter compose into the one board call', async () => {
+    render(page())
+    const user = userEvent.setup()
+    await screen.findByRole('table')
+
+    await user.click(screen.getByRole('button', { name: /Search, filter and sort/ }))
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Filter by Org' }), 'Quality')
+
+    await waitFor(() => {
+      expect(fetchReviewBoardMock).toHaveBeenLastCalledWith({ page: 1, status: 'pending', org: 'Quality' })
+    })
+    await user.type(screen.getByRole('searchbox', { name: 'Search by employee name or designation' }), 'ash')
+    await waitFor(() => {
+      expect(fetchReviewBoardMock).toHaveBeenLastCalledWith({ page: 1, status: 'pending', org: 'Quality', search: 'ash' })
+    })
+  })
+
+  it('narrows the board by business unit', async () => {
+    render(page())
+    const user = userEvent.setup()
+    await screen.findByRole('table')
+
+    await user.click(screen.getByRole('button', { name: /Search, filter and sort/ }))
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Filter by Business unit' }), 'Payer Digital')
+
+    await waitFor(() => {
+      expect(fetchReviewBoardMock).toHaveBeenLastCalledWith({ page: 1, status: 'pending', businessUnit: 'Payer Digital' })
+    })
   })
 
   it('states the failure when the board endpoint cannot be reached', async () => {

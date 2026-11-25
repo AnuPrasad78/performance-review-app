@@ -1,11 +1,9 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Card } from '../atoms/Card'
 import { Button } from '../atoms/Button'
 import { DataTable, type DataTableColumn } from '../molecules/DataTable'
 import { Pager } from '../molecules/Pager'
 import { EmployeeDetailCard } from './EmployeeDetailCard'
-import { downloadCsv } from '../../lib/csvDownload'
-import { ROSTER_CSV_HEADERS, employeeCsvRow } from '../../lib/rosterCsv'
 import type { Employee } from '../../lib/types'
 
 export interface UsersTableCardProps {
@@ -13,6 +11,16 @@ export interface UsersTableCardProps {
   page: number
   pageCount: number
   onPage: (page: number) => void
+  /** Empty state next move: a filtered no-match reads differently from an
+      unloaded roster — the page, which owns the query, picks it. */
+  emptyMessage: string
+  /** The export: the server's CSV of every employee the composed query
+      matches — owned by the page (data fetching lives there), awaited here
+      so the button reflects the pending download. */
+  onDownloadCsv: () => Promise<void>
+  /** The page's composed search/filter/sort controls, slotted into the
+      toolbar beside Download CSV — the organism renders, never owns, them. */
+  tableControls?: ReactNode
 }
 
 const columns: readonly DataTableColumn<Employee>[] = [
@@ -30,32 +38,35 @@ const columns: readonly DataTableColumn<Employee>[] = [
   { key: 'status', header: 'Status', cell: (employee) => employee.status, hideOnMobile: true },
 ]
 
-export function UsersTableCard({ employees, page, pageCount, onPage }: UsersTableCardProps) {
+export function UsersTableCard({ employees, page, pageCount, onPage, emptyMessage, onDownloadCsv, tableControls }: UsersTableCardProps) {
   const [selectedEmail, setSelectedEmail] = useState<string | null>(null)
+  const [downloading, setDownloading] = useState(false)
   const selected: Employee | null =
     selectedEmail === null
       ? null
       : (employees.find((employee) => employee.email === selectedEmail) ?? null)
 
-  const downloadRoster = () => {
-    downloadCsv(
-      'employee-roster.csv',
-      ROSTER_CSV_HEADERS,
-      employees.map(employeeCsvRow),
-    )
+  async function downloadRoster(): Promise<void> {
+    setDownloading(true)
+    try {
+      await onDownloadCsv()
+    } finally {
+      setDownloading(false)
+    }
   }
   return (
     <Card caption={`Roster · ${employees.length} ${employees.length === 1 ? 'employee' : 'employees'}`} captionAccent>
       <div className="table-toolbar">
-        <Button variant="ghost" size="sm" onClick={downloadRoster} disabled={employees.length === 0}>
+        <Button variant="ghost" size="sm" onClick={() => void downloadRoster()} disabled={downloading}>
           Download CSV
         </Button>
+        {tableControls ?? null}
       </div>
       <DataTable
         columns={columns}
         rows={employees}
         rowKey={(employee) => employee.email}
-        emptyMessage="No employees loaded. Upload a roster CSV to get started."
+        emptyMessage={emptyMessage}
         onRowClick={(employee) => setSelectedEmail(employee.email)}
         activeRowKey={selected?.email ?? null}
       />

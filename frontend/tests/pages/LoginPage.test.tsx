@@ -9,12 +9,14 @@ import type { SelfEvaluationWire, SessionApiResult, SessionWire } from '../../sr
 
 const {
   fetchEmployeesMock,
+  fetchEmployeeFacetsMock,
   fetchReviewBoardMock,
   fetchSelfEvaluationMock,
   fetchSessionMock,
   startSsoLoginMock,
 } = vi.hoisted(() => ({
   fetchEmployeesMock: vi.fn(),
+  fetchEmployeeFacetsMock: vi.fn(),
   fetchReviewBoardMock: vi.fn(),
   fetchSelfEvaluationMock: vi.fn(),
   fetchSessionMock: vi.fn(),
@@ -23,6 +25,7 @@ const {
 vi.mock('../../src/lib/api', async (importOriginal) => ({
   ...(await importOriginal()),
   fetchEmployees: fetchEmployeesMock,
+  fetchEmployeeFacets: fetchEmployeeFacetsMock,
   fetchReviewBoard: fetchReviewBoardMock,
   fetchSelfEvaluation: fetchSelfEvaluationMock,
   fetchSession: fetchSessionMock,
@@ -46,6 +49,7 @@ function openEvaluation(name: string, email: string): SelfEvaluationWire {
       designation: 'Software Engineer',
       location: 'India',
       org: 'Delivery',
+      businessUnit: 'Payer Digital',
       project: 'Cigna One',
       deliveryHead: 'Arumugam Thiraviam',
       deliveryManager: 'Priya Raghavan',
@@ -72,6 +76,7 @@ beforeEach(() => {
   fetchSelfEvaluationMock.mockReset()
   fetchSessionMock.mockReset()
   fetchEmployeesMock.mockReset()
+  fetchEmployeeFacetsMock.mockReset()
   fetchReviewBoardMock.mockReset()
   fetchSelfEvaluationMock.mockResolvedValue({
     ok: true,
@@ -81,6 +86,13 @@ beforeEach(() => {
   fetchReviewBoardMock.mockResolvedValue({
     ok: true,
     board: { reviews: [], total: 0, page: 1, pageSize: 10, statusCounts: {} },
+  })
+  // The merged board fetches its filter dropdown options on mount; a benign
+  // refusal keeps the page rendering without asserting facets here.
+  fetchEmployeeFacetsMock.mockResolvedValue({
+    ok: false,
+    detail: 'Facets are out of scope for the sign-in tests.',
+    code: 'unsupported_environment',
   })
 })
 
@@ -100,7 +112,8 @@ describe('LoginPage', () => {
   it('renders the redesigned sign-in form with SSO below the divider', () => {
     render(renderApp())
     expect(screen.getByRole('heading', { name: 'Welcome', level: 1 })).toBeInTheDocument()
-    // The email form is the primary option; SSO is the secondary one.
+    // The email form is the primary option; SSO is the secondary one —
+    // and the divider copy names the email path.
     expect(screen.getByRole('button', { name: 'Sign in with Emids SSO' })).toBeEnabled()
     expect(screen.getByText('or sign in with your email')).toBeInTheDocument()
   })
@@ -149,7 +162,7 @@ describe('LoginPage', () => {
     await user.type(screen.getByLabelText('Password'), 'Portal@2026')
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
-    expect(await screen.findByRole('heading', { name: 'Review form status', level: 1 })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Performance Review Progress', level: 1 })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Open navigation' })).toBeInTheDocument()
   })
 

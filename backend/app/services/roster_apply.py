@@ -8,9 +8,15 @@ the upload may also move an updated row's employee_id — the CSV value becomes
 the record's new PK, and evaluations follow through the FK's ON UPDATE
 CASCADE. One call = one unit of work; a payload writing one more row than was
 previewed is refused instead of applied half-and-half.
+
+Rewritten rows end with the evaluations' email mirror re-synced to the new
+roster values (evaluation_repository.sync_emails) — the display column is
+derived data, and every write path that moves its source re-derives before
+the unit of work closes.
 """
 
 from app.core.errors import AppError
+from app.repositories.evaluation_repository import EvaluationRepository
 from app.repositories.employee_repository import EmployeeRepository
 from app.schemas.employee import (
     RosterApplyPayload,
@@ -52,7 +58,9 @@ class RosterUpdateMissing(AppError):
 
 
 async def apply_roster(
-    payload: RosterApplyPayload, repository: EmployeeRepository
+    payload: RosterApplyPayload,
+    repository: EmployeeRepository,
+    evaluation_repository: EvaluationRepository,
 ) -> RosterApplyReport:
     # The wire payload's emails arrive as typed, the stored side is keyed
     # lower-cased: every identity read below compares after lowering.
@@ -67,12 +75,15 @@ async def apply_roster(
         raise RosterUpdateMissing(vanished)
 
     await repository.insert_many([to_employee(row) for row in payload.inserts])
-    await repository.update_many(
+    # update_many flushes, so the PK cascade on evaluations has run: the
+    # mirror resync keys on the written (possibly moved) IDs.
+    updated = await repository.update_many(
         [
             (stored[row.email.lower()].employee_id, to_employee(row))
             for row in payload.updates
         ]
     )
+    await evaluation_repository.sync_emails(sorted(updated))
     return RosterApplyReport(
         imported_count=len(payload.inserts),
         updated_count=len(payload.updates),

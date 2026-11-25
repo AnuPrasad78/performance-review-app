@@ -1,7 +1,7 @@
 /** Mirrors the roster CSV the backend validates (see POST /api/employees/import):
     Employee Name, Employee ID, Email, Designation, Location, Org,
-    Current Account / Project, Delivery Head, Delivery Manager, Business
-    Partner, Reporting Manager, Status. */
+    Business Unit, Current Account / Project, Delivery Head, Delivery Manager,
+    Business Partner, Reporting Manager, Status. */
 export type EmployeeStatus = 'Active' | 'Inactive'
 
 export interface Employee {
@@ -11,6 +11,7 @@ export interface Employee {
   designation: string
   location: string
   org: string
+  businessUnit: string
   project: string
   deliveryHead: string
   deliveryManager: string
@@ -80,6 +81,64 @@ export type EmployeeListResult =
   | { ok: true; employees: readonly Employee[]; total: number; page: number; pageSize: number }
   | { ok: false; detail: string; code: string }
 
+/** GET /api/employees/export: the server's roster CSV of every employee the
+    composed query matches (admin-gated; fetched as a blob for the browser's
+    download seam). */
+export type RosterCsvExportResult =
+  | { ok: true; blob: Blob }
+  | { ok: false; detail: string; code: string }
+
+/** Sort words the backend whitelists for the two admin tables (camelCase wire,
+    mirror of schemas/table_query.py); `status` exists on the board only,
+    ordering by the server's workflow rank. */
+export type RosterSortField =
+  | 'employeeName'
+  | 'employeeId'
+  | 'email'
+  | 'designation'
+  | 'location'
+  | 'org'
+  | 'businessUnit'
+  | 'reportingManager'
+  | 'employmentStatus'
+
+export type SortOrder = 'asc' | 'desc'
+
+/** The admin Users table's composed read: every word is optional and blank
+    means "any" — search (name or designation), the six dropdown filters, the
+    board's form-status noun (all | pending | completed), and the sort; the
+    page rides along as `{ page }`. */
+export interface RosterQuery {
+  search?: string
+  designation?: string
+  location?: string
+  org?: string
+  businessUnit?: string
+  reportingManager?: string
+  employmentStatus?: string
+  status?: StatusFilter
+  sortBy?: RosterSortField
+  sortOrder?: SortOrder
+}
+
+/** The admin board's composed read adds the derived-status noun the chips
+    used to own; the page rides along like the roster's does. */
+export type ReviewBoardQuery = RosterQuery & { status: StatusFilter; page: number }
+
+/** The whole-roster dropdown option lists behind GET /api/employees/facets. */
+export interface RosterFacets {
+  designations: string[]
+  locations: string[]
+  orgs: string[]
+  businessUnits: string[]
+  reportingManagers: string[]
+  employmentStatuses: string[]
+}
+
+export type RosterFacetsResult =
+  | { ok: true; facets: RosterFacets }
+  | { ok: false; detail: string; code: string }
+
 export type CycleSettingsFieldErrors = {
   reviewYear: string | null
   deadlineDate: string | null
@@ -108,13 +167,25 @@ export interface RatingScaleEntry {
   description: string
 }
 
-/** Maps onto the fixed pill vocabulary: submitted → pending visuals, not_started → cancelled visuals. */
-export type ReviewStatus = 'not_started' | 'in_progress' | 'submitted'
+/** The fixed pill vocabulary: submitted → pending visuals, not_started →
+    cancelled visuals. `in_progress` and `submitted` are display-only words:
+    the backend's lifecycle words collapse into them but never travel raw
+    (RawReviewStatus is the wire union, exactly). */
+type DisplayOnlyStatus = 'in_progress' | 'submitted'
+export type ReviewStatus = 'not_started' | DisplayOnlyStatus
 
-/** The backend's board vocabulary carries one extra word — signed_off — which
-    the client's display vocabulary collapses into submitted (see
-    lib/reviewStatusStore.displayCounts). */
-export type RawReviewStatus = ReviewStatus | 'signed_off'
+/** The backend's board vocabulary is the stored status lifecycle verbatim —
+    six wire words (lower-cased stored word; backend BoardStatus in
+    schemas/self_evaluation.py). The display vocabulary collapses them into
+    the three pill words (lib/reviewStatusStore); the manager-phase words
+    have no pills until that phase ships UI. */
+export type RawReviewStatus =
+  | 'not_started'
+  | 'self_evaluation_in_progress'
+  | 'self_evaluation_completed'
+  | 'in_manager_review'
+  | 'manager_evaluation_in_progress'
+  | 'manager_evaluation_completed'
 
 export type AssessmentQuestionId = 'contribution' | 'strengths' | 'development' | 'support'
 
@@ -229,7 +300,7 @@ export interface SelfEvaluationPartial {
 }
 
 /** One roster row as the admin board sees it: the profile the board renders
-    (the full roster wire shape, reused) plus the derived workflow word. */
+    (the full roster wire shape, reused) plus the display workflow word. */
 export interface ReviewStatusWire {
   employee: Employee
   status: ReviewStatus
@@ -237,8 +308,9 @@ export interface ReviewStatusWire {
 
 /** One server page of the admin board. `total` counts the rows under the
     applied status filter; `statusCounts` is the whole-roster distribution in
-    the backend's four-word vocabulary (snake_case to match `status`). The
-    client's display vocabulary collapses signed_off into submitted. */
+    the backend's six-word vocabulary (snake_case, matching `status`). The
+    client's display vocabulary collapses past-submission words into
+    submitted. */
 export interface ReviewBoardPage {
   readonly reviews: readonly ReviewStatusWire[]
   readonly total: number

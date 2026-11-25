@@ -20,6 +20,7 @@ class RosterEmployeeOut(ApiModel):
     designation: str
     location: str
     org: str
+    business_unit: str
     project: str
     delivery_head: str
     delivery_manager: str
@@ -79,6 +80,18 @@ class EmployeeList(ApiModel):
     page_size: int
 
 
+class RosterFacets(ApiModel):
+    """Distinct whole-roster dropdown values per filterable roster column —
+    the admin tables' filter option lists, independent of any current filter."""
+
+    designations: list[str]
+    locations: list[str]
+    orgs: list[str]
+    business_units: list[str]
+    reporting_managers: list[str]
+    employment_statuses: list[str]
+
+
 #: (RosterEmployeeOut field, employees column) pairs, including the identities.
 #: employee_id — the primary key — is deliberately excluded from the copy-over
 #: loop: it identifies a row, never a copied value. roster_mapping diffs it
@@ -92,6 +105,7 @@ ROSTER_ATTRIBUTES: tuple[tuple[str, str], ...] = (
     ("designation", "designation"),
     ("location", "location"),
     ("org", "org"),
+    ("business_unit", "business_unit"),
     ("project", "current_account_project"),
     ("delivery_head", "delivery_head"),
     ("delivery_manager", "delivery_manager"),

@@ -1,6 +1,7 @@
 import { useRef } from 'react'
 import { Button } from '../atoms/Button'
 import { Card } from '../atoms/Card'
+import { ROSTER_CSV_HEADERS } from '../../lib/rosterCsv'
 
 export interface CsvImportCardProps {
   inFlight: boolean
@@ -19,7 +20,7 @@ export function CsvImportCard({ inFlight, onFileSelected }: CsvImportCardProps) 
   return (
     <Card caption="Upload roster" captionAccent>
       <p className="muted" style={{ fontSize: '13.5px', marginBottom: '16px' }}>
-        Load employees from a CSV with the columns Employee Name, Employee ID, Email, Designation, Location, Org, Current Account / Project, Delivery Head, Delivery Manager, Business Partner, Reporting Manager, Status. Duplicate emails are skipped.
+        {`Load employees from a CSV with the columns ${ROSTER_CSV_HEADERS.join(', ')}. Duplicate emails are skipped.`}
       </p>
       <Button variant="ghost" busy={inFlight} onClick={() => inputRef.current?.click()}>
         {inFlight ? 'Loading roster' : 'Choose CSV file'}

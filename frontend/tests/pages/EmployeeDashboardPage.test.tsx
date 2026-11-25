@@ -48,6 +48,7 @@ function profileWire(overrides: Record<string, unknown> = {}): Record<string, un
     designation: 'Software Engineer',
     location: 'India',
     org: 'Delivery',
+    businessUnit: 'Payer Digital',
     project: 'Cigna One',
     deliveryHead: 'Arumugam Thiraviam',
     deliveryManager: 'Priya Raghavan',
@@ -66,8 +67,8 @@ function openWire(overrides: Record<string, unknown> = {}): Record<string, unkno
     deadlinePassed: false,
     submittedAt: null,
     employeeSignedAt: null,
-    // Open-review wires default to an answerable form: the wizard's forward
-    // gating requires each question answered before Next, so tests that walk
+    // Open-review wires default to an answerable form: the wizard's Next
+    // requires each question answered before it advances, so tests that walk
     // the steps start from a complete draft unless they override these.
     responses: {
       contribution: 'Delivered the intake rewrite.',
@@ -414,6 +415,15 @@ describe('EmployeeDashboardPage — submit gate', () => {
 
     const submitCall = calls.find((call) => call.method === 'POST')
     expect(submitCall?.url).toContain('/api/evaluations/me')
+    // The success popup names the outcome; dismissing it reveals the
+    // read-only state.
+    const successDialog = await screen.findByRole('dialog', { name: 'Submission complete' })
+    expect(
+      within(successDialog).getByText(/was submitted successfully/),
+    ).toBeInTheDocument()
+    await user.click(within(successDialog).getByRole('button', { name: 'OK' }))
+    expect(screen.queryByRole('dialog', { name: 'Submission complete' })).not.toBeInTheDocument()
+
     expect(await screen.findByText('Submitted successfully.')).toBeInTheDocument()
 
     // The submitted view stays in the preview: still editable commitments stay
@@ -473,7 +483,8 @@ describe('EmployeeDashboardPage — submit gate', () => {
   })
 })
 
-describe('EmployeeDashboardPage — forward commitments', () => {  it('adds and removes optional commitments but never leaves the list empty', async () => {
+describe('EmployeeDashboardPage — forward commitments', () => {
+  it('adds and removes optional commitments but never leaves the list empty', async () => {
     const user = userEvent.setup()
     vi.stubGlobal('fetch', apiReturning(openWire()))
 

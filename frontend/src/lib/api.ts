@@ -4,21 +4,25 @@ import type {
   Employee,
   EmployeeListResult,
   RosterApplyResult,
+  RosterCsvExportResult,
+  RosterFacets,
+  RosterFacetsResult,
   RosterImportResult,
+  RosterQuery,
   RawReviewStatus,
   ReviewBoardPage,
+  ReviewBoardQuery,
   ReviewBoardResult,
-  ReviewStatus,
   ReviewStatusWire,
   SelfEvaluationApiResult,
   SelfEvaluationPartial,
   SelfEvaluationWire,
   SessionApiResult,
   SessionWire,
-  StatusFilter,
   TopicResponses,
 } from './types'
 import { isIsoInstant } from './dates'
+import { RAW_TO_DISPLAY } from './reviewStatusStore'
 
 /** Same-origin /api by default (Vite dev proxy in dev); VITE_API_URL points at
     a direct, absolute API base where the frontend is served separately. */
@@ -82,6 +86,7 @@ function employeeFrom(value: unknown): Employee | null {
     designation: stringField('designation'),
     location: stringField('location'),
     org: stringField('org'),
+    businessUnit: stringField('businessUnit'),
     project: stringField('project'),
     deliveryHead: stringField('deliveryHead'),
     deliveryManager: stringField('deliveryManager'),
@@ -187,6 +192,7 @@ function employeeToWire(employee: Employee): Record<string, string> {
     designation: employee.designation,
     location: employee.location,
     org: employee.org,
+    businessUnit: employee.businessUnit,
     project: employee.project,
     deliveryHead: employee.deliveryHead,
     deliveryManager: employee.deliveryManager,
@@ -304,7 +310,10 @@ export async function applyRosterImport(payload: {
   return { ok: true, importedCount: parsed.importedCount, updatedCount: parsed.updatedCount }
 }
 
-const BOARD_STATUSES = ['not_started', 'in_progress', 'submitted', 'signed_off'] as const
+/** The board parse trusts exactly the backend's six wire words — the keys of
+    RAW_TO_DISPLAY — and reuses that module's collapse, so the display
+    mapping exists once (lib/reviewStatusStore), never re-coded here. */
+const BOARD_STATUSES = Object.keys(RAW_TO_DISPLAY) as RawReviewStatus[]
 
 function reviewStatusFrom(value: unknown): ReviewStatusWire | null {
   if (!isRecord(value)) return null
@@ -312,11 +321,28 @@ function reviewStatusFrom(value: unknown): ReviewStatusWire | null {
   if (employee === null) return null
   const wireStatus = value.status as RawReviewStatus
   if (!BOARD_STATUSES.includes(wireStatus)) return null
-  const status: ReviewStatus = wireStatus === 'signed_off' ? 'submitted' : wireStatus
-  return { employee, status }
+  return { employee, status: RAW_TO_DISPLAY[wireStatus] }
 }
 
-export type BoardQuery = { page: number; status: StatusFilter }
+/** Wire words the backend treats as defaults — omitting them keeps the query
+    string honest about what the admin actually chose. */
+const QUERY_OMITTED_WORDS: Record<string, string | undefined> = {
+  sortBy: 'employeeName',
+  sortOrder: 'asc',
+  status: 'all',
+}
+
+/** One encoder for both admin tables' composed reads: blank words and the
+    backend's default words are dropped, everything else stays camelCase. */
+function tableQueryParams(query: object): string {
+  const params = new URLSearchParams()
+  for (const [key, value] of Object.entries(query)) {
+    if (typeof value !== 'string' && typeof value !== 'number') continue
+    if (value === '' || QUERY_OMITTED_WORDS[key] === value) continue
+    params.set(key, String(value))
+  }
+  return params.toString()
+}
 
 function boardPageFrom(parsed: Record<string, unknown>): ReviewBoardPage | null {
   if (!Array.isArray(parsed.reviews)) return null
@@ -342,11 +368,13 @@ function boardPageFrom(parsed: Record<string, unknown>): ReviewBoardPage | null 
   }
 }
 
-export async function fetchReviewBoard(query: BoardQuery): Promise<ReviewBoardResult> {
+export async function fetchReviewBoard(query: ReviewBoardQuery): Promise<ReviewBoardResult> {
   let response: Response
   try {
-    const params = `page=${query.page}&status=${query.status}`
-    response = await fetch(`${API_BASE}/api/evaluations?${params}`, { headers: identityHeaders(), credentials: CREDENTIALS })
+    response = await fetch(
+      `${API_BASE}/api/evaluations?${tableQueryParams(query)}`,
+      { headers: identityHeaders() },
+    )
   } catch {
     return { ok: false, detail: NETWORK_UNAVAILABLE.detail, code: NETWORK_UNAVAILABLE.code }
   }
@@ -362,10 +390,10 @@ export async function fetchReviewBoard(query: BoardQuery): Promise<ReviewBoardRe
   return { ok: true, board }
 }
 
-export async function fetchEmployees(page = 1): Promise<EmployeeListResult> {
+export async function fetchEmployees(query: RosterQuery & { page: number }): Promise<EmployeeListResult> {
   let response: Response
   try {
-    response = await fetch(`${API_BASE}/api/employees?page=${page}`, { credentials: CREDENTIALS })
+    response = await fetch(`${API_BASE}/api/employees?${tableQueryParams(query)}`)
   } catch {
     return { ok: false, detail: NETWORK_UNAVAILABLE.detail, code: NETWORK_UNAVAILABLE.code }
   }
@@ -378,6 +406,77 @@ export async function fetchEmployees(page = 1): Promise<EmployeeListResult> {
     return { ok: false, detail: UNSUPPORTED_ENV_ERROR.detail, code: 'unsupported_environment' }
   }
   return { ok: true, employees: employeesFrom(parsed.employees), total: parsed.total, page: parsed.page, pageSize: parsed.pageSize }
+}
+
+export async function fetchRosterCsvExport(
+  query: RosterQuery,
+): Promise<RosterCsvExportResult> {
+  let response: Response
+  try {
+    // The export covers the whole matched set — the page slice never rides it.
+    const { page: _page, ...matched } = query as Record<string, string | number | undefined>
+    response = await fetch(
+      `${API_BASE}/api/employees/export?${tableQueryParams(matched)}`,
+      { headers: identityHeaders() },
+    )
+  } catch {
+    return { ok: false, detail: NETWORK_UNAVAILABLE.detail, code: NETWORK_UNAVAILABLE.code }
+  }
+  if (!response.ok) {
+    const parsed = await envelopeOf(response)
+    if (parsed === null) {
+      return { ok: false, detail: UNSUPPORTED_ENV_ERROR.detail, code: 'unsupported_environment' }
+    }
+    return { ok: false, ...envelopeFields(parsed) }
+  }
+  if (!(response.headers.get('content-type') ?? '').startsWith('application/csv')) {
+    return { ok: false, detail: UNSUPPORTED_ENV_ERROR.detail, code: 'unsupported_environment' }
+  }
+  return { ok: true, blob: await response.blob() }
+}
+
+function facetsFrom(parsed: Record<string, unknown>): RosterFacets | null {
+  const wordList = (key: string): string[] | null => {
+    if (!Array.isArray(parsed[key])) return null
+    if (!parsed[key].every((word) => typeof word === 'string')) return null
+    return parsed[key] as string[]
+  }
+  const designations = wordList('designations')
+  const locations = wordList('locations')
+  const orgs = wordList('orgs')
+  const businessUnits = wordList('businessUnits')
+  const reportingManagers = wordList('reportingManagers')
+  const employmentStatuses = wordList('employmentStatuses')
+  if (
+    designations === null ||
+    locations === null ||
+    orgs === null ||
+    businessUnits === null ||
+    reportingManagers === null ||
+    employmentStatuses === null
+  ) {
+    return null
+  }
+  return { designations, locations, orgs, businessUnits, reportingManagers, employmentStatuses }
+}
+
+export async function fetchEmployeeFacets(): Promise<RosterFacetsResult> {
+  let response: Response
+  try {
+    response = await fetch(`${API_BASE}/api/employees/facets`, { headers: identityHeaders() })
+  } catch {
+    return { ok: false, detail: NETWORK_UNAVAILABLE.detail, code: NETWORK_UNAVAILABLE.code }
+  }
+  const parsed = await envelopeOf(response)
+  if (parsed === null) {
+    return { ok: false, detail: UNSUPPORTED_ENV_ERROR.detail, code: 'unsupported_environment' }
+  }
+  if (!response.ok) return { ok: false, ...envelopeFields(parsed) }
+  const facets = facetsFrom(parsed)
+  if (facets === null) {
+    return { ok: false, detail: UNSUPPORTED_ENV_ERROR.detail, code: 'unsupported_environment' }
+  }
+  return { ok: true, facets }
 }
 
 export async function fetchSession(email: string): Promise<SessionApiResult> {

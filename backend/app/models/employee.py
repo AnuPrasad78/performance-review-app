@@ -22,6 +22,7 @@ class Employee(Base):
     designation: Mapped[str | None] = mapped_column(String(150))
     location: Mapped[str | None] = mapped_column(String(150))
     org: Mapped[str | None] = mapped_column(String(150))
+    business_unit: Mapped[str | None] = mapped_column(String(150))
     current_account_project: Mapped[str | None] = mapped_column(String(150))
     # Manager links are plain name columns in the current schema (not employee
     # references) — an accepted simplification, flagged for redesign later.
