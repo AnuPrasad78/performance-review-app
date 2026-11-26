@@ -4,7 +4,7 @@
 
 import { Card } from '../atoms/Card'
 import { QUESTION_LABELS, RATING_SCALE_REFERENCE } from '../../lib/selfEvaluationContent'
-import { formatIsoDate } from '../../lib/dates'
+import { formatIsoDate, todayIsoDate } from '../../lib/dates'
 import type { SelfEvaluationDraft } from '../../lib/types'
 
 export interface ReviewPreviewPanelProps {
@@ -28,7 +28,7 @@ export function ReviewPreviewPanel({ draft, signedAt }: ReviewPreviewPanelProps)
             ['Org / Project', `${draft.employee.org} / ${draft.employee.project}`],
             ['Reporting manager', draft.employee.reportingManager],
             ['Performance period', '1-Jan-2026 to 31-Dec-2026'],
-            ['Sign-off date', signedAt === null ? 'Not signed' : formatIsoDate(signedAt)],
+            ['Sign-off date', formatIsoDate(signedAt ?? todayIsoDate())],
           ].map(([label, value]) => (
             <div key={label} className="preview__field">
               <dt className="preview__label">{label}</dt>

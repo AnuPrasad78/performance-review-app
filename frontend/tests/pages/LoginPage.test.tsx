@@ -68,6 +68,7 @@ function openEvaluation(name: string, email: string): SelfEvaluationWire {
     overallSummary: '',
     forwardCommitments: [],
     commitmentsEditable: true,
+  lastSavedAt: '2026-11-24T16:05:00Z',
   }
 }
 

@@ -81,6 +81,7 @@ function openWire(overrides: Record<string, unknown> = {}): Record<string, unkno
     overallSummary: 'Strong year.',
     forwardCommitments: [{ commitment: 'Own the intake rewrite', support: 'Lead mentoring' }],
     commitmentsEditable: true,
+    lastSavedAt: '2026-11-24T16:05:00Z',
     ...overrides,
   }
 }
@@ -174,9 +175,9 @@ describe('EmployeeDashboardPage — draft state over the API', () => {
     // A real pause slightly past the 1200ms debounce; nothing was clicked.
     await new Promise((resolve) => setTimeout(resolve, 1600))
 
-    // The save is silent: the status notice only appears on the commitments step.
+    // Every save speaks: the word carries the server's save time.
     expect(calls.some((call) => call.method === 'PATCH')).toBe(true)
-    expect(screen.queryByText('Draft saved.')).not.toBeInTheDocument()
+    expect(screen.getByText(/Draft saved at /)).toBeInTheDocument()
   })
 
   it('memorizes a draft through the manual Save-draft PATCH', async () => {
@@ -189,7 +190,8 @@ describe('EmployeeDashboardPage — draft state over the API', () => {
 
     const patched = calls.find((call) => call.method === 'PATCH')
     expect(patched?.url).toContain('/api/evaluations/me')
-    expect(screen.queryByText('Draft saved.')).not.toBeInTheDocument()
+    // The manual save uses the same save seam and the same word.
+    expect(screen.getByText(/Draft saved at /)).toBeInTheDocument()
   })
 
   it('keeps the rest of the draft when a different question is edited', async () => {

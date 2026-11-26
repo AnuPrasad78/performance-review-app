@@ -64,6 +64,10 @@ class SelfEvaluationOut(ApiModel):
     #: review window closes. The client renders lock/unlock from this flag
     #: instead of copying the calendar math.
     commitments_editable: bool
+    #: The stored row's updated_at — the "last draft saved" stamp the client
+    #: shows as "Draft saved at / Auto saved at". None until a row exists;
+    #: the server is the only honest source, the client clock is not.
+    last_saved_at: datetime.datetime | None = None
 
 
 class ReviewStatusEntry(ApiModel):

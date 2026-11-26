@@ -26,6 +26,8 @@ export interface SelfEvaluationRecord {
   deadlinePassed: boolean
   /** Server-owned lock flag: open reviews and post-submit-before-manager-end. */
   commitmentsEditable: boolean
+  /** Server-owned last-save stamp for the "Draft saved at" display. */
+  lastSavedAt: string | null
 }
 
 /** Where the wizard resumes on reload; keyed to its own storage entry so the
@@ -135,6 +137,7 @@ export function recordFromApi(data: SelfEvaluationWire): SelfEvaluationRecord {
     submissionDeadline: data.submissionDeadline,
     deadlinePassed: data.deadlinePassed,
     commitmentsEditable: data.commitmentsEditable,
+    lastSavedAt: data.lastSavedAt,
   }
 }
 

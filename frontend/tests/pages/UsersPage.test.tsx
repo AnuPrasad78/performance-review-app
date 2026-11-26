@@ -118,6 +118,7 @@ function wireEvaluation(employee: Employee): SelfEvaluationWire {
     overallSummary: 'A steady year.',
     forwardCommitments: [],
     commitmentsEditable: false,
+  lastSavedAt: '2026-11-24T16:05:00Z',
   }
 }
 

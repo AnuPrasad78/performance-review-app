@@ -225,21 +225,22 @@
 /* dashboard-scale avatar (ui.md §4.1: 62px on dashboards) */
 .avatar--lg { width: 62px; height: 62px; font-size: 18px; }
 
-/* Harbor hero — pale teal wash over the building image, white-framed card */
+/* Floating-card layout: the team photo runs edge to edge and dimmed, and a
+   single centered white card carries the whole review — centered-column
+   pattern of the Apex-style reference. */
 .hero-page {
   min-height: 100vh;
   background:
-    linear-gradient(rgba(214, 228, 224, 0.84), rgba(214, 228, 224, 0.84)),
-    url('../assets/hero-header.jpg') center 35% / cover no-repeat fixed;
+    linear-gradient(rgba(14, 24, 22, 0.62), rgba(14, 24, 22, 0.62)),
+    url('../assets/desk-team.jpg') center 35% / cover no-repeat fixed;
 }
 .hero-card {
-  width: min(85%, 1400px);
-  max-width: 1150px;
-  margin: 28px auto 56px;
+  width: min(92%, 880px);
+  margin: 36px auto 64px;
   background: #ffffff;
-  border: 10px solid #ffffff;
-  border-radius: 12px;
+  border-radius: 14px;
   overflow: hidden;
+  box-shadow: 0 18px 48px rgba(8, 18, 16, 0.4);
 }
 .hero-card__body { padding: 25px 30px 40px; display: flex; flex-direction: column; gap: 20px; }
 
@@ -253,7 +254,9 @@
   padding: 34px 30px 30px;
   color: #ffffff;
   border-radius: 4px;
-  background: url('../assets/hero-header.jpg') center 35% / cover no-repeat;
+  /* Same photo as the page backdrop, attachment fixed: the hero band reads
+     as a window onto the page background rather than a second image. */
+  background: url('../assets/desk-team.jpg') center 35% / cover no-repeat fixed;
 }
 .hero::before {
   content: '';

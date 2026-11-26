@@ -116,6 +116,27 @@ def test_manager_phase_still_reads_as_submitted() -> None:
     assert payload["employeeSignedAt"] is None
 
 
+def test_draft_save_stamp_rides_the_read_for_the_login_screen() -> None:
+    # The client shows "Draft saved at ..." from this server stamp — the one
+    # honest source, since a fresh login carries no client-side save history.
+    row = evaluation(
+        "SELF_EVALUATION_IN_PROGRESS",
+        q1_employee_response="Delivered the intake rewrite.",
+        updated_at=datetime.datetime(2026, 11, 24, 16, 5, tzinfo=UTC),
+    )
+    client, _ = make_client(evaluation_row=row)
+    payload = read(client).json()
+
+    assert payload["lastSavedAt"] == "2026-11-24T16:05:00Z"
+
+
+def test_no_row_means_no_draft_stamp() -> None:
+    client, _ = make_client()
+    payload = read(client).json()
+
+    assert payload["lastSavedAt"] is None
+
+
 def test_missing_cycle_is_a_404_envelope() -> None:
     client, _ = make_client(cycle=None)
     response = client.get("/api/evaluations/me", headers=IDENTITY)

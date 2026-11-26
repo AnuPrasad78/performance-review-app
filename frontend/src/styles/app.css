@@ -327,6 +327,11 @@ a { color: var(--teal-deep); }
   line-height: 1.5;
 }
 .form-actions { display: flex; justify-content: flex-end; gap: 10px; padding: 18px 28px 24px; border-top: 1px solid var(--hairline-2); }
+/* split actions row: the save affordance (with its save-time stamp) anchors
+   left; navigation rides right */
+.form-actions--split { justify-content: space-between; align-items: center; }
+.form-actions--split > div { display: flex; align-items: center; gap: 10px; }
+.form-actions--split p { margin: 0; }
 
 /* spinner */
 .spinner {
@@ -745,8 +750,9 @@ a { color: var(--teal-deep); }
   padding: 16px 24px 24px;
 }
 
-/* review preview — read-only full listing of every answered field */
-.preview { display: flex; flex-direction: column; gap: 16px; }
+/* review preview — read-only full listing of every answered field; the
+   panel spells out the app typeface so nothing falls back to a serif */
+.preview { display: flex; flex-direction: column; gap: 16px; font-family: var(--font); }
 .preview__grid {
   margin: 0;
   padding: 0;
@@ -754,7 +760,11 @@ a { color: var(--teal-deep); }
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 14px 22px;
 }
-.preview__field { display: flex; flex-direction: column; gap: 4px; }
+.preview__field { display: flex; flex-direction: column; gap: 4px; font-family: var(--font); }
+/* stacked fields inside a card breathe apart (grid fields have their own
+   grid spacing); the last one keeps room below it */
+.preview .card > .preview__field + .preview__field { margin-top: 16px; }
+.preview .card > .preview__field:last-child { margin-bottom: 8px; }
 .preview__label {
   font-size: 10px;
   font-weight: 600;

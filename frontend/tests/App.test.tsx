@@ -83,6 +83,7 @@ const OPEN_EVALUATION: SelfEvaluationWire = {
   overallSummary: 'Strong year.',
   forwardCommitments: [{ commitment: 'Own the intake rewrite', support: 'Lead mentoring' }],
   commitmentsEditable: true,
+  lastSavedAt: '2026-11-24T16:05:00Z',
 }
 
 const SESSION_KEY = 'performance-review.session.v1'

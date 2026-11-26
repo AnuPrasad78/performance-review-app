@@ -35,3 +35,14 @@ export function daysUntilDeadlineUtc(deadlineInstant: string, nowUtc: Date): num
 export function isIsoInstant(value: string): boolean {
   return /^\d{4}-\d{2}-\d{2}T\d{2}/.test(value) && !Number.isNaN(new Date(value).getTime())
 }
+
+/** An ISO instant to "26-Nov-2026, 10:42 AM" in local time — the single
+    formatter for the "Draft saved at / Auto saved at" copy. Falls back to
+    the raw input when not parseable, like formatIsoDate does. */
+export function formatInstant(iso: string): string {
+  const parsed = new Date(iso)
+  if (Number.isNaN(parsed.getTime())) return iso
+  const day = String(parsed.getDate()).padStart(2, '0')
+  const clock = parsed.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+  return `${day}-${MONTHS[parsed.getMonth()]}-${parsed.getFullYear()}, ${clock}`
+}

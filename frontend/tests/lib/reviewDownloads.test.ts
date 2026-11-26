@@ -57,6 +57,7 @@ function wire(name: string, employeeId: string): SelfEvaluationWire {
     overallSummary: 'A steady year.',
     forwardCommitments: [{ commitment: 'Own the intake rewrite', support: 'Lead mentoring' }],
     commitmentsEditable: false,
+  lastSavedAt: '2026-11-24T16:05:00Z',
   }
 }
 

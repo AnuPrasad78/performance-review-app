@@ -281,6 +281,9 @@ export interface SelfEvaluationWire {
   /** The server owns the commitment-lock window (open review, or post-submit
       until manager review end); the UI never re-derives it. */
   commitmentsEditable: boolean
+  /** The stored row's updated_at — the "last draft saved" stamp the client
+      displays. None until the first save opened a row. */
+  lastSavedAt: string | null
 }
 
 export type SelfEvaluationApiResult =

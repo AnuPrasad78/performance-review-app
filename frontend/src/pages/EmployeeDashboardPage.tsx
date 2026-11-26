@@ -9,7 +9,7 @@ import { Button } from '../components/atoms/Button'
 import { Card } from '../components/atoms/Card'
 import { Modal } from '../components/molecules/Modal'
 import { saveSelfEvaluation, submitSelfEvaluation, fetchSelfEvaluation } from '../lib/api'
-import { daysUntilDeadlineUtc } from '../lib/dates'
+import { daysUntilDeadlineUtc, formatInstant } from '../lib/dates'
 import { downloadSelfEvaluationPdf } from '../lib/selfEvaluationPdf'
 import { ReviewPreviewPanel } from '../components/organisms/ReviewPreviewPanel'
 import { useDeadlineClock } from '../hooks/useDeadlineClock'
@@ -104,10 +104,13 @@ export function EmployeeDashboardPage() {
     perform: saveSelfEvaluation,
     onSaved: (result) => {
       const wasOpen = recordRef.current?.submittedAt === null
+      const stamp = result.data.lastSavedAt === null ? null : formatInstant(result.data.lastSavedAt)
       setRecord((current) =>
         current === null ? current : mergeRecordFromApi(current, result.data),
       )
-      setNotice(wasOpen ? 'Draft saved.' : 'Commitments saved.')
+      setNotice(
+        wasOpen ? `Draft saved at ${stamp ?? '—'}` : `Commitments saved at ${stamp ?? '—'}`,
+      )
     },
     onError: (detail) => setNotice(`Save failed — ${detail}`),
   })
@@ -131,6 +134,11 @@ export function EmployeeDashboardPage() {
         setSectionIndex(resumedSection)
         setQuestionIndex(resumedQuestion)
         setRecord(initial)
+        // Returning is when the last-draft stamp matters: a fresh login
+        // carries no client-side save history, so the server's is displayed.
+        if (initial.submittedAt === null && initial.lastSavedAt !== null) {
+          setNotice(`Draft saved at ${formatInstant(initial.lastSavedAt)}`)
+        }
       } else {
         setLoadError(result.detail)
       }
@@ -329,16 +337,24 @@ export function EmployeeDashboardPage() {
       .finally(() => setSubmitting(false))
   }
 
-  /** A section counts as done only when every field in it is filled. */
+  /** A section counts as done only when every field in it is filled, and the
+      counter tops out at 3 — the employee's three fillable sections. Two
+      events complete the climb even earlier than the field checks: the submit
+      from the sign-off step, and a draft auto save that lands while the user
+      stands on the sign-off step. The manager phase lives in the Sign-off
+      row, never inside this count. */
   const questionsDone = draft.questions.every((q) => q.employeeResponse.trim() !== '')
   const overallDone = draft.overallRating !== null && draft.overallSummary.trim() !== ''
   const commitmentDone =
     draft.commitments[0]?.commitment.trim() !== '' && draft.commitments[0]?.support.trim() !== ''
   const signed = record.employeeSignedAt !== null
+  const landedOnSignOffSave = sectionIndex === STEPS.length - 1 && record.lastSavedAt !== null
   const sectionsDone =
-    (questionsDone ? 1 : 0) + (overallDone ? 1 : 0) + (commitmentDone ? 1 : 0) + (signed ? 1 : 0)
+    record.submittedAt !== null || landedOnSignOffSave
+      ? 3
+      : (questionsDone ? 1 : 0) + (overallDone ? 1 : 0) + (commitmentDone ? 1 : 0)
   const sectionProgress: readonly HeroSectionProgress[] = [
-    { label: 'Sections', value: `${sectionsDone}/4` },
+    { label: 'Sections', value: `${Math.min(sectionsDone, 3)}/3` },
     { label: 'Sign-off', value: signed ? 'Completed' : 'Pending' },
   ]
 
@@ -381,6 +397,7 @@ export function EmployeeDashboardPage() {
                     Download
                   </Button>
                 </div>
+                <SaveNotice notice={notice} />
               </>
             ) : (
               <>
@@ -464,38 +481,42 @@ export function EmployeeDashboardPage() {
                 </Card>
               )
             ) : null}
-            <div className="form-actions wizard-actions">
-              {showPrevious ? (
-                <Button variant="ghost" onClick={goToPrevious}>
-                  Previous
-                </Button>
-              ) : null}
-              {showNext ? (
-                <Button onClick={goToNext}>
-                  Next
-                </Button>
-              ) : null}
-              {answersEditable ? (
-                <Button variant="ghost" busy={busy} onClick={() => void autoSave.flush()}>
-                  Save draft
-                </Button>
-              ) : null}
-              {!answersEditable && record.commitmentsEditable && step.key === 'commitments' ? (
-                <Button variant="ghost" busy={busy} onClick={() => void autoSave.flush()}>
-                  Save commitments
-                </Button>
-              ) : null}
-              {isLastSection ? (
-                <Button variant="ghost" onClick={openPreview}>
-                  Preview
-                </Button>
-              ) : null}
-                </div>
+            <div className="form-actions wizard-actions form-actions--split">
+              <div>
+                {answersEditable ? (
+                  <Button variant="ghost" busy={busy} onClick={() => void autoSave.flush()}>
+                    Save draft
+                  </Button>
+                ) : null}
+                {!answersEditable && record.commitmentsEditable && step.key === 'commitments' ? (
+                  <Button variant="ghost" busy={busy} onClick={() => void autoSave.flush()}>
+                    Save commitments
+                  </Button>
+                ) : null}
+                {/* The save word belongs on every step: auto saves report
+                    their time, and the login screen shows the last stamp. */}
+                <SaveNotice notice={notice} />
+              </div>
+              <div>
+                {showPrevious ? (
+                  <Button variant="ghost" onClick={goToPrevious}>
+                    Previous
+                  </Button>
+                ) : null}
+                {showNext ? (
+                  <Button onClick={goToNext}>
+                    Next
+                  </Button>
+                ) : null}
+                {isLastSection ? (
+                  <Button variant="ghost" onClick={openPreview}>
+                    Preview
+                  </Button>
+                ) : null}
+              </div>
+            </div>
               </>
             )}
-            {step.key === 'commitments' || previewing || (validation !== null && !validation.isValid) ? (
-              <SaveNotice notice={notice} />
-            ) : null}
           </div>
         </div>
       </div>

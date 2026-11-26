@@ -121,6 +121,15 @@ def _signed_at(evaluation: Evaluation | None) -> datetime.date | None:
     return evaluation.employee_signed_at.date()
 
 
+def _last_saved_at(evaluation: Evaluation | None) -> datetime.datetime | None:
+    """The draft stamp the login screen displays; nothing exists until the
+    first save opened the row. The server clock is the only honest source —
+    the client never reconstructs this from its own state."""
+    if evaluation is None:
+        return None
+    return evaluation.updated_at
+
+
 def _commitments_editable(evaluation: Evaluation | None, cycle: ReviewCycle) -> bool:
     if evaluation is None or evaluation.status in _SELF_EVAL_ACTIVE:
         # The open review's commitments live inside the submission window:
@@ -151,6 +160,7 @@ def render_document(
         or "",
         forward_commitments=_commitments(evaluation),
         commitments_editable=_commitments_editable(evaluation, cycle),
+        last_saved_at=_last_saved_at(evaluation),
     )
 
 

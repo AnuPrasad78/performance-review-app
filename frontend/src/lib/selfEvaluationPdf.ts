@@ -183,7 +183,7 @@ export function downloadSelfEvaluationPdf(
     documentFromDraft(draft),
     signedAt,
     'Employee Self-Evaluation & Manager Assessment',
-  ).save(`${fileNameBase}-${draft.employee.employeeId}.pdf`)
+  ).save(`${fileNameBase}_${draft.employee.name}_${draft.employee.employeeId}.pdf`)
 }
 
 /** The admin review PDF, as a Blob: the single format both the profile card's

@@ -151,6 +151,7 @@ function selfEvaluationFrom(value: unknown): SelfEvaluationWire | null {
   if (!(value.overallRating === null || typeof value.overallRating === 'number')) return null
   if (!(value.submittedAt === null || typeof value.submittedAt === 'string')) return null
   if (!(value.employeeSignedAt === null || typeof value.employeeSignedAt === 'string')) return null
+  if (!(value.lastSavedAt === null || typeof value.lastSavedAt === 'string')) return null
   return {
     employee,
     reviewYear: value.reviewYear,
@@ -169,6 +170,7 @@ function selfEvaluationFrom(value: unknown): SelfEvaluationWire | null {
           : [],
       ),
     commitmentsEditable: value.commitmentsEditable,
+    lastSavedAt: value.lastSavedAt,
   }
 }
 
