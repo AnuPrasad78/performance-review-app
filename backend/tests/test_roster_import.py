@@ -13,7 +13,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from app.core.config import Settings
+from app.core.config import Settings, get_settings
 from app.main import create_app
 from app.models.employee import Employee
 from app.repositories.employee_repository import get_employee_repository
@@ -21,24 +21,27 @@ from app.services.roster_import import RosterRowsInvalid, parse_roster_csv
 from app.services.roster_mapping import to_employee
 
 FIXTURES = Path(__file__).parent / "fixtures"
+ADMIN = "hr.admin@emids.com"
 
 
 def make_client(stored: list[Employee] | None = None) -> TestClient:
     settings = Settings(
-        database_url="postgresql+asyncpg://ignored:ignored@localhost:5432/ignored"
+        database_url="postgresql+asyncpg://ignored:ignored@localhost:5432/ignored",
+        stub_admin_emails=[ADMIN],
     )
     app = create_app(settings)
-
-    def stub_repository() -> Any:
-        return _StubEmployeeRepository(stored or [])
-
-    app.dependency_overrides[get_employee_repository] = stub_repository
-    return TestClient(app)
+    app.dependency_overrides[get_settings] = lambda: settings
+    app.dependency_overrides[get_employee_repository] = lambda: _StubEmployeeRepository(stored or [])
+    return TestClient(app, headers={"X-Stub-User": ADMIN})
 
 
 class _StubEmployeeRepository:
     def __init__(self, stored: list[Employee]) -> None:
         self._stored = {one.employee_id: one for one in stored}
+
+    async def get_by_email(self, email: str) -> Employee | None:
+        # The admin is off-roster: identity resolves from the allow-list.
+        return None
 
     async def get_many_by_email(self, emails: list[str]) -> dict[str, Employee]:
         lowered = {email.lower() for email in emails}
@@ -72,6 +75,15 @@ def parsed_valid_rows() -> list[Any]:
 
 
 # --- report shape against a stubbed table -----------------------------------
+
+
+@pytest.mark.parametrize("path", ["/api/employees/import", "/api/employees/import/apply"])
+def test_roster_writes_are_admin_only(path: str) -> None:
+    # An anonymous caller must be refused before any body is read: these
+    # routes rewrite the whole roster.
+    response = make_client().post(path, headers={"X-Stub-User": ""})
+    assert response.status_code == 401
+    assert response.json()["code"] == "auth_required"
 
 
 def test_valid_roster_reports_new_rows_no_conflicts() -> None:

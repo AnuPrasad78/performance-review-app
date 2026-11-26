@@ -61,6 +61,14 @@ class Settings(BaseSettings):
     session_secret: str = ""
     session_cookie_name: str = "pr_session"
 
+    # Shared sign-in password for every roster employee and allow-listed
+    # admin on the email form (Key Vault secret `provision-password`, the same
+    # scheme as the Apex portal). Empty keeps the form email-only in dev and
+    # closed in prod. When set it is the form's only credential: a correct
+    # pair earns the same session cookie as SSO, and the stub header stops
+    # being honored, so knowing an address is no longer enough.
+    provision_password: str = ""
+
     # Stub-auth phase: emails hold the admin console role while roles live in
     # settings (user_accounts.auth_role arrives with migration A5). Env syntax:
     #   PR_STUB_ADMIN_EMAILS='["boss@emids.com"]'
@@ -101,6 +109,14 @@ class Settings(BaseSettings):
         return self
 
     @model_validator(mode="after")
+    def password_sign_in_needs_a_session_key(self) -> "Settings":
+        # A password sign-in is only as good as the cookie it issues; without
+        # a signing key every correct password would bounce at the next call.
+        if self.password_sign_in_enabled and self.session_secret.strip() == "":
+            raise ValueError("PR_PROVISION_PASSWORD requires PR_SESSION_SECRET")
+        return self
+
+    @model_validator(mode="after")
     def prod_identity_comes_from_sso(self) -> "Settings":
         # A prod deploy without the Entra endpoint values or a session
         # signing key would boot into an app no one can sign into; fail the
@@ -121,6 +137,16 @@ class Settings(BaseSettings):
         if missing:
             raise ValueError("SSO is mandatory in prod; missing " + ", ".join(missing))
         return self
+
+    @property
+    def password_sign_in_enabled(self) -> bool:
+        return self.provision_password.strip() != ""
+
+    @property
+    def email_only_sign_in(self) -> bool:
+        # The trust-the-typed-address crutch: developer machines only, and
+        # never once a password exists to check.
+        return self.environment == "dev" and not self.password_sign_in_enabled
 
     @property
     def sso_enabled(self) -> bool:

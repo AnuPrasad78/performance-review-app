@@ -14,6 +14,9 @@ from app.schemas.base import ApiModel
 
 class SessionRequest(ApiModel):
     email: str
+    # Checked only where a provision password is configured; the dev
+    # email-only regime ignores it (app/services/sign_in.py).
+    password: str = ""
 
 
 class SessionOut(ApiModel):

@@ -126,7 +126,7 @@ def _employees() -> list[Employee]:
 def test_pending_narrows_the_list_to_rows_the_employee_still_owns() -> None:
     client = make_client(_employees(), ROWS_STATUS)
 
-    response = client.get("/api/employees", params={"status": "pending"})
+    response = client.get("/api/employees", params={"status": "pending"}, headers=ADMIN_IDENTITY)
 
     body = response.json()
     # not_started and self_evaluation_in_progress are pending; the manager
@@ -138,7 +138,7 @@ def test_pending_narrows_the_list_to_rows_the_employee_still_owns() -> None:
 def test_completed_narrows_the_list_to_past_submission() -> None:
     client = make_client(_employees(), ROWS_STATUS)
 
-    response = client.get("/api/employees", params={"status": "completed"})
+    response = client.get("/api/employees", params={"status": "completed"}, headers=ADMIN_IDENTITY)
 
     body = response.json()
     assert [row["employeeId"] for row in body["employees"]] == ["EMP-V003"]
@@ -148,8 +148,8 @@ def test_completed_narrows_the_list_to_past_submission() -> None:
 def test_a_missing_cycle_answers_cycle_missing_only_when_the_filter_needs_it() -> None:
     client = make_client(_employees(), ROWS_STATUS, cycle=False)
 
-    plain = client.get("/api/employees")
-    filtered = client.get("/api/employees", params={"status": "pending"})
+    plain = client.get("/api/employees", headers=ADMIN_IDENTITY)
+    filtered = client.get("/api/employees", params={"status": "pending"}, headers=ADMIN_IDENTITY)
 
     assert plain.status_code == 200
     assert filtered.status_code == 404
@@ -162,6 +162,7 @@ def test_the_status_filter_composes_with_roster_filters_and_pages() -> None:
     response = client.get(
         "/api/employees",
         params={"status": "pending", "org": "Delivery", "sortBy": "employeeName", "sortOrder": "desc"},
+        headers=ADMIN_IDENTITY,
     )
 
     assert [row["employeeId"] for row in response.json()["employees"]] == ["EMP-V002", "EMP-V001"]

@@ -5,9 +5,8 @@ stored table; /import/apply commits the admin-reviewed decision. The list
 endpoint serves the admin Users table with the shared table query (search,
 filters, sort, and the board's form-status noun), /employees/export streams
 the matched rows as the roster CSV, and /employees/facets serves the filter
-dropdowns' option lists; those three sit behind the admin role gate. The
-import endpoints remain a documented auth-opt-out, per CLAUDE.md's stub-auth
-phase.
+dropdowns' option lists. Every route here reads or rewrites the whole
+roster, so all of them sit behind the admin role gate.
 """
 
 from typing import Annotated
@@ -51,6 +50,7 @@ router = APIRouter(tags=["employees"])
 @router.post("/employees/import", response_model=RosterImportReport)
 async def analyze_roster_import(
     file: Annotated[UploadFile, File()],
+    _admin: Annotated[AuthUser, Depends(get_admin_user)],
     repository: Annotated[EmployeeRepository, Depends(get_employee_repository)],
 ) -> RosterImportReport:
     # Transport bytes only — decoding, validation and shaping live in the service.
@@ -61,6 +61,7 @@ async def analyze_roster_import(
 @router.post("/employees/import/apply", response_model=RosterApplyReport)
 async def confirm_roster_import(
     payload: RosterApplyPayload,
+    _admin: Annotated[AuthUser, Depends(get_admin_user)],
     repository: Annotated[EmployeeRepository, Depends(get_employee_repository)],
     evaluation_repository: Annotated[
         EvaluationRepository, Depends(get_evaluation_repository)
@@ -71,6 +72,7 @@ async def confirm_roster_import(
 
 @router.get("/employees", response_model=EmployeeList)
 async def list_employees(
+    _admin: Annotated[AuthUser, Depends(get_admin_user)],
     repository: Annotated[EmployeeRepository, Depends(get_employee_repository)],
     cycle_repository: Annotated[ReviewCycleRepository, Depends(get_review_cycle_repository)],
     bounds: Annotated[Paging, Depends(paging)],

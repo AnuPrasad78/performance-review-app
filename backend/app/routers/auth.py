@@ -1,7 +1,8 @@
-"""Session endpoints: the dev email login and the Entra ID SSO hand-off.
+"""Session endpoints: the email/password form and the Entra ID SSO hand-off.
 
-One route = one use case. The stub-identity login ("who is this email on
-the roster?") stays for the dev environment; the SSO routes carry real
+One route = one use case. The form login checks the shared provision
+password where one is configured (dev's email-only regime otherwise; the
+rules live in services/sign_in.py); the SSO routes carry real
 verification through Entra and end with the server-side session cookie —
 the cookie is what get_current_user reads from then on. Every route maps
 identity through the one shared authenticate_email seam, with its single
@@ -21,6 +22,7 @@ from app.core.sessions import issue_session
 from app.repositories.employee_repository import EmployeeRepository, get_employee_repository
 from app.schemas.auth import SessionOut, SessionRequest
 from app.services import sso as sso_service
+from app.services.sign_in import sign_in_with_form
 
 router = APIRouter(tags=["auth"])
 
@@ -30,10 +32,15 @@ _SSO_STATE_COOKIE = "sso_state"
 @router.post("/auth/session", response_model=SessionOut)
 async def open_session(
     payload: SessionRequest,
+    response: Response,
     repository: Annotated[EmployeeRepository, Depends(get_employee_repository)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> SessionOut:
-    user = await authenticate_email(payload.email, repository, settings)
+    user = await sign_in_with_form(payload.email, payload.password, repository, settings)
+    if settings.password_sign_in_enabled:
+        # A verified password earns the same credential as SSO: the cookie,
+        # since the stub header is no longer honored in this regime.
+        _set_session_cookie(response, user, settings)
     return SessionOut(
         employee_id=user.employee_id, name=user.name, email=user.email, role=user.role
     )
@@ -90,13 +97,7 @@ async def complete_sso(
 
     redirect = RedirectResponse(_app_root(settings), status_code=303)
     redirect.delete_cookie(_SSO_STATE_COOKIE)
-    redirect.set_cookie(
-        key=settings.session_cookie_name,
-        value=issue_session(user.email, settings.session_secret),
-        secure=settings.environment == "prod",
-        samesite="lax",
-        httponly=True,
-    )
+    _set_session_cookie(redirect, user, settings)
     return redirect
 
 
@@ -107,6 +108,16 @@ async def close_session(
     response = Response(status_code=204)
     response.delete_cookie(settings.session_cookie_name)
     return response
+
+
+def _set_session_cookie(response: Response, user: AuthUser, settings: Settings) -> None:
+    response.set_cookie(
+        key=settings.session_cookie_name,
+        value=issue_session(user.email, settings.session_secret),
+        secure=settings.environment == "prod",
+        samesite="lax",
+        httponly=True,
+    )
 
 
 def _require_sso(settings: Settings) -> None:

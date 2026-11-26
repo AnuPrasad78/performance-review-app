@@ -256,8 +256,8 @@ describe('App — signed-out users are routed to sign-in', () => {
 
     // The boot splash holds the interface while the server-side cookie is
     // checked; the form appears once no session is waiting to be adopted.
-    await screen.findByLabelText('Company Email')
-    await user.type(screen.getByLabelText('Company Email'), 'asha_menon@emids.com')
+    await user.click(await screen.findByRole('button', { name: 'or sign in with username' }))
+    await user.type(screen.getByLabelText('Username'), 'asha_menon@emids.com')
     await user.type(screen.getByLabelText('Password'), 'Portal@2026')
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
 

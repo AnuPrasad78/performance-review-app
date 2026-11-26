@@ -110,8 +110,9 @@ async def get_current_user(
         return await authenticate_email(cookie_email, repository, settings)
 
     # Dev-only crutch: the stub header survives while developers build
-    # without the Entra endpoints; prod identity never falls back to it.
-    if settings.environment == "dev":
+    # without the Entra endpoints; prod identity never falls back to it, and
+    # neither does an environment guarded by a provision password.
+    if settings.email_only_sign_in:
         identity = request.headers.get(settings.stub_user_header, "").strip()
         if identity:
             return await authenticate_email(identity, repository, settings)
