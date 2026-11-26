@@ -478,7 +478,11 @@ describe('EmployeeDashboardPage — submit gate', () => {
     // No POST escaped, and the notice names the failure instead of answering
     // with the server's stale-record verdict.
     expect(calls.filter((call) => call.method === 'POST')).toHaveLength(0)
-    expect(await screen.findByText('Save failed — Internal server error.')).toBeInTheDocument()
+    const failureDialog = await screen.findByRole('dialog', { name: 'Submission failed' })
+    expect(
+      within(failureDialog).getByText('Your self-evaluation was not submitted. Please try again.'),
+    ).toBeInTheDocument()
+    expect(within(failureDialog).getByText('Save failed — Internal server error.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Download' })).toBeDisabled()
   })
 })

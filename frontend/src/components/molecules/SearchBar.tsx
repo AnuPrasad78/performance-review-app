@@ -19,7 +19,13 @@ export function SearchBar({ value, onChange, placeholder, ariaLabel }: SearchBar
   const timer = useRef<number | null>(null)
 
   useEffect(() => {
-    setDraft(value)
+    // Only an outside value change (page clears the filter) may rewrite the
+    // draft. While a settle is still pending, the user is typing — the prop
+    // may lag behind their keystrokes, and applying it here would resurrect
+    // an older word over what they are entering (the catch-up race).
+    if (timer.current === null) {
+      setDraft(value)
+    }
   }, [value])
 
   useEffect(() => {

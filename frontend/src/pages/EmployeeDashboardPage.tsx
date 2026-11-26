@@ -306,7 +306,13 @@ export function EmployeeDashboardPage() {
     void autoSave
       .flush()
       .then((saveOutcome) => {
-        if (saveOutcome !== null && !saveOutcome.ok) return null
+        if (saveOutcome !== null && !saveOutcome.ok) {
+          // The preamble save failed: the server never saw the draft, so the
+          // submission must not fire. onError already surfaced the save's
+          // own detail; the popup states the submission never completed.
+          setSubmitOutcome('failed')
+          return null
+        }
         return submitSelfEvaluation()
       })
       .then((result) => {
@@ -368,7 +374,7 @@ export function EmployeeDashboardPage() {
                       downloadSelfEvaluationPdf(
                         draft,
                         record.employeeSignedAt ?? record.submittedAt,
-                        'self-evaluation',
+                        'Self Evaluation',
                       )
                     }
                   >
@@ -525,6 +531,7 @@ export function EmployeeDashboardPage() {
       >
         <div className="modal__body">
           <p>Your self-evaluation was submitted successfully.</p>
+          <p className="muted">Your self-evaluation form is now downloadable.</p>
           <p className="muted">
             It is with your manager for the review discussion and sign-off.
           </p>
