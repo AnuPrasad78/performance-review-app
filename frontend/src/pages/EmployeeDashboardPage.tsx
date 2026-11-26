@@ -77,6 +77,7 @@ export function EmployeeDashboardPage() {
   const [loadError, setLoadError] = useState<string | null>(null)
   /** Placeholder bands wait 180ms before showing — fast answers never flash. */
   const skeletonVisible = useDelaySkeleton(record === null)
+  const [notEligible, setNotEligible] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [validation, setValidation] = useState<SelfEvaluationValidation | null>(null)
@@ -143,6 +144,10 @@ export function EmployeeDashboardPage() {
         if (initial.submittedAt === null && initial.lastSavedAt !== null) {
           setNotice(`Draft saved at ${formatInstant(initial.lastSavedAt)}`)
         }
+      } else if (result.code === 'not_eligible') {
+        // The cycle's joining-date cutoff: the welcome the recent joiner
+        // sees at sign-in, in the server's own wording.
+        setNotEligible(result.detail)
       } else {
         setLoadError(result.detail)
       }
@@ -162,6 +167,21 @@ export function EmployeeDashboardPage() {
     lastResumeRef.current = json
     saveResumeIndices(record.draft.employee.email, indices)
   }, [record, sectionIndex, questionIndex])
+
+  if (notEligible !== null) {
+    return (
+      <div className="hero-page">
+        <div className="hero-card brand-frame">
+          <HeroHeader sectionProgress={[]} />
+          <div className="hero-card__body">
+            <Card caption="Welcome to emids" captionAccent>
+              <p>{notEligible}</p>
+            </Card>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   if (loadError !== null) {
     return (

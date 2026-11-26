@@ -35,6 +35,7 @@ function employee(employeeId: string, name: string, email: string): Employee {
     businessPartner: 'John D',
     reportingManager: 'Priya Raghavan',
     status: 'Active',
+    joiningDate: '',
   }
 }
 

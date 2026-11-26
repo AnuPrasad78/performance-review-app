@@ -10,6 +10,7 @@ admin confirms (new rows as inserts, collided rows where the admin chose
 Update).
 """
 
+import datetime
 from typing import Literal
 
 from app.schemas.base import ApiModel
@@ -29,6 +30,10 @@ class RosterEmployeeOut(ApiModel):
     business_partner: str
     reporting_manager: str
     status: str
+    #: The roster's Date of Joining — parsed to a date at import (="YYYY-MM-DD"
+    #: cell), not a plain string like the names above it, because the review
+    #: form's eligibility gate compares it as a date. A blank cell is None.
+    joining_date: datetime.date | None
 
 
 class RosterRowError(ApiModel):
@@ -90,6 +95,7 @@ class RosterFacets(ApiModel):
     locations: list[str]
     orgs: list[str]
     business_units: list[str]
+    business_partners: list[str]
     reporting_managers: list[str]
     employment_statuses: list[str]
 
@@ -99,11 +105,27 @@ class RosterFacets(ApiModel):
 EmployeeEmploymentStatus = Literal["Active", "Inactive"]
 
 
-class EmployeeStatusPatch(ApiModel):
-    """The profile card's one-member employment-status write; the wire shape
-    stays a patch so future single-field edits reuse the endpoint."""
+class EmployeePatch(ApiModel):
+    """One employee's roster write over PATCH /api/employees/{id}: any subset
+    of the roster record, so the card's Active/Inactive flip and the edit
+    form's field save share one wire shape. A None (or omitted) field leaves
+    the stored column alone; identities and the employment word carry the
+    same vocabularies the roster CSV stores."""
 
-    status: EmployeeEmploymentStatus
+    employee_id: str | None = None
+    name: str | None = None
+    email: str | None = None
+    designation: str | None = None
+    location: str | None = None
+    org: str | None = None
+    business_unit: str | None = None
+    project: str | None = None
+    delivery_head: str | None = None
+    delivery_manager: str | None = None
+    business_partner: str | None = None
+    reporting_manager: str | None = None
+    status: EmployeeEmploymentStatus | None = None
+    joining_date: datetime.date | None = None
 
 
 #: (RosterEmployeeOut field, employees column) pairs, including the identities.
@@ -111,8 +133,9 @@ class EmployeeStatusPatch(ApiModel):
 #: loop: it identifies a row, never a copied value. roster_mapping diffs it
 #: separately (changed_wire_fields) so an ID move still previews as a change;
 #: roster_apply carries it as the updated row's (possibly new) PK. Plain
-#: strings, so this contract table stays importable from every layer without
-#: reaching into models.
+#: strings except the one date (joining_date — see RosterEmployeeOut), so this
+#: contract table stays importable from every layer without reaching into
+#: models.
 ROSTER_ATTRIBUTES: tuple[tuple[str, str], ...] = (
     ("name", "employee_name"),
     ("email", "email"),
@@ -126,4 +149,5 @@ ROSTER_ATTRIBUTES: tuple[tuple[str, str], ...] = (
     ("business_partner", "business_partner"),
     ("reporting_manager", "reporting_manager"),
     ("status", "employment_status"),
+    ("joining_date", "joining_date"),
 )

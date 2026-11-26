@@ -17,4 +17,5 @@ export const EMPLOYEE_FIELD_TITLES: Readonly<Record<keyof Employee, string>> = {
   businessPartner: 'Business Partner',
   reportingManager: 'Reporting Manager',
   status: 'Status',
+  joiningDate: 'Date of Joining',
 }

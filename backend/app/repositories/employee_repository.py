@@ -8,7 +8,7 @@ Pagination and the admin board's roster × evaluation join are reads served
 here so no list endpoint ever materializes the full table.
 """
 
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Mapping, Sequence
 from typing import Annotated, NamedTuple
 
 from fastapi import Depends
@@ -25,8 +25,9 @@ from app.schemas.table_query import RosterSortKey, TableQuery
 class RosterYearPage(NamedTuple):
     """One page of the admin roster read: employee rows beside their year's
     evaluation (None where the roster row stands alone), the page slice's
-    total under the applied filter, and the status distribution over
-    the whole roster."""
+    total under the applied filter (search, dropdowns, AND the status word),
+    and the status distribution under the composed search and dropdown
+    filters — deliberately never the status word."""
 
     rows: list[tuple[Employee, Evaluation | None]]
     total: int
@@ -40,6 +41,7 @@ class RosterFacetColumns(NamedTuple):
     locations: list[str]
     orgs: list[str]
     business_units: list[str]
+    business_partners: list[str]
     reporting_managers: list[str]
     employment_statuses: list[str]
 
@@ -65,6 +67,7 @@ _FILTER_COLUMNS = (
     ("location", Employee.location),
     ("org", Employee.org),
     ("business_unit", Employee.business_unit),
+    ("business_partner", Employee.business_partner),
     ("reporting_manager", Employee.reporting_manager),
     ("employment_status", Employee.employment_status),
 )
@@ -153,18 +156,24 @@ class EmployeeRepository:
         )
         return await self._session.scalar(statement)
 
-    async def set_employment_status(
-        self, employee_id: str, status: str
-    ) -> Employee | None:
-        """The one employee whose employment word moves to `status`, or None
-        when the roster holds no such row. Flush keeps the write visible in
-        the same request (core/db.py commits at its end)."""
-        stored = await self._session.get(Employee, employee_id)
-        if stored is None:
-            return None
-        stored.employment_status = status
+    async def update_employee(
+        self,
+        employee: Employee,
+        values: Mapping[str, str],
+        *,
+        employee_id_to: str | None = None,
+    ) -> Employee:
+        """Writes the patch's (employees column -> value) pairs onto the
+        stored row; `employee_id_to` re-keys it when the patch moves the
+        primary key (evaluation rows follow via ON UPDATE CASCADE). Flush
+        keeps the write visible in the same request (core/db.py commits at
+        its end) and surfaces constraint clashes inside the envelope."""
+        for column, value in values.items():
+            setattr(employee, column, value)
+        if employee_id_to is not None:
+            employee.employee_id = employee_id_to
         await self._session.flush()
-        return stored
+        return employee
 
     async def get_many_by_email(self, emails: Sequence[str]) -> dict[str, Employee]:
         """Stored rows keyed by their lower-cased email — roster imports match
@@ -314,11 +323,14 @@ class EmployeeRepository:
     ) -> RosterYearPage:
         """The admin board read: `statuses` (the wire words the service maps
         from query.status; None = all) may narrow both the page and the total,
-        while the employee columns of `query` filter alongside, and the status
-        counts always cover the whole roster — the board's tiles describe the
-        roster for the cycle, not the filtered view. The stored status is the
-        whole rule for the word (six-state column, pr_0006); roster rows
-        without an evaluation read "not_started" by definition."""
+        while the employee columns of `query` filter alongside. The status
+        counts narrow by the composed search and dropdown columns — the
+        board's pie and tiles describe exactly what the Search & Filter
+        narrows — yet never by the status word itself: the pie *is* the
+        status breakdown, and counting under the status word would collapse
+        it to one color. The stored status is the whole rule for the word
+        (six-state column, pr_0006); roster rows without an evaluation read
+        "not_started" by definition."""
         status_word = _board_status()
         conditions = _roster_conditions(query)
         join_on = _year_join(review_year)
@@ -336,9 +348,12 @@ class EmployeeRepository:
         total = await self._session.scalar(filtered) or 0
 
         grouped = (
+            # The counts' narrowing: the search and dropdown verbs only —
+            # never the status word, by design (see the docstring above).
             select(status_word, func.count())
             .select_from(Employee)
             .outerjoin(Evaluation, join_on)
+            .where(*conditions)
             .group_by(status_word)
         )
         status_counts = {
@@ -381,6 +396,7 @@ class EmployeeRepository:
             locations=await values(Employee.location),
             orgs=await values(Employee.org),
             business_units=await values(Employee.business_unit),
+            business_partners=await values(Employee.business_partner),
             reporting_managers=await values(Employee.reporting_manager),
             employment_statuses=await values(Employee.employment_status),
         )

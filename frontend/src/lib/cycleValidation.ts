@@ -32,6 +32,7 @@ export function emptyCycleDraft(): CycleSettingsDraft {
     managerReviewStart: '',
     managerReviewEnd: '',
     hrApprovalReleaseBy: '',
+    eligibilityDate: '',
   }
 }
 
@@ -49,6 +50,7 @@ export function cycleSettingsToDraft(settings: CycleSettings | null): CycleSetti
     managerReviewStart: settings.managerReviewStart,
     managerReviewEnd: settings.managerReviewEnd,
     hrApprovalReleaseBy: settings.hrApprovalReleaseBy,
+    eligibilityDate: settings.employeeEligibilityDate,
   }
 }
 
@@ -61,6 +63,7 @@ export function draftToCycleSettings(draft: CycleSettingsDraft): CycleSettings {
     managerReviewStart: draft.managerReviewStart,
     managerReviewEnd: draft.managerReviewEnd,
     hrApprovalReleaseBy: draft.hrApprovalReleaseBy,
+    employeeEligibilityDate: draft.eligibilityDate,
   }
 }
 
@@ -81,6 +84,7 @@ export function validateCycleSettings(draft: CycleSettingsDraft): CycleSettingsV
     managerReviewStart: null,
     managerReviewEnd: null,
     hrApprovalReleaseBy: null,
+    eligibilityDate: null,
   }
 
   if (!YEAR_PATTERN.test(draft.reviewYear)) {
@@ -100,6 +104,10 @@ export function validateCycleSettings(draft: CycleSettingsDraft): CycleSettingsV
   }
   if (draft.hrApprovalReleaseBy === '' || !isDateInputValue(draft.hrApprovalReleaseBy)) {
     fieldErrors.hrApprovalReleaseBy = 'Choose the HR approval and release date.'
+  }
+  // Optional: blank means the cycle has no joining-date restriction at all.
+  if (draft.eligibilityDate !== '' && !isDateInputValue(draft.eligibilityDate)) {
+    fieldErrors.eligibilityDate = 'Choose the employee eligibility date, or leave it empty.'
   }
 
   let dateError: string | null = null

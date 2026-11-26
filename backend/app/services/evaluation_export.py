@@ -1,12 +1,15 @@
 """Admin review-document exports: the bulk ZIP's reads and one employee's
 document for the profile-card download.
 
-Every use case serves the COMPLETED side of the workflow only — the words the
-board's `completed` filter noun stands for (FILTER_STATUS_WORDS), resolved per
-query against the current cycle. The documents reuse the self-evaluation wire
-render (services.self_evaluation.render_document) so the review PDF contract
-exists once; manager assessments ride the wire but the PDF builder excludes
-them. Router docs for the three endpoints live with the router.
+Every use case here serves the past-submission side of the workflow
+(PAST_SUBMISSION_WORDS in services.self_evaluation) — "a finished review,
+wherever it sits in the manager phase" — resolved per query against the
+current cycle, and deliberately independent of the query's own filter word:
+the exports are the finished set, not another view of the filter. The
+documents reuse the self-evaluation wire render
+(services.self_evaluation.render_document) so the review PDF contract exists
+once; manager assessments ride the wire but the PDF builder excludes them.
+Router docs for the three endpoints live with the router.
 """
 
 from app.core.errors import AppError
@@ -20,13 +23,12 @@ from app.schemas.self_evaluation import (
     SelfEvaluationOut,
 )
 from app.schemas.table_query import TableQuery
-from app.services.self_evaluation import FILTER_STATUS_WORDS, current_cycle, render_document
+from app.services.self_evaluation import PAST_SUBMISSION_WORDS, current_cycle, render_document
 
-#: The stored-status words (wire case) behind "completed" — every use case
-#: here filters on this one bucket, whatever the query's own `status` says;
-#: the repositories never read query.status, and the client's export calls
-#: drop the word so the wire states exactly what the read serves.
-_COMPLETED_WORDS = FILTER_STATUS_WORDS["completed"]
+#: The stored-status words (wire case) this whole service filters on; the
+#: client's export calls drop the query's own status word so the wire states
+#: exactly what the read serves (the fixed bucket above).
+_COMPLETED_WORDS = PAST_SUBMISSION_WORDS
 
 
 async def completed_documents(

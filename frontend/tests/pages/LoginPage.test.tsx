@@ -56,6 +56,7 @@ function openEvaluation(name: string, email: string): SelfEvaluationWire {
       businessPartner: 'John D',
       reportingManager: 'Priya Raghavan',
       status: 'Active',
+      joiningDate: '',
     },
     reviewYear: 2026,
     submissionDeadline: '2027-01-15T10:00:00+00:00',

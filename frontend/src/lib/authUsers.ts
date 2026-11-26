@@ -70,6 +70,7 @@ const SESSION_PROFILES: Readonly<Record<string, SelfEvaluationEmployee>> = {
     businessPartner: 'John D',
     reportingManager: 'Ravi Menon',
     status: 'Active',
+    joiningDate: '2019-06-10',
   },
   'bilal_khan@emids.com': {
     employeeId: 'EMP-1002',
@@ -85,6 +86,7 @@ const SESSION_PROFILES: Readonly<Record<string, SelfEvaluationEmployee>> = {
     businessPartner: 'John D',
     reportingManager: 'Ravi Menon',
     status: 'Active',
+    joiningDate: '2019-06-10',
   },
   'cara_fernandes@emids.com': {
     employeeId: 'EMP-1003',
@@ -100,6 +102,7 @@ const SESSION_PROFILES: Readonly<Record<string, SelfEvaluationEmployee>> = {
     businessPartner: 'John D',
     reportingManager: 'Anika Rao',
     status: 'Active',
+    joiningDate: '2019-06-10',
   },
   'devika_nair@emids.com': {
     employeeId: 'EMP-1004',
@@ -115,6 +118,7 @@ const SESSION_PROFILES: Readonly<Record<string, SelfEvaluationEmployee>> = {
     businessPartner: 'John D',
     reportingManager: 'Anika Rao',
     status: 'Active',
+    joiningDate: '2019-06-10',
   },
   'eshan_gupta@emids.com': {
     employeeId: 'EMP-1005',
@@ -130,6 +134,7 @@ const SESSION_PROFILES: Readonly<Record<string, SelfEvaluationEmployee>> = {
     businessPartner: 'John D',
     reportingManager: 'Joseph Mathew',
     status: 'Active',
+    joiningDate: '2019-06-10',
   },
   'farah_sheikh@emids.com': {
     employeeId: 'EMP-1006',
@@ -145,6 +150,7 @@ const SESSION_PROFILES: Readonly<Record<string, SelfEvaluationEmployee>> = {
     businessPartner: 'John D',
     reportingManager: 'Anika Rao',
     status: 'Active',
+    joiningDate: '2019-06-10',
   },
   'heena_roy@emids.com': {
     employeeId: 'EMP-1007',
@@ -160,6 +166,7 @@ const SESSION_PROFILES: Readonly<Record<string, SelfEvaluationEmployee>> = {
     businessPartner: 'John D',
     reportingManager: 'Joseph Mathew',
     status: 'Active',
+    joiningDate: '2019-06-10',
   },
 }
 

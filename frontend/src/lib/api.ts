@@ -3,8 +3,8 @@ import type {
   CycleSettingsResult,
   Employee,
   EmployeeListResult,
-  EmployeeStatus,
-  EmployeeStatusPatchResult,
+  EmployeePatch,
+  EmployeePatchResult,
   FormStatus,
   FormStatusResult,
   RosterApplyResult,
@@ -13,12 +13,12 @@ import type {
   RosterFacetsResult,
   RosterImportResult,
   RosterQuery,
-  RawReviewStatus,
   ReviewBoardPage,
   ReviewBoardQuery,
   ReviewBoardResult,
   ReviewCountResult,
   ReviewDocumentsResult,
+  ReviewStatus,
   ReviewStatusWire,
   SelfEvaluationApiResult,
   SelfEvaluationPartial,
@@ -28,7 +28,7 @@ import type {
   TopicResponses,
 } from './types'
 import { isIsoInstant } from './dates'
-import { RAW_TO_DISPLAY } from './reviewStatusStore'
+import { REVIEW_STATUS_WORDS } from './reviewStatusStore'
 
 /** Same-origin /api by default (Vite dev proxy in dev); VITE_API_URL points at
     a direct, absolute API base where the frontend is served separately. */
@@ -99,6 +99,7 @@ function employeeFrom(value: unknown): Employee | null {
     businessPartner: stringField('businessPartner'),
     reportingManager: stringField('reportingManager'),
     status: value.status === 'Inactive' ? 'Inactive' : 'Active',
+    joiningDate: stringField('joiningDate'),
   }
 }
 
@@ -191,8 +192,10 @@ function envelopeFields(parsed: Record<string, unknown>): { detail: string; code
   }
 }
 
-/** The wire form of the roster contract — camelCase keys of POST/apply bodies. */
-function employeeToWire(employee: Employee): Record<string, string> {
+/** The wire form of the roster contract — camelCase keys of POST/apply bodies.
+    joiningDate is the one date: a blank roster cell goes on the wire as null
+    (the backend's date contract), never as an empty string. */
+function employeeToWire(employee: Employee): Record<string, string | null> {
   return {
     employeeId: employee.employeeId,
     name: employee.name,
@@ -207,6 +210,7 @@ function employeeToWire(employee: Employee): Record<string, string> {
     businessPartner: employee.businessPartner,
     reportingManager: employee.reportingManager,
     status: employee.status,
+    joiningDate: employee.joiningDate === '' ? null : employee.joiningDate,
   }
 }
 
@@ -310,7 +314,7 @@ export async function applyRosterImport(payload: {
       }),
     })
   } catch {
-    return { ok: false, detail: NETWORK_UNAVAILABLE.detail, code: NETWORK_UNAVAILABLE.code }
+    return { ok: false, ...{ detail: UNSUPPORTED_ENV_ERROR.detail, code: 'unsupported_environment' } }
   }
   const parsed = await envelopeOf(response)
   if (parsed === null) {
@@ -323,18 +327,19 @@ export async function applyRosterImport(payload: {
   return { ok: true, importedCount: parsed.importedCount, updatedCount: parsed.updatedCount }
 }
 
-/** The board parse trusts exactly the backend's six wire words — the keys of
-    RAW_TO_DISPLAY — and reuses that module's collapse, so the display
-    mapping exists once (lib/reviewStatusStore), never re-coded here. */
-const BOARD_STATUSES = Object.keys(RAW_TO_DISPLAY) as RawReviewStatus[]
+/** The board parse trusts exactly the backend's six wire words and keeps
+    each word verbatim — the row's status *is* the display word now; the
+    vocabulary's single ordered list lives once (lib/reviewStatusStore). */
+const BOARD_STATUSES = REVIEW_STATUS_WORDS
 
 function reviewStatusFrom(value: unknown): ReviewStatusWire | null {
   if (!isRecord(value)) return null
   const employee = employeeFrom(value.employee)
   if (employee === null) return null
-  const wireStatus = value.status as RawReviewStatus
-  if (!BOARD_STATUSES.includes(wireStatus)) return null
-  return { employee, status: RAW_TO_DISPLAY[wireStatus] }
+  const status = value.status as ReviewStatus
+  if (!BOARD_STATUSES.includes(status)) return null
+  const submittedAt = typeof value.submittedAt === 'string' ? value.submittedAt : null
+  return { employee, status, submittedAt }
 }
 
 /** Wire words the backend treats as defaults — omitting them keeps the query
@@ -360,10 +365,10 @@ function tableQueryParams(query: object): string {
 function boardPageFrom(parsed: Record<string, unknown>): ReviewBoardPage | null {
   if (!Array.isArray(parsed.reviews)) return null
   const isCount = (value: unknown): value is number => typeof value === 'number'
-  const counts: Partial<Record<RawReviewStatus, number>> = {}
+  const counts: Partial<Record<ReviewStatus, number>> = {}
   if (isRecord(parsed.statusCounts)) {
     for (const [key, value] of Object.entries(parsed.statusCounts)) {
-      const word = key as RawReviewStatus
+      const word = key as ReviewStatus
       if (BOARD_STATUSES.includes(word) && isCount(value)) counts[word] = value
     }
   }
@@ -426,8 +431,8 @@ export async function fetchEmployees(query: RosterQuery & { page: number }): Pro
 
 /** A whole-set read's wire: the composed query without the page slice —
     the roster CSV keeps its status word (the export honors it); the review
-    exports serve a fixed completed bucket server-side, so their word has to
-    drop lest it pretend to narrow the download. */
+    exports serve a fixed past-submission bucket server-side, so their word
+    has to drop lest it pretend to narrow the download. */
 function wholesetQuery(
   query: RosterQuery,
   { dropStatus = false }: { dropStatus?: boolean } = {},
@@ -438,16 +443,17 @@ function wholesetQuery(
   return reviewed
 }
 
-export async function fetchRosterCsvExport(
-  query: RosterQuery,
-): Promise<RosterCsvExportResult> {
+/** One whole-set CSV read for both admin exports: the composed query
+    without the page slice, an identity-bearing fetch, and the content type
+    check before the blob — the same failure envelopes either table's button
+    turns into a toast. */
+async function csvBlob(path: string, query: RosterQuery): Promise<RosterCsvExportResult> {
   let response: Response
   try {
     // The export covers the whole matched set — the page slice never rides it.
-    response = await fetch(
-      `${API_BASE}/api/employees/export?${tableQueryParams(wholesetQuery(query))}`,
-      { headers: identityHeaders() },
-    )
+    response = await fetch(`${API_BASE}${path}?${tableQueryParams(wholesetQuery(query))}`, {
+      headers: identityHeaders(),
+    })
   } catch {
     return { ok: false, detail: NETWORK_UNAVAILABLE.detail, code: NETWORK_UNAVAILABLE.code }
   }
@@ -464,6 +470,18 @@ export async function fetchRosterCsvExport(
   return { ok: true, blob: await response.blob() }
 }
 
+export function fetchRosterCsvExport(query: RosterQuery): Promise<RosterCsvExportResult> {
+  return csvBlob('/api/employees/export', query)
+}
+
+/** The review board's Download CSV read: every employee the composed board
+    query matches — roster columns plus form status and submitted date —
+    with the query's status word riding along (the board's own status filter
+    narrows this download, unlike the review documents'). */
+export function fetchReviewStatusCsvExport(query: RosterQuery): Promise<RosterCsvExportResult> {
+  return csvBlob('/api/evaluations/export/status', query)
+}
+
 /** The review document exports name the same failure apart from the roster
     one: the documents, not the roster, are missing when these 404/500. */
 const REVIEW_EXPORT_UNAVAILABLE = {
@@ -472,7 +490,7 @@ const REVIEW_EXPORT_UNAVAILABLE = {
 }
 
 /** The bulk button's number: completed reviews under the composed roster
-    query (the status word rides out — the export always reads the completed
+    query (the status word rides out — the export always reads the finished
     bucket). */
 export async function fetchCompletedCount(query: RosterQuery): Promise<ReviewCountResult> {
   let response: Response
@@ -574,19 +592,20 @@ export async function fetchEmployeeFormStatus(
   return { ok: true, formStatus: parsed.formStatus as FormStatus }
 }
 
-/** The profile card's employment-status flip; the stored row — with its new
-    word — comes back, so the caller can re-strip from the answer itself. */
-export async function patchEmployeeStatus(
+/** One employee's roster write — the Users Status column's flip and the
+    profile card's field form send subsets of the same patch; the stored row
+    — with the post-write identity — comes back. */
+export async function patchEmployee(
   employeeId: string,
-  status: EmployeeStatus,
-): Promise<EmployeeStatusPatchResult> {
+  patch: EmployeePatch,
+): Promise<EmployeePatchResult> {
   let response: Response
   try {
     response = await fetch(`${API_BASE}/api/employees/${encodeURIComponent(employeeId)}`, {
       method: 'PATCH',
       credentials: CREDENTIALS,
       headers: { 'Content-Type': 'application/json', ...identityHeaders() },
-      body: JSON.stringify({ status }),
+      body: JSON.stringify(patch),
     })
   } catch {
     return { ok: false, detail: NETWORK_UNAVAILABLE.detail, code: NETWORK_UNAVAILABLE.code }
@@ -613,6 +632,7 @@ function facetsFrom(parsed: Record<string, unknown>): RosterFacets | null {
   const locations = wordList('locations')
   const orgs = wordList('orgs')
   const businessUnits = wordList('businessUnits')
+  const businessPartners = wordList('businessPartners')
   const reportingManagers = wordList('reportingManagers')
   const employmentStatuses = wordList('employmentStatuses')
   if (
@@ -620,12 +640,21 @@ function facetsFrom(parsed: Record<string, unknown>): RosterFacets | null {
     locations === null ||
     orgs === null ||
     businessUnits === null ||
+    businessPartners === null ||
     reportingManagers === null ||
     employmentStatuses === null
   ) {
     return null
   }
-  return { designations, locations, orgs, businessUnits, reportingManagers, employmentStatuses }
+  return {
+    designations,
+    locations,
+    orgs,
+    businessUnits,
+    businessPartners,
+    reportingManagers,
+    employmentStatuses,
+  }
 }
 
 export async function fetchEmployeeFacets(): Promise<RosterFacetsResult> {
@@ -768,12 +797,17 @@ function cycleSettingsFrom(value: unknown): CycleSettings | null {
   if (CYCLE_DATE_KEYS.some((key) => dateField(key) === '')) return null
   const submissionDeadline = dateField('submissionDeadline')
   if (!isIsoInstant(submissionDeadline)) return null
+  // The eligibility date is optional: absent or null on the wire reads as ''
+  // (no restriction), any string rides verbatim for the form's date input.
+  const eligibility =
+    typeof value.employeeEligibilityDate === 'string' ? value.employeeEligibilityDate : ''
   return {
     reviewYear: value.reviewYear,
     submissionDeadline,
     managerReviewStart: dateField('managerReviewStart'),
     managerReviewEnd: dateField('managerReviewEnd'),
     hrApprovalReleaseBy: dateField('hrApprovalReleaseBy'),
+    employeeEligibilityDate: eligibility,
   }
 }
 

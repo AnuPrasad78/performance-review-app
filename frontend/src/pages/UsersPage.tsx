@@ -1,13 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useEmployees } from '../hooks/useEmployees'
-import { useCompletedReviews } from '../hooks/useCompletedReviews'
 import { useDelaySkeleton } from '../hooks/useDelaySkeleton'
 import { Card } from '../components/atoms/Card'
 import { Skeleton } from '../components/atoms/Skeleton'
 import { TableSkeleton } from '../components/molecules/TableSkeleton'
 import { UsersTableCard } from '../components/organisms/UsersTableCard'
 import { TableQueryControls, type TableFilterSpec } from '../components/molecules/TableQueryControls'
-import { ReviewDownloadsButton } from '../components/molecules/ReviewDownloadsButton'
 import { AdminTemplate } from '../components/templates/AdminTemplate'
 import { useAdminStore } from '../state/AdminContext'
 import {
@@ -15,7 +13,7 @@ import {
   fetchEmployeeFacets,
   fetchEmployeeFormStatus,
   fetchRosterCsvExport,
-  patchEmployeeStatus,
+  patchEmployee,
 } from '../lib/api'
 import { saveCsvBlob } from '../lib/csvDownload'
 import { saveReviewPdf } from '../lib/reviewDownloads'
@@ -23,6 +21,8 @@ import { COMPLETION_FILTERS } from '../lib/reviewStatusStore'
 import type { ProfileReviewActions } from '../hooks/useProfileReview'
 import type {
   Employee,
+  EmployeePatch,
+  EmployeePatchResult,
   EmployeeStatus,
   RosterFacets,
   RosterQuery,
@@ -46,7 +46,7 @@ export function UsersPage() {
   const roster = useEmployees(query)
   /** Placeholder bands wait 180ms before showing — fast answers never flash. */
   const rosterSkeletonVisible = useDelaySkeleton(!roster.loaded && roster.loading)
-  const completedReviews = useCompletedReviews(query)
+  const [saveBusy, setSaveBusy] = useState(false)
   const pageCount = Math.max(1, Math.ceil(roster.total / roster.pageSize))
 
   /** The server exports every employee the composed query matches (not just
@@ -58,13 +58,6 @@ export function UsersPage() {
       return
     }
     notify('error', result.detail)
-  }
-
-  /** The bulk ZIP of completed review PDFs under the composed query — the
-      page turns the shared hook's failure word into the toast. */
-  async function downloadCompletedZips(): Promise<void> {
-    const result = await completedReviews.download()
-    if (!result.ok) notify('error', result.detail)
   }
 
   /** One employee's review document: the card's status probe asks the form
@@ -89,17 +82,40 @@ export function UsersPage() {
     [notify],
   )
 
-  /** The card's Active/Inactive flip: the stored row patches, then the
-      roster re-reads its page so the table and the open card show the new
-      word. Failures say so through the toast; the row stays as it was. */
-  async function setStatus(employee: Employee, status: EmployeeStatus): Promise<void> {
-    const result = await patchEmployeeStatus(employee.employeeId, status)
-    if (!result.ok) {
-      notify('error', result.detail)
-      return
+  /** One employee's roster write (the Status column's flip and the edit
+      form share it): the patch goes out; on success the roster re-reads its
+      page so the table and the open card show the new words, and a failure
+      says so through the toast. The result answers the card's seams — the
+      save keeps the edit open on it, so the never-unwritten failure must
+      read as one. */
+  async function writeEmployee(
+    employee: Employee,
+    patch: EmployeePatch,
+  ): Promise<EmployeePatchResult> {
+    setSaveBusy(true)
+    try {
+      const result = await patchEmployee(employee.employeeId, patch)
+      if (!result.ok) {
+        notify('error', result.detail)
+        return result
+      }
+      roster.refresh()
+      return result
+    } finally {
+      setSaveBusy(false)
     }
-    roster.refresh()
   }
+
+  /** The Status column's flip is the one-member patch; the edit form sends
+      the fields it changed. Same endpoint, same seam. */
+  function setStatus(employee: Employee, status: EmployeeStatus): Promise<void> {
+    return writeEmployee(employee, { status }).then(() => undefined)
+  }
+
+  const saveEmployee = (
+    employee: Employee,
+    patch: EmployeePatch,
+  ): Promise<EmployeePatchResult> => writeEmployee(employee, patch)
 
   // The filter dropdowns serve whole-roster values once; they never change
   // with the query, so they fetch only on mount.
@@ -241,15 +257,10 @@ export function UsersPage() {
               : 'No employees loaded. Upload a roster CSV to get started.'
           }
           onDownloadCsv={downloadCsv}
-          tableActions={
-            <ReviewDownloadsButton
-              count={completedReviews.count}
-              busy={completedReviews.busy}
-              onDownload={() => void downloadCompletedZips()}
-            />
-          }
           review={reviewActions}
           onSetStatus={setStatus}
+          onSaveEmployee={saveEmployee}
+          saveBusy={saveBusy}
           sort={{
             sortBy: query.sortBy ?? 'employeeName',
             sortOrder: query.sortOrder ?? 'asc',

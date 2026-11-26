@@ -10,22 +10,31 @@ const {
   fetchEmployeeFacetsMock,
   fetchCompletedCountMock,
   downloadCompletedReviewZipMock,
+  fetchReviewStatusCsvExportMock,
+  saveCsvBlobMock,
 } = vi.hoisted(() => ({
   fetchReviewBoardMock: vi.fn(),
   fetchEmployeeFacetsMock: vi.fn(),
   fetchCompletedCountMock: vi.fn(),
   downloadCompletedReviewZipMock: vi.fn(),
+  fetchReviewStatusCsvExportMock: vi.fn(),
+  saveCsvBlobMock: vi.fn(),
 }))
 vi.mock('../../src/lib/api', async (importOriginal) => ({
   ...(await importOriginal()),
   fetchReviewBoard: fetchReviewBoardMock,
   fetchEmployeeFacets: fetchEmployeeFacetsMock,
   fetchCompletedCount: fetchCompletedCountMock,
+  fetchReviewStatusCsvExport: fetchReviewStatusCsvExportMock,
   setApiIdentity: vi.fn(),
 }))
 vi.mock('../../src/lib/reviewDownloads', () => ({
   downloadCompletedReviewZip: downloadCompletedReviewZipMock,
   saveReviewPdf: vi.fn(),
+}))
+vi.mock('../../src/lib/csvDownload', () => ({
+  saveCsvBlob: saveCsvBlobMock,
+  downloadCsv: vi.fn(),
 }))
 
 function wireReview(email: string, name: string, status: ReviewStatusWire['status'], index: number): ReviewStatusWire {
@@ -43,45 +52,53 @@ function wireReview(email: string, name: string, status: ReviewStatusWire['statu
       deliveryManager: 'Priya Raghavan',
       businessPartner: 'John D',
       reportingManager: 'Priya Raghavan',
-      status: 'Active',
+     status: 'Active',
+     joiningDate: '',
     },
     status,
+    submittedAt: null,
   }
 }
 
 /** Two board pages (pageSize 2) over an eight-person roster: row slices the
     server decided, so the test only states what the endpoint returns. Rows
-    carry display words (the page-facing shape); statusCounts carries raw
-    lifecycle words — 4 not-started, 2 in-progress, 2 past-submission. */
+    carry the lifecycle words verbatim (no display collapse); the
+    distribution carries all six, 2+2+1+1+1+1 = 8. The page reads the
+    endpoint twice per shape — a pie query for the tiles/pie and a table
+    query for the rows — so the default mock serves both. */
 const PAGE_ONE: ReviewBoardPage = {
   reviews: [
-    wireReview('asha_menon@emids.com', 'Asha Menon', 'in_progress', 0),
+    wireReview('asha_menon@emids.com', 'Asha Menon', 'self_evaluation_in_progress', 0),
     wireReview('bilal_khan@emids.com', 'Bilal Khan', 'not_started', 1),
   ],
-  total: 6,
+  total: 8,
   page: 1,
   pageSize: 2,
   statusCounts: {
-    not_started: 4,
+    not_started: 2,
     self_evaluation_in_progress: 2,
     self_evaluation_completed: 1,
     in_manager_review: 1,
+    manager_evaluation_in_progress: 1,
+    manager_evaluation_completed: 1,
   },
 }
 const PAGE_TWO: ReviewBoardPage = {
   reviews: [
-    wireReview('cara_fernandes@emids.com', 'Cara Fernandes', 'submitted', 2),
-    wireReview('devika_nair@emids.com', 'Devika Nair', 'submitted', 3),
+    wireReview('cara_fernandes@emids.com', 'Cara Fernandes', 'self_evaluation_completed', 2),
+    wireReview('devika_nair@emids.com', 'Devika Nair', 'manager_evaluation_in_progress', 3),
   ],
-  total: 2,
+  total: 8,
   page: 2,
   pageSize: 2,
-  statusCounts: {
-    not_started: 4,
-    self_evaluation_in_progress: 2,
-    self_evaluation_completed: 1,
-    in_manager_review: 1,
-  },
+  statusCounts: PAGE_ONE.statusCounts,
+}
+
+/** The distribution the pie read answers under a search word: two members
+    match — one never-opened, one mid self-eval. */
+const PIE_SEARCHED: ReviewBoardPage = {
+  ...PAGE_ONE,
+  statusCounts: { not_started: 1, self_evaluation_in_progress: 1 },
 }
 
 function page(): React.ReactElement {
@@ -99,12 +116,18 @@ beforeEach(() => {
   fetchEmployeeFacetsMock.mockReset()
   fetchEmployeeFacetsMock.mockResolvedValue({
     ok: true,
-    facets: { designations: ['Engineer'], locations: ['India'], orgs: ['Delivery', 'Quality'], businessUnits: ['Payer Digital'], reportingManagers: ['Priya Raghavan'], employmentStatuses: ['Active'] },
+    facets: { designations: ['Engineer'], locations: ['India'], orgs: ['Delivery', 'Quality'], businessUnits: ['Payer Digital'], businessPartners: ['John D'], reportingManagers: ['Priya Raghavan'], employmentStatuses: ['Active'] },
   })
   fetchCompletedCountMock.mockReset()
   fetchCompletedCountMock.mockResolvedValue({ ok: true, count: 2 })
   downloadCompletedReviewZipMock.mockReset()
   downloadCompletedReviewZipMock.mockResolvedValue({ ok: true, count: 2 })
+  fetchReviewStatusCsvExportMock.mockReset()
+  fetchReviewStatusCsvExportMock.mockResolvedValue({
+    ok: true,
+    blob: new Blob(['csv'], { type: 'text/csv' }),
+  })
+  saveCsvBlobMock.mockReset()
 })
 
 describe('ReviewStatusPage', () => {
@@ -117,28 +140,173 @@ describe('ReviewStatusPage', () => {
       screen.getByRole('img', { name: 'Review completion split by status' }),
     ).toBeInTheDocument()
     const titles = [...document.querySelectorAll('.pie-block__chart title')].map((t) => t.textContent)
-    // Pie slices come from the collapse of the server's six words.
-    expect(titles).toHaveLength(3)
+    // The pie speaks all six lifecycle words — one slice each, nothing merged.
+    expect(titles).toHaveLength(6)
     expect(titles.every((title) => title?.includes(' of 8 ('))).toBe(true)
+    // Tiles: Total 8; Completed = the final word alone (1); "In progress" is
+    // the in-flight middle (2 + 1 + 1 = 4 → 50.0%); Not started 2 → 25.0%.
     const tiles = [...document.querySelectorAll('.tile')].map((tile) => tile.textContent)
     expect(tiles).toHaveLength(4)
     for (const label of ['Total employees', 'Completed', 'In progress', 'Not started']) {
       expect(tiles.some((text) => text?.includes(label))).toBe(true)
     }
+    expect(tiles.some((text) => text?.includes('50.0% of employees'))).toBe(true)
+    expect(tiles.some((text) => text?.includes('25.0% of employees'))).toBe(true)
+    // Two scopes, two reads of the same endpoint on boot: the pie query and
+    // the table query each fetch once.
+    expect(fetchReviewBoardMock).toHaveBeenCalledTimes(2)
   })
 
-  it('opens on Pending — the filtered total for the page heading counts', async () => {
+  it('each card owns its own Search & Filter trigger', async () => {
     render(page())
     await screen.findByRole('table')
 
-    expect(fetchReviewBoardMock).toHaveBeenCalledWith({ page: 1, status: 'pending' })
-    expect(screen.getByText('Employees · 6 of 8')).toBeInTheDocument()
-    // Tile label, pie legend, and this page's pill share each label;
-    // submitted rows are absent under the pending filter.
-    expect(screen.getAllByText('In progress')).toHaveLength(3)
+    // The pie card keeps one trigger; the table card keeps its own — two
+    // scopes, two toolbars, one endpoint.
+    const pie = screen.getByRole('img', { name: 'Review completion split by status' })
+    const pieCard = pie.closest('.card') as HTMLElement
+    expect(within(pieCard).getByRole('button', { name: /Search, filter and sort/ })).toBeInTheDocument()
+    expect(within(pieCard).queryByRole('button', { name: /Download submitted reviews/ })).not.toBeInTheDocument()
+
+    const tableCard = screen.getByRole('table').closest('.card') as HTMLElement
+    expect(within(tableCard).getByRole('button', { name: /Search, filter and sort/ })).toBeInTheDocument()
+    expect(within(tableCard).getByRole('button', { name: /Download submitted reviews/ })).toBeInTheDocument()
+  })
+
+  it('opens on All — the whole roster, every word at its own stage', async () => {
+    render(page())
+    await screen.findByRole('table')
+
+    expect(screen.getByText('Employees · 8 of 8')).toBeInTheDocument()
+    // Tile label, pie legend, and this page's pill share each lifecycle
+    // label: the in-progress row's pill and the pie legend agree verbatim,
+    // and "Not started" adds the tile's own label on top.
+    expect(screen.getAllByText('Self-evaluation in progress')).toHaveLength(2)
     expect(screen.getAllByText('Not started')).toHaveLength(3)
-    const table = screen.getByRole('table')
-    expect(within(table).queryByText('Submitted')).not.toBeInTheDocument()
+  })
+
+it('the pie toolbar has no Search and its filters drive the pie, never the table', async () => {
+  fetchReviewBoardMock.mockImplementation((query: { businessPartner?: string }) =>
+    Promise.resolve({
+      ok: true as const,
+      board: query.businessPartner !== undefined ? PIE_SEARCHED : PAGE_ONE,
+    }),
+  )
+
+  render(page())
+  const user = userEvent.setup()
+  await screen.findByRole('table')
+
+  const pieCard = (
+    screen.getByRole('img', { name: 'Review completion split by status' }).closest('.card') ?? null
+  ) as HTMLElement
+
+  await user.click(within(pieCard).getByRole('button', { name: /Search, filter and sort/ }))
+
+  const pieDialog = within(pieCard).getByRole('dialog', { name: 'Search, filter and sort' })
+
+  expect(
+    within(pieDialog).queryByRole('searchbox', {
+      name: 'Search by employee name or designation',
+    }),
+  ).not.toBeInTheDocument()
+
+  await user.selectOptions(
+    within(pieDialog).getByRole('combobox', { name: 'Filter by Business partner' }),
+    'John D',
+  )
+
+  await waitFor(() => {
+    expect(fetchReviewBoardMock).toHaveBeenLastCalledWith({
+      page: 1,
+      status: 'all',
+      businessPartner: 'John D',
+    })
+  })
+
+  // The tiles reflect the pie query's filtered distribution.
+  const tiles = [...document.querySelectorAll('.tile')].map((tile) => tile.textContent)
+  expect(tiles.some((text) => text?.includes('25.0% of employees'))).toBe(false)
+  expect(tiles.filter((text) => text?.includes('50.0% of employees')).length).toBeGreaterThanOrEqual(2)
+
+  // The table remains untouched.
+  expect(screen.getByText('Bilal Khan')).toBeInTheDocument()
+  expect(screen.getByText('Employees · 8 of 8')).toBeInTheDocument()
+})
+
+  it('the pie toolbar filters by business partner, the table never hears it', async () => {
+    render(page())
+    const user = userEvent.setup()
+    await screen.findByRole('table')
+
+    const pieCard = screen
+      .getByRole('img', { name: 'Review completion split by status' })
+      .closest('.card') as HTMLElement
+    await user.click(within(pieCard).getByRole('button', { name: /Search, filter and sort/ }))
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Filter by Business partner' }), 'John D')
+
+    // The pie scope's own word rides out; the table read is untouched
+    // (its call stays the default composed query).
+    await waitFor(() => {
+      expect(fetchReviewBoardMock).toHaveBeenLastCalledWith({
+        page: 1,
+        status: 'all',
+        businessPartner: 'John D',
+      })
+    })
+    expect(screen.getByText('Bilal Khan')).toBeInTheDocument()
+  })
+
+it('the pie card veils its stale numbers while a filtered read is in flight', async () => {
+  fetchReviewBoardMock.mockImplementation((query: { businessPartner?: string }) =>
+    query.businessPartner === undefined
+      ? Promise.resolve({ ok: true as const, board: PAGE_ONE })
+      : new Promise(() => undefined),
+  )
+
+  render(page())
+  const user = userEvent.setup()
+  await screen.findByRole('table')
+
+  const pieCard = screen
+    .getByRole('img', { name: 'Review completion split by status' })
+    .closest('.card') as HTMLElement
+
+  await user.click(within(pieCard).getByRole('button', { name: /Search, filter and sort/ }))
+
+  await user.selectOptions(
+    within(pieCard).getByRole('combobox', { name: 'Filter by Business partner' }),
+    'John D',
+  )
+
+  expect(
+    await within(pieCard).findByRole('status', { name: 'Loading the status split' }),
+  ).toBeInTheDocument()
+
+  expect(pieCard.querySelector('.pie-card__body')?.getAttribute('aria-busy')).toBe('true')
+  expect(document.querySelector('.tiles--dimmed')).not.toBeNull()
+})
+
+  it('the table veils its rows while its own filtered read is in flight', async () => {
+    fetchReviewBoardMock.mockImplementation((query: { status?: string }) =>
+      query.status === undefined || query.status === 'all'
+        ? Promise.resolve({ ok: true as const, board: PAGE_ONE })
+        : new Promise(() => undefined),
+    )
+    render(page())
+    const user = userEvent.setup()
+    await screen.findByRole('table')
+
+    await user.click(screen.getByRole('button', { name: 'Filter by Form status' }))
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'Filter by Form status' })).getByRole('button', {
+        name: 'In manager review',
+      }),
+    )
+
+    const tableCard = screen.getByRole('table').closest('.card') as HTMLElement
+    expect(await within(tableCard).findByRole('status', { name: 'Loading the employee list' })).toBeInTheDocument()
+    expect(tableCard.querySelector('.table-region')?.getAttribute('aria-busy')).toBe('true')
   })
 
   it('pager walks server pages and Query changes land back on page one', async () => {
@@ -148,21 +316,26 @@ describe('ReviewStatusPage', () => {
 
     fetchReviewBoardMock.mockResolvedValue({ ok: true, board: PAGE_TWO })
     await user.click(screen.getByRole('button', { name: 'Next' }))
-    expect(fetchReviewBoardMock).toHaveBeenLastCalledWith({ page: 2, status: 'pending' })
+    expect(fetchReviewBoardMock).toHaveBeenLastCalledWith({ page: 2, status: 'all' })
     expect(await screen.findByText('Cara Fernandes')).toBeInTheDocument()
 
-    // The status filter hangs off the Form status column's funnel now:
-    // switching to All rides it, and the query change hands the read back
+    // The status filter hangs off the Form status column's funnel: picking
+    // one lifecycle word rides it, and the query change hands the read back
     // to page one.
-    fetchReviewBoardMock.mockResolvedValue({ ok: true, board: { ...PAGE_TWO, page: 1, reviews: PAGE_ONE.reviews } })
+    fetchReviewBoardMock.mockResolvedValue({ ok: true, board: { ...PAGE_ONE, page: 1, reviews: PAGE_ONE.reviews, total: 2 } })
     await user.click(screen.getByRole('button', { name: 'Filter by Form status' }))
     await user.click(
-      within(screen.getByRole('dialog', { name: 'Filter by Form status' })).getByRole('button', { name: 'All' }),
+      within(screen.getByRole('dialog', { name: 'Filter by Form status' })).getByRole('button', {
+        name: 'Self-evaluation in progress',
+      }),
     )
     await waitFor(() => {
-      expect(fetchReviewBoardMock).toHaveBeenLastCalledWith({ page: 1, status: 'all' })
+      expect(fetchReviewBoardMock).toHaveBeenLastCalledWith({
+        page: 1,
+        status: 'self_evaluation_in_progress',
+      })
     })
-    expect(await screen.findByText('Bilal Khan')).toBeInTheDocument()
+    expect(await screen.findByText('Asha Menon')).toBeInTheDocument()
   })
 
   it('click-to-sort headers toggle the wire order on the board call', async () => {
@@ -174,7 +347,7 @@ describe('ReviewStatusPage', () => {
     await waitFor(() => {
       expect(fetchReviewBoardMock).toHaveBeenLastCalledWith({
         page: 1,
-        status: 'pending',
+        status: 'all',
         sortBy: 'reportingManager',
         sortOrder: 'asc',
       })
@@ -185,7 +358,7 @@ describe('ReviewStatusPage', () => {
     await waitFor(() => {
       expect(fetchReviewBoardMock).toHaveBeenLastCalledWith({
         page: 1,
-        status: 'pending',
+        status: 'all',
         sortBy: 'reportingManager',
         sortOrder: 'desc',
       })
@@ -206,7 +379,7 @@ describe('ReviewStatusPage', () => {
     await waitFor(() => {
       expect(fetchReviewBoardMock).toHaveBeenLastCalledWith({
         page: 1,
-        status: 'pending',
+        status: 'all',
         sortBy: 'employeeName',
         sortOrder: 'asc',
       })
@@ -232,6 +405,23 @@ describe('ReviewStatusPage', () => {
     })
   })
 
+  it('the Form status funnel narrows to a manager-phase word too', async () => {
+    render(page())
+    const user = userEvent.setup()
+    await screen.findByRole('table')
+
+    await user.click(screen.getByRole('button', { name: 'Filter by Form status' }))
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'Filter by Form status' })).getByRole('button', {
+        name: 'In manager review',
+      }),
+    )
+
+    await waitFor(() => {
+      expect(fetchReviewBoardMock).toHaveBeenLastCalledWith({ page: 1, status: 'in_manager_review' })
+    })
+  })
+
   it('the Location column funnel narrows the board without the pop-up', async () => {
     render(page())
     const user = userEvent.setup()
@@ -244,7 +434,7 @@ describe('ReviewStatusPage', () => {
     await waitFor(() => {
       expect(fetchReviewBoardMock).toHaveBeenLastCalledWith({
         page: 1,
-        status: 'pending',
+        status: 'all',
         location: 'India',
       })
     })
@@ -264,45 +454,47 @@ describe('ReviewStatusPage', () => {
     await waitFor(() => {
       expect(fetchReviewBoardMock).toHaveBeenLastCalledWith({
         page: 1,
-        status: 'pending',
+        status: 'all',
         reportingManager: 'Priya Raghavan',
       })
     })
   })
 
-  it('search and the org filter compose into the one board call', async () => {
+  it('the table toolbar search and the org filter compose into the table call', async () => {
     render(page())
     const user = userEvent.setup()
     await screen.findByRole('table')
 
-    await user.click(screen.getByRole('button', { name: 'Filter by Org' }))
+    const tableCard = screen.getByRole('table').closest('.card') as HTMLElement
+    await user.click(within(tableCard).getByRole('button', { name: 'Filter by Org' }))
     await user.click(
       within(screen.getByRole('dialog', { name: 'Filter by Org' })).getByRole('button', { name: 'Quality' }),
     )
 
     await waitFor(() => {
-      expect(fetchReviewBoardMock).toHaveBeenLastCalledWith({ page: 1, status: 'pending', org: 'Quality' })
+      expect(fetchReviewBoardMock).toHaveBeenLastCalledWith({ page: 1, status: 'all', org: 'Quality' })
     })
 
-    // Search lives in the toolbar pop-up; the org word came from the column
-    // funnel — the one board call composes both.
-    await user.click(screen.getByRole('button', { name: /Search, filter and sort/ }))
+    // Search lives in the table card's toolbar pop-up; the org word came
+    // from the column funnel — the one table call composes both.
+    await user.click(within(tableCard).getByRole('button', { name: /Search, filter and sort/ }))
     await user.type(screen.getByRole('searchbox', { name: 'Search by employee name or designation' }), 'ash')
     await waitFor(() => {
-      expect(fetchReviewBoardMock).toHaveBeenLastCalledWith({ page: 1, status: 'pending', org: 'Quality', search: 'ash' })
+      expect(fetchReviewBoardMock).toHaveBeenLastCalledWith({ page: 1, status: 'all', org: 'Quality', search: 'ash' })
     })
   })
 
-  it('narrows the board by business unit', async () => {
+  it('narrows the table by business unit', async () => {
     render(page())
     const user = userEvent.setup()
     await screen.findByRole('table')
 
-    await user.click(screen.getByRole('button', { name: /Search, filter and sort/ }))
+    const tableCard = screen.getByRole('table').closest('.card') as HTMLElement
+    await user.click(within(tableCard).getByRole('button', { name: /Search, filter and sort/ }))
     await user.selectOptions(screen.getByRole('combobox', { name: 'Filter by Business unit' }), 'Payer Digital')
 
     await waitFor(() => {
-      expect(fetchReviewBoardMock).toHaveBeenLastCalledWith({ page: 1, status: 'pending', businessUnit: 'Payer Digital' })
+      expect(fetchReviewBoardMock).toHaveBeenLastCalledWith({ page: 1, status: 'all', businessUnit: 'Payer Digital' })
     })
   })
 
@@ -317,6 +509,40 @@ describe('ReviewStatusPage', () => {
     expect(await screen.findByText('Could not reach the review API.')).toBeInTheDocument()
   })
 
+  it('Download CSV exports the whole matched set with the composed query', async () => {
+    render(page())
+    const user = userEvent.setup()
+    await screen.findByRole('table')
+
+    await user.click(screen.getByRole('button', { name: 'Filter by Location' }))
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'Filter by Location' })).getByRole('button', { name: 'India' }),
+    )
+    await waitFor(() => {
+      expect(fetchReviewBoardMock).toHaveBeenLastCalledWith({ page: 1, status: 'all', location: 'India' })
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Download status' }))
+    await waitFor(() => {
+      expect(fetchReviewStatusCsvExportMock).toHaveBeenLastCalledWith({
+        page: 1,
+        status: 'all',
+        location: 'India',
+      })
+    })
+    expect(saveCsvBlobMock).toHaveBeenCalledWith(expect.any(Blob), 'review-status.csv')
+
+    saveCsvBlobMock.mockClear()
+    fetchReviewStatusCsvExportMock.mockClear()
+    fetchReviewStatusCsvExportMock.mockResolvedValue({
+      ok: false,
+      detail: 'The export endpoint is unavailable.',
+      code: 'network_error',
+    })
+    await user.click(screen.getByRole('button', { name: 'Download status' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('The export endpoint is unavailable.')
+  })
+
   it('announces the matched completed count and streams the ZIP on click', async () => {
     render(page())
     const user = userEvent.setup()
@@ -327,17 +553,17 @@ describe('ReviewStatusPage', () => {
 
     await waitFor(() => {
       expect(downloadCompletedReviewZipMock).toHaveBeenCalledWith(
-        expect.objectContaining({ page: 1, status: 'pending' }),
+        expect.objectContaining({ page: 1, status: 'all' }),
       )
     })
   })
 
-  it('the completed-count read follows the composed roster filters, not the status word', async () => {
+  it('the completed-count read follows the composed table filters, not the status word', async () => {
     render(page())
     const user = userEvent.setup()
     await screen.findByRole('table')
 
-    expect(fetchCompletedCountMock).toHaveBeenCalledWith({ page: 1, status: 'pending' })
+    expect(fetchCompletedCountMock).toHaveBeenCalledWith({ page: 1, status: 'all' })
 
     await user.click(screen.getByRole('button', { name: 'Filter by Location' }))
     await user.click(
@@ -347,7 +573,7 @@ describe('ReviewStatusPage', () => {
     await waitFor(() => {
       expect(fetchCompletedCountMock).toHaveBeenLastCalledWith({
         page: 1,
-        status: 'pending',
+        status: 'all',
         location: 'India',
       })
     })
@@ -376,26 +602,34 @@ describe('ReviewStatusPage', () => {
     expect(await screen.findByRole('status')).toHaveTextContent('The ZIP failed.')
   })
 
-  it("a submitted row's card carries Download review, an open row's does not", async () => {
+  it("a past-submission row's card carries Download review, an open row's does not", async () => {
     render(page())
     const user = userEvent.setup()
     await screen.findByRole('table')
 
-    // Hours the board's own pill decides: a pending row hides the button.
+    // Hours the board's own pill decides: an open (self_evaluation_in_progress)
+    // row hides the button, and so does the never-opened one.
     await user.click(screen.getByText('Bilal Khan'))
     await screen.findByRole('dialog', { name: 'More about Bilal Khan' })
     expect(screen.queryByRole('button', { name: 'Download review' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Close' }))
 
-    // PAGE_ONE's table has no submitted row... but the board serves one once
-    // the pending filter drops: switch to All, where Cara's row reads submitted.
+    // PAGE_ONE holds no finished row... but the board serves one once the
+    // funnel narrows to the self-evaluation-completed stage.
     fetchReviewBoardMock.mockResolvedValue({
       ok: true,
-      board: { ...PAGE_ONE, page: 1, total: 2, reviews: PAGE_TWO.reviews },
+      board: {
+        ...PAGE_ONE,
+        page: 1,
+        total: 1,
+        reviews: PAGE_TWO.reviews.slice(0, 1),
+      },
     })
     await user.click(screen.getByRole('button', { name: 'Filter by Form status' }))
     await user.click(
-      within(screen.getByRole('dialog', { name: 'Filter by Form status' })).getByRole('button', { name: 'All' }),
+      within(screen.getByRole('dialog', { name: 'Filter by Form status' })).getByRole('button', {
+        name: 'Self-evaluation completed',
+      }),
     )
     await screen.findByText('Cara Fernandes')
 

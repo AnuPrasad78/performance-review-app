@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from 'react'
 import { Button } from '../atoms/Button'
 import { Select, type SelectOption } from '../atoms/Select'
@@ -15,8 +16,8 @@ export interface TableFilterSpec {
 }
 
 export interface TableQueryControlsProps {
-  search: string
-  onSearchChange: (term: string) => void
+  search?: string
+  onSearchChange?: (term: string) => void
   filters: readonly TableFilterSpec[]
   onFilterChange: (key: string, value: string) => void
   /** The Sort block rides a table whose headers do not carry it; a table
@@ -82,15 +83,17 @@ export function TableQueryControls({
             onClick={() => setOpen(false)}
           />
           <div className="table-query-popover" role="dialog" aria-label="Search, filter and sort">
-            <div className="table-query-popover__section">
-              <span className="table-query-popover__heading mono">Search</span>
-              <SearchBar
-                value={search}
-                onChange={onSearchChange}
-                placeholder="Name or designation"
-                ariaLabel="Search by employee name or designation"
-              />
-            </div>
+            {search !== undefined && onSearchChange !== undefined ? (
+              <div className="table-query-popover__section">
+                <span className="table-query-popover__heading mono">Search</span>
+                <SearchBar
+                  value={search}
+                  onChange={onSearchChange}
+                  placeholder="Name or designation"
+                  ariaLabel="Search by employee name or designation"
+                />
+              </div>
+            ) : null}
             <div className="table-query-popover__section">
               <span className="table-query-popover__heading mono">Filters</span>
               {filters.map((filter) => (
