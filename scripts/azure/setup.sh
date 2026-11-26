@@ -136,6 +136,12 @@ fi
 exists az postgres flexible-server db show -g "$RESOURCE_GROUP" --server-name "$POSTGRES_SERVER_NAME" -n "$POSTGRES_DB" ||
   az postgres flexible-server db create -g "$RESOURCE_GROUP" --server-name "$POSTGRES_SERVER_NAME" -n "$POSTGRES_DB" -o none
 if [[ $PRIVATE == false ]]; then
+  # `create --public-access None` leaves public access Disabled, and Azure
+  # refuses firewall rules on such a server, so turn the endpoint on first.
+  [[ $(az postgres flexible-server show -g "$RESOURCE_GROUP" -n "$POSTGRES_SERVER_NAME" \
+    --query network.publicNetworkAccess -o tsv) == Enabled ]] ||
+    az postgres flexible-server update -g "$RESOURCE_GROUP" -n "$POSTGRES_SERVER_NAME" \
+      --public-access Enabled --yes -o none
   # 0.0.0.0 = "allow Azure services": Container Apps has no fixed outbound IP
   # without a VNet. Login still needs the generated password, over TLS.
   exists az postgres flexible-server firewall-rule show -g "$RESOURCE_GROUP" \
