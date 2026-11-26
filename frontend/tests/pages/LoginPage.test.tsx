@@ -109,14 +109,23 @@ function renderApp(): React.ReactElement {
   )
 }
 
+async function openUsernameForm(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+  await user.click(screen.getByRole('button', { name: 'or sign in with username' }))
+}
+
 describe('LoginPage', () => {
-  it('renders the redesigned sign-in form with SSO below the divider', () => {
+  it('leads with SSO and keeps the username form collapsed until asked for', async () => {
+    const user = userEvent.setup()
     render(renderApp())
     expect(screen.getByRole('heading', { name: 'Welcome', level: 1 })).toBeInTheDocument()
-    // The email form is the primary option; SSO is the secondary one —
-    // and the divider copy names the email path.
     expect(screen.getByRole('button', { name: 'Sign in with Emids SSO' })).toBeEnabled()
-    expect(screen.getByText('or sign in with your email')).toBeInTheDocument()
+    const toggle = screen.getByRole('button', { name: 'or sign in with username' })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByLabelText('Username')).not.toBeInTheDocument()
+
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByLabelText('Username')).toBeInTheDocument()
   })
 
   it('hands off to the backend SSO route when the SSO button is clicked', async () => {
@@ -129,6 +138,7 @@ describe('LoginPage', () => {
   it('explains that password reset is not wired when Forgot password is clicked', async () => {
     const user = userEvent.setup()
     render(renderApp())
+    await openUsernameForm(user)
     await user.click(screen.getByRole('button', { name: 'Forgot password?' }))
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Password reset is not available in this release — contact an administrator.',
@@ -144,7 +154,8 @@ describe('LoginPage', () => {
     render(renderApp())
     const user = userEvent.setup()
 
-    await user.type(screen.getByLabelText('Company Email'), 'nobody@emids.com')
+    await openUsernameForm(user)
+    await user.type(screen.getByLabelText('Username'), 'nobody@emids.com')
     await user.type(screen.getByLabelText('Password'), 'Portal@2026')
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
@@ -159,7 +170,8 @@ describe('LoginPage', () => {
     render(renderApp())
     const user = userEvent.setup()
 
-    await user.type(screen.getByLabelText('Company Email'), 'admin@emids.com')
+    await openUsernameForm(user)
+    await user.type(screen.getByLabelText('Username'), 'admin@emids.com')
     await user.type(screen.getByLabelText('Password'), 'Portal@2026')
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
@@ -174,7 +186,8 @@ describe('LoginPage', () => {
     render(renderApp())
     const user = userEvent.setup()
 
-    await user.type(screen.getByLabelText('Company Email'), 'asha_menon@emids.com')
+    await openUsernameForm(user)
+    await user.type(screen.getByLabelText('Username'), 'asha_menon@emids.com')
     await user.type(screen.getByLabelText('Password'), 'Portal@2026')
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
@@ -188,7 +201,8 @@ describe('LoginPage', () => {
     render(renderApp())
     const user = userEvent.setup()
 
-    await user.type(screen.getByLabelText('Company Email'), ' Asha_Menon@emids.com ')
+    await openUsernameForm(user)
+    await user.type(screen.getByLabelText('Username'), ' Asha_Menon@emids.com ')
     await user.type(screen.getByLabelText('Password'), 'Portal@2026')
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
@@ -204,7 +218,8 @@ describe('LoginPage', () => {
     render(renderApp())
     const user = userEvent.setup()
 
-    await user.type(screen.getByLabelText('Company Email'), 'asha_menon@emids.com')
+    await openUsernameForm(user)
+    await user.type(screen.getByLabelText('Username'), 'asha_menon@emids.com')
     await user.type(screen.getByLabelText('Password'), 'not-it')
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
