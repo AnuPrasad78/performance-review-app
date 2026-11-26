@@ -10,34 +10,29 @@ const {
   fetchEmployeesMock,
   fetchEmployeeFacetsMock,
   fetchRosterCsvExportMock,
-  fetchCompletedCountMock,
   fetchEmployeeFormStatusMock,
   fetchEmployeeEvaluationMock,
-  patchEmployeeStatusMock,
+  patchEmployeeMock,
   saveCsvBlobMock,
   saveReviewPdfMock,
-  downloadCompletedReviewZipMock,
 } = vi.hoisted(() => ({
   fetchEmployeesMock: vi.fn(),
   fetchEmployeeFacetsMock: vi.fn(),
   fetchRosterCsvExportMock: vi.fn(),
-  fetchCompletedCountMock: vi.fn(),
   fetchEmployeeFormStatusMock: vi.fn(),
   fetchEmployeeEvaluationMock: vi.fn(),
-  patchEmployeeStatusMock: vi.fn(),
+  patchEmployeeMock: vi.fn(),
   saveCsvBlobMock: vi.fn(),
   saveReviewPdfMock: vi.fn(),
-  downloadCompletedReviewZipMock: vi.fn(),
 }))
 vi.mock('../../src/lib/api', async (importOriginal) => ({
   ...(await importOriginal()),
   fetchEmployees: fetchEmployeesMock,
   fetchEmployeeFacets: fetchEmployeeFacetsMock,
   fetchRosterCsvExport: fetchRosterCsvExportMock,
-  fetchCompletedCount: fetchCompletedCountMock,
   fetchEmployeeFormStatus: fetchEmployeeFormStatusMock,
   fetchEmployeeEvaluation: fetchEmployeeEvaluationMock,
-  patchEmployeeStatus: patchEmployeeStatusMock,
+  patchEmployee: patchEmployeeMock,
   setApiIdentity: vi.fn(),
 }))
 vi.mock('../../src/lib/csvDownload', () => ({
@@ -45,7 +40,6 @@ vi.mock('../../src/lib/csvDownload', () => ({
 }))
 vi.mock('../../src/lib/reviewDownloads', () => ({
   saveReviewPdf: saveReviewPdfMock,
-  downloadCompletedReviewZip: downloadCompletedReviewZipMock,
 }))
 
 function employee(employeeId: string, name: string, email: string): Employee {
@@ -127,14 +121,11 @@ beforeEach(() => {
   fetchEmployeeFacetsMock.mockReset()
   fetchRosterCsvExportMock.mockReset()
   saveCsvBlobMock.mockReset()
-  fetchCompletedCountMock.mockReset()
   fetchEmployeeFormStatusMock.mockReset()
   fetchEmployeeEvaluationMock.mockReset()
-  patchEmployeeStatusMock.mockReset()
+  patchEmployeeMock.mockReset()
   saveReviewPdfMock.mockReset()
-  downloadCompletedReviewZipMock.mockReset()
   fetchEmployeeFacetsMock.mockResolvedValue({ ok: true, facets: FACETS })
-  fetchCompletedCountMock.mockResolvedValue({ ok: true, count: 2 })
   // The default card probe: a pending review answers 200 — the Download
   // review button stays hidden unless the test opts into a completed one.
   fetchEmployeeFormStatusMock.mockResolvedValue({ ok: true, formStatus: 'pending' })
@@ -393,49 +384,14 @@ describe('UsersPage', () => {
     expect(saveCsvBlobMock).not.toHaveBeenCalled()
   })
 
-  it('announces the matched completed count and streams the ZIP on click', async () => {
+  it('the toolbar carries the CSV export alone — no bulk review trigger', async () => {
     fetchEmployeesMock.mockResolvedValue(pageResult([ASHA], 1))
-    downloadCompletedReviewZipMock.mockResolvedValue({ ok: true, count: 2 })
-    render(page())
-    const user = userEvent.setup()
-
-    const button = await screen.findByRole('button', { name: 'Download submitted reviews (2)' })
-    await user.click(button)
-
-    await waitFor(() => {
-      expect(downloadCompletedReviewZipMock).toHaveBeenCalledWith(
-        expect.objectContaining({ page: 1 }),
-      )
-    })
-    // A saved ZIP is a success: nothing to say.
-    expect(screen.queryByRole('status')).not.toBeInTheDocument()
-  })
-
-  it('surfaces a failed bulk ZIP as a toast and leaves the CSV export untouched', async () => {
-    fetchEmployeesMock.mockResolvedValue(pageResult([ASHA], 1))
-    downloadCompletedReviewZipMock.mockResolvedValue({
-      ok: false,
-      detail: 'Could not reach the review API.',
-      code: 'network_error',
-    })
-    render(page())
-    const user = userEvent.setup()
-    await screen.findByText('Roster · 1 employee')
-
-    await user.click(screen.getByRole('button', { name: 'Download submitted reviews (2)' }))
-
-    expect(await screen.findByRole('status')).toHaveTextContent('Could not reach the review API.')
-    expect(fetchRosterCsvExportMock).not.toHaveBeenCalled()
-  })
-
-  it("keeps the pending completed count unreadable as a disabled button, then recovers", async () => {
-    fetchEmployeesMock.mockResolvedValue(pageResult([ASHA], 1))
-    fetchCompletedCountMock.mockResolvedValue({ ok: true, count: 0 })
     render(page())
 
     expect(await screen.findByText('Roster · 1 employee')).toBeInTheDocument()
-    const button = await screen.findByRole('button', { name: 'Download submitted reviews' })
-    expect(button).toBeDisabled()
+    // The completed-reviews trigger lives on the review board alone.
+    expect(screen.queryByRole('button', { name: /Download submitted reviews/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Download CSV' })).toBeInTheDocument()
   })
 
   it("shows Download review on a completed employee's card and saves one PDF on click", async () => {
@@ -469,13 +425,12 @@ describe('UsersPage', () => {
     await user.click(screen.getByText('asha_menon@emids.com'))
     const dialog = await screen.findByRole('dialog', { name: 'More about Asha Menon' })
 
-    await within(dialog).findByText('Pending')
     expect(
       within(dialog).queryByRole('button', { name: 'Download review' }),
     ).not.toBeInTheDocument()
   })
 
-  it("states the card's form status, and an unread probe renders the em dash", async () => {
+  it('the card states no Form status — the pop-up holds the roster record alone', async () => {
     fetchEmployeesMock.mockResolvedValue(pageResult([ASHA], 1))
     fetchEmployeeFormStatusMock.mockResolvedValue({
       ok: false,
@@ -489,16 +444,18 @@ describe('UsersPage', () => {
     await user.click(screen.getByText('asha_menon@emids.com'))
     const dialog = await screen.findByRole('dialog', { name: 'More about Asha Menon' })
 
-    await within(dialog).findByText('—')
-    expect(within(dialog).getByText('Form status')).toBeInTheDocument()
+    // The review nouns live on the review board's card; the roster popup
+    // keeps the Download review driver (the probe completes or the button
+    // would never show) without printing the status itself.
+    expect(within(dialog).queryByText('Form status')).not.toBeInTheDocument()
     expect(
       within(dialog).queryByRole('button', { name: 'Download review' }),
     ).not.toBeInTheDocument()
   })
 
-  it('the Status cell carries the Active/Inactive pair and the pick flips the row', async () => {
+  it('the Status column carries the Active/Inactive pair and the pick flips the row', async () => {
     fetchEmployeesMock.mockResolvedValue(pageResult([ASHA], 1))
-    patchEmployeeStatusMock.mockResolvedValue({
+    patchEmployeeMock.mockResolvedValue({
       ok: true,
       employee: { ...ASHA, status: 'Inactive' },
     })
@@ -506,20 +463,20 @@ describe('UsersPage', () => {
     const user = userEvent.setup()
     await screen.findByText('Roster · 1 employee')
 
-    await user.click(screen.getByText('asha_menon@emids.com'))
-    const dialog = screen.getByRole('dialog', { name: 'More about Asha Menon' })
-    await user.click(within(dialog).getByRole('button', { name: 'Inactive' }))
+    await user.click(within(screen.getByRole('row', { name: /Asha Menon/ })).getByRole('button', { name: 'Inactive' }))
 
     await waitFor(() => {
-      expect(patchEmployeeStatusMock).toHaveBeenCalledWith('EMP-V001', 'Inactive')
+      expect(patchEmployeeMock).toHaveBeenCalledWith('EMP-V001', { status: 'Inactive' })
       // The re-read keeps the same query — the page never moves.
       expect(fetchEmployeesMock).toHaveBeenLastCalledWith({ page: 1 })
     })
+    // The flip's click stays clear of the row's card open.
+    expect(screen.queryByRole('dialog', { name: 'More about Asha Menon' })).not.toBeInTheDocument()
   })
 
   it('a failed status flip surfaces as a toast and skips the re-read', async () => {
     fetchEmployeesMock.mockResolvedValue(pageResult([ASHA], 1))
-    patchEmployeeStatusMock.mockResolvedValue({
+    patchEmployeeMock.mockResolvedValue({
       ok: false,
       detail: 'Could not reach the review API.',
       code: 'network_error',
@@ -528,12 +485,104 @@ describe('UsersPage', () => {
     const user = userEvent.setup()
     await screen.findByText('Roster · 1 employee')
 
-    await user.click(screen.getByText('asha_menon@emids.com'))
-    const dialog = screen.getByRole('dialog', { name: 'More about Asha Menon' })
-    await user.click(within(dialog).getByRole('button', { name: 'Inactive' }))
+    await user.click(within(screen.getByRole('row', { name: /Asha Menon/ })).getByRole('button', { name: 'Inactive' }))
 
     expect(await screen.findByRole('status')).toHaveTextContent(
       'Could not reach the review API.',
     )
+    expect(fetchEmployeesMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('the card carries an Edit form and the save patches the changed fields only', async () => {
+    fetchEmployeesMock.mockResolvedValue(pageResult([ASHA], 1))
+    patchEmployeeMock.mockResolvedValue({
+      ok: true,
+      employee: { ...ASHA, designation: 'Senior Engineer' },
+    })
+    render(page())
+    const user = userEvent.setup()
+    await screen.findByText('Roster · 1 employee')
+
+    await user.click(screen.getByText('asha_menon@emids.com'))
+    const dialog = await screen.findByRole('dialog', { name: 'More about Asha Menon' })
+
+    await user.click(within(dialog).getByRole('button', { name: 'Edit' }))
+    expect(within(dialog).getByText('More about')).toBeInTheDocument()
+
+    await user.clear(within(dialog).getByLabelText('Designation'))
+    await user.type(within(dialog).getByLabelText('Designation'), 'Senior Engineer')
+
+    const save = within(dialog).getByRole('button', { name: 'Save' })
+    await user.click(save)
+
+    await waitFor(() => {
+      expect(patchEmployeeMock).toHaveBeenCalledWith('EMP-V001', {
+        designation: 'Senior Engineer',
+      })
+      // The edit folds away and the roster re-reads its page.
+      expect(within(dialog).getByRole('button', { name: 'Edit' })).toBeInTheDocument()
+      expect(fetchEmployeesMock).toHaveBeenLastCalledWith({ page: 1 })
+    })
+  })
+
+  it('a failed save says so through the toast and keeps the edit form open', async () => {
+    fetchEmployeesMock.mockResolvedValue(pageResult([ASHA], 1))
+    patchEmployeeMock.mockResolvedValue({
+      ok: false,
+      detail: 'That email already belongs to another employee.',
+      code: 'email_taken',
+    })
+    render(page())
+    const user = userEvent.setup()
+    await screen.findByText('Roster · 1 employee')
+
+    await user.click(screen.getByText('asha_menon@emids.com'))
+    const dialog = await screen.findByRole('dialog', { name: 'More about Asha Menon' })
+    await user.click(within(dialog).getByRole('button', { name: 'Edit' }))
+
+    await user.clear(within(dialog).getByLabelText(/Email/))
+    await user.type(within(dialog).getByLabelText(/Email/), 'bilal.khan@emids.com')
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'That email already belongs to another employee.',
+    )
+    // No save landed, so the form stays open over the unchanged row.
+    expect(within(dialog).getByRole('button', { name: 'Save' })).toBeInTheDocument()
+    expect(fetchEmployeesMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('a save that moved the employee id keeps the card on the row', async () => {
+    fetchEmployeesMock.mockResolvedValue(pageResult([ASHA], 1))
+    patchEmployeeMock.mockResolvedValue({
+      ok: true,
+      employee: { ...ASHA, employeeId: 'EMP-V999' },
+    })
+    render(page())
+    const user = userEvent.setup()
+    await screen.findByText('Roster · 1 employee')
+
+    await user.click(screen.getByText('asha_menon@emids.com'))
+    const dialog = await screen.findByRole('dialog', { name: 'More about Asha Menon' })
+    await user.click(within(dialog).getByRole('button', { name: 'Edit' }))
+
+    await user.clear(within(dialog).getByLabelText(/Employee ID/))
+    await user.type(within(dialog).getByLabelText(/Employee ID/), 'EMP-V999')
+
+    // On the refresh the roster answers with the row's moved identity.
+    fetchEmployeesMock.mockResolvedValue(
+      pageResult([{ ...ASHA, employeeId: 'EMP-V999' }], 1),
+    )
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(patchEmployeeMock).toHaveBeenCalledWith('EMP-V001', { employeeId: 'EMP-V999' })
+    })
+    await waitFor(() => {
+      expect(fetchEmployeesMock).toHaveBeenLastCalledWith({ page: 1 })
+    })
+    // The selection followed the row: the card is still open, edit closed.
+    expect(screen.getByRole('dialog', { name: 'More about Asha Menon' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Edit' })).toBeInTheDocument()
   })
 })

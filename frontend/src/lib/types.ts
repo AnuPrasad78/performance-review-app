@@ -345,9 +345,29 @@ export type FormStatusResult =
   | { ok: true; formStatus: FormStatus }
   | { ok: false; detail: string; code: string }
 
-/** PATCH /api/employees/{id}: the profile card's employment-status flip —
-    the stored roster row comes back, already re-striped. */
-export type EmployeeStatusPatchResult =
+/** The admin's one-employee roster write over PATCH /api/employees/{id} —
+    any subset of the roster record; an omitted field leaves the stored
+    column alone, so the Status column's flip and the edit form share it. */
+export interface EmployeePatch {
+  employeeId?: string
+  name?: string
+  email?: string
+  designation?: string
+  location?: string
+  org?: string
+  businessUnit?: string
+  project?: string
+  deliveryHead?: string
+  deliveryManager?: string
+  businessPartner?: string
+  reportingManager?: string
+  status?: EmployeeStatus
+}
+
+/** PATCH /api/employees/{id}: the stored roster row comes back, already
+    re-written — including the post-write identity when the patch moved
+    employee ID or email. */
+export type EmployeePatchResult =
   | { ok: true; employee: Employee }
   | { ok: false; detail: string; code: string }
 

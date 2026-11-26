@@ -594,6 +594,10 @@ a { color: var(--teal-deep); }
 .employee-detail__status { display: flex; align-items: center; }
 .employee-detail__status .chip { padding: 3px 10px; }
 .employee-detail__status.seg, .employee-detail__status .seg { flex-wrap: nowrap; }
+/* the users table's Status column: the same pair, per row */
+.users-status__toggle { display: flex; align-items: center; }
+.users-status__toggle .chip { padding: 3px 10px; }
+.users-status__toggle.seg, .users-status__toggle .seg { flex-wrap: nowrap; }
 
 /* review question panels */
 .question-panel { display: flex; flex-direction: column; gap: 14px; }

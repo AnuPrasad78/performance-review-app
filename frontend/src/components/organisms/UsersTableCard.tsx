@@ -1,12 +1,23 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Card } from '../atoms/Card'
 import { Button } from '../atoms/Button'
 import { DataTable, type DataTableColumn, type DataTableSort } from '../molecules/DataTable'
 import { ColumnFilterMenu, type FilterMenuControl } from '../molecules/ColumnFilterMenu'
 import { Pager } from '../molecules/Pager'
+import { SegmentedFilter } from '../molecules/SegmentedFilter'
 import { EmployeeDetailCard } from './EmployeeDetailCard'
 import { useProfileReview, type ProfileReviewActions } from '../../hooks/useProfileReview'
-import type { Employee, EmployeeStatus } from '../../lib/types'
+import type {
+  Employee,
+  EmployeePatch,
+  EmployeePatchResult,
+  EmployeeStatus,
+} from '../../lib/types'
+
+const STATUS_OPTIONS: ReadonlyArray<{ value: EmployeeStatus; label: string }> = [
+  { value: 'Active', label: 'Active' },
+  { value: 'Inactive', label: 'Inactive' },
+]
 
 export interface UsersTableCardProps {
   employees: readonly Employee[]
@@ -23,38 +34,24 @@ export interface UsersTableCardProps {
   /** The page's composed search/filter controls, slotted into the toolbar
       beside Download CSV — the organism renders, never owns, them. */
   tableControls?: ReactNode
-  /** The bulk completed-reviews trigger, fully built by the page and slotted
-      after Download CSV. */
-  tableActions?: ReactNode
   /** The profile card's review-download seam: the page's read + save for one
       employee's PDF. Omitted where the review is out of the card's reach. */
   review?: ProfileReviewActions
-  /** The profile card's employment-status flip: the page patches the stored
-      row (and re-reads the roster); awaited here so the button reflects the
-      pending move. */
+  /** The status column's Active/Inactive flip: the page patches the stored
+      row (and re-reads the roster); awaited here so the row's pair reflects
+      the pending move. */
   onSetStatus?: (employee: Employee, status: EmployeeStatus) => Promise<void>
+  /** The profile card's field-save seam: the page patches the stored row
+      (and re-reads the roster); the returned row re-keys the card when the
+      save moved Employee ID or email. */
+  onSaveEmployee?: (employee: Employee, patch: EmployeePatch) => Promise<EmployeePatchResult>
+  /** The save as the page awaits it — the card disables its actions with it. */
+  saveBusy?: boolean
   /** Click-to-sort headers; the keys are this page's wire sort words. */
   sort?: DataTableSort
   /** One funnel control per filtered column, keyed by the column key. */
   columnFilters?: Readonly<Record<string, FilterMenuControl>>
 }
-
-/** Sort keys are the wire words the backend whitelists. */
-const columns: readonly DataTableColumn<Employee>[] = [
-  { key: 'name', header: 'Name', sortKey: 'employeeName', cell: (employee) => employee.name },
-  { key: 'employeeId', header: 'Employee ID', sortKey: 'employeeId', cell: (employee) => employee.employeeId, hideOnMobile: true },
-  { key: 'email', header: 'Email', sortKey: 'email', cell: (employee) => employee.email },
-  { key: 'designation', header: 'Designation', sortKey: 'designation', cell: (employee) => employee.designation, hideOnMobile: true },
-  { key: 'location', header: 'Location', sortKey: 'location', cell: (employee) => employee.location, hideOnMobile: true },
-  {
-    key: 'reportingManager',
-    header: 'Reporting manager',
-    sortKey: 'reportingManager',
-    cell: (employee) => employee.reportingManager,
-    hideOnMobile: true,
-  },
-  { key: 'status', header: 'Status', sortKey: 'employmentStatus', cell: (employee) => employee.status, hideOnMobile: true },
-]
 
 export function UsersTableCard({
   employees,
@@ -64,20 +61,32 @@ export function UsersTableCard({
   emptyMessage,
   onDownloadCsv,
   tableControls,
-  tableActions,
   review,
   onSetStatus,
+  onSaveEmployee,
+  saveBusy = false,
   sort,
   columnFilters,
 }: UsersTableCardProps) {
-  const [selectedEmail, setSelectedEmail] = useState<string | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  /** The row the last save wrote back — held for the card while the roster's
+      re-read is still in flight (its confirm below drops it), so a save that
+      moved Employee ID or email never blinks the popup away. */
+  const [savedRow, setSavedRow] = useState<Employee | null>(null)
   const [downloading, setDownloading] = useState(false)
-  const [statusBusy, setStatusBusy] = useState(false)
+  const [statusBusyId, setStatusBusyId] = useState<string | null>(null)
   const selected: Employee | null =
-    selectedEmail === null
+    selectedId === null
       ? null
-      : (employees.find((employee) => employee.email === selectedEmail) ?? null)
+      : (employees.find((employee) => employee.employeeId === selectedId) ??
+        (savedRow?.employeeId === selectedId ? savedRow : null))
   const cardReview = useProfileReview(selected, review)
+
+  useEffect(() => {
+    if (savedRow !== null && employees.some(({ employeeId }) => employeeId === savedRow.employeeId)) {
+      setSavedRow(null)
+    }
+  }, [employees, savedRow])
 
   async function downloadRoster(): Promise<void> {
     setDownloading(true)
@@ -88,54 +97,110 @@ export function UsersTableCard({
     }
   }
 
-  async function setStatus(status: EmployeeStatus): Promise<void> {
-    if (selected === null || onSetStatus === undefined) return
-    setStatusBusy(true)
+  async function setStatus(employee: Employee, status: EmployeeStatus): Promise<void> {
+    if (onSetStatus === undefined) return
+    setStatusBusyId(employee.employeeId)
     try {
-      await onSetStatus(selected, status)
+      await onSetStatus(employee, status)
     } finally {
-      setStatusBusy(false)
+      setStatusBusyId(null)
     }
   }
 
-  const headerAdornments = useMemo(() => {
+  async function saveEmployee(
+    employee: Employee,
+    patch: EmployeePatch,
+  ): Promise<EmployeePatchResult> {
+    if (onSaveEmployee === undefined) {
+      return { ok: false, detail: 'Editing is unavailable.', code: 'unavailable' }
+    }
+    const result = await onSaveEmployee(employee, patch)
+    if (result.ok) {
+      // The write may have moved the row's identity — follow the answer, or
+      // the open card would fall off its row on the roster's re-read.
+      setSavedRow(result.employee)
+      setSelectedId(result.employee.employeeId)
+    }
+    return result
+  }
+
+  /** Sort keys are the wire words the backend whitelists; the Status cell
+      carries the Active/Inactive pair when the page wires the flip, and the
+      click stays clear of the row's profile-card open. */
+  const columns: readonly DataTableColumn<Employee>[] = [
+    { key: 'name', header: 'Name', sortKey: 'employeeName', cell: (employee) => employee.name },
+    { key: 'employeeId', header: 'Employee ID', sortKey: 'employeeId', cell: (employee) => employee.employeeId, hideOnMobile: true },
+    { key: 'email', header: 'Email', sortKey: 'email', cell: (employee) => employee.email },
+    { key: 'designation', header: 'Designation', sortKey: 'designation', cell: (employee) => employee.designation, hideOnMobile: true },
+    { key: 'location', header: 'Location', sortKey: 'location', cell: (employee) => employee.location, hideOnMobile: true },
+    {
+      key: 'reportingManager',
+      header: 'Reporting manager',
+      sortKey: 'reportingManager',
+      cell: (employee) => employee.reportingManager,
+      hideOnMobile: true,
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      sortKey: 'employmentStatus',
+      hideOnMobile: true,
+      cell:
+        onSetStatus === undefined
+          ? (employee) => employee.status
+          : (employee) => (
+              <div
+                className="users-status__toggle"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <SegmentedFilter
+                  options={STATUS_OPTIONS}
+                  value={employee.status}
+                  onChange={(status) => void setStatus(employee, status)}
+                  ariaLabel={`${employee.name}'s employment status`}
+                  disabled={statusBusyId === employee.employeeId}
+                />
+              </div>
+            ),
+    },
+  ]
+
+  const headerAdornments: Record<string, ReactNode> | undefined = (() => {
     if (columnFilters === undefined) return undefined
     const adornments: Record<string, ReactNode> = {}
     for (const [key, control] of Object.entries(columnFilters)) {
       adornments[key] = <ColumnFilterMenu label={columns.find((c) => c.key === key)?.header ?? key} control={control} />
     }
     return adornments
-  }, [columnFilters])
+  })()
   return (
     <Card caption={`Roster · ${employees.length} ${employees.length === 1 ? 'employee' : 'employees'}`} captionAccent>
       <div className="table-toolbar">
         <Button variant="ghost" size="sm" onClick={() => void downloadRoster()} disabled={downloading}>
           Download CSV
         </Button>
-        {tableActions ?? null}
         {tableControls ?? null}
       </div>
       <DataTable
         columns={columns}
         rows={employees}
-        rowKey={(employee) => employee.email}
+        rowKey={(employee) => employee.employeeId}
         sort={sort}
         headerAdornments={headerAdornments}
         emptyMessage={emptyMessage}
-        onRowClick={(employee) => setSelectedEmail(employee.email)}
-        activeRowKey={selected?.email ?? null}
+        onRowClick={(employee) => setSelectedId(employee.employeeId)}
+        activeRowKey={selected?.employeeId ?? null}
       />
       <Pager page={page} pageCount={pageCount} onPage={onPage} />
       {selected !== null ? (
         <EmployeeDetailCard
           employee={selected}
-          onClose={() => setSelectedEmail(null)}
-          formStatus={cardReview.formStatus}
+          onClose={() => setSelectedId(null)}
           reviewCompleted={cardReview.reviewCompleted}
           onDownloadReview={() => void cardReview.onDownloadReview()}
           reviewBusy={cardReview.reviewBusy}
-          onSetStatus={onSetStatus === undefined ? undefined : (status) => void setStatus(status)}
-          statusBusy={statusBusy}
+          onSaveEmployee={onSaveEmployee === undefined ? undefined : (patch) => saveEmployee(selected, patch)}
+          saveBusy={saveBusy}
         />
       ) : null}
     </Card>

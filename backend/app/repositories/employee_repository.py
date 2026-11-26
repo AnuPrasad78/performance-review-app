@@ -8,7 +8,7 @@ Pagination and the admin board's roster × evaluation join are reads served
 here so no list endpoint ever materializes the full table.
 """
 
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Mapping, Sequence
 from typing import Annotated, NamedTuple
 
 from fastapi import Depends
@@ -153,18 +153,24 @@ class EmployeeRepository:
         )
         return await self._session.scalar(statement)
 
-    async def set_employment_status(
-        self, employee_id: str, status: str
-    ) -> Employee | None:
-        """The one employee whose employment word moves to `status`, or None
-        when the roster holds no such row. Flush keeps the write visible in
-        the same request (core/db.py commits at its end)."""
-        stored = await self._session.get(Employee, employee_id)
-        if stored is None:
-            return None
-        stored.employment_status = status
+    async def update_employee(
+        self,
+        employee: Employee,
+        values: Mapping[str, str],
+        *,
+        employee_id_to: str | None = None,
+    ) -> Employee:
+        """Writes the patch's (employees column -> value) pairs onto the
+        stored row; `employee_id_to` re-keys it when the patch moves the
+        primary key (evaluation rows follow via ON UPDATE CASCADE). Flush
+        keeps the write visible in the same request (core/db.py commits at
+        its end) and surfaces constraint clashes inside the envelope."""
+        for column, value in values.items():
+            setattr(employee, column, value)
+        if employee_id_to is not None:
+            employee.employee_id = employee_id_to
         await self._session.flush()
-        return stored
+        return employee
 
     async def get_many_by_email(self, emails: Sequence[str]) -> dict[str, Employee]:
         """Stored rows keyed by their lower-cased email — roster imports match

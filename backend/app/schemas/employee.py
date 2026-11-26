@@ -99,11 +99,26 @@ class RosterFacets(ApiModel):
 EmployeeEmploymentStatus = Literal["Active", "Inactive"]
 
 
-class EmployeeStatusPatch(ApiModel):
-    """The profile card's one-member employment-status write; the wire shape
-    stays a patch so future single-field edits reuse the endpoint."""
+class EmployeePatch(ApiModel):
+    """One employee's roster write over PATCH /api/employees/{id}: any subset
+    of the roster record, so the card's Active/Inactive flip and the edit
+    form's field save share one wire shape. A None (or omitted) field leaves
+    the stored column alone; identities and the employment word carry the
+    same vocabularies the roster CSV stores."""
 
-    status: EmployeeEmploymentStatus
+    employee_id: str | None = None
+    name: str | None = None
+    email: str | None = None
+    designation: str | None = None
+    location: str | None = None
+    org: str | None = None
+    business_unit: str | None = None
+    project: str | None = None
+    delivery_head: str | None = None
+    delivery_manager: str | None = None
+    business_partner: str | None = None
+    reporting_manager: str | None = None
+    status: EmployeeEmploymentStatus | None = None
 
 
 #: (RosterEmployeeOut field, employees column) pairs, including the identities.

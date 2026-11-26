@@ -3,8 +3,8 @@ import type {
   CycleSettingsResult,
   Employee,
   EmployeeListResult,
-  EmployeeStatus,
-  EmployeeStatusPatchResult,
+  EmployeePatch,
+  EmployeePatchResult,
   FormStatus,
   FormStatusResult,
   RosterApplyResult,
@@ -564,19 +564,20 @@ export async function fetchEmployeeFormStatus(
   return { ok: true, formStatus: parsed.formStatus as FormStatus }
 }
 
-/** The profile card's employment-status flip; the stored row — with its new
-    word — comes back, so the caller can re-strip from the answer itself. */
-export async function patchEmployeeStatus(
+/** One employee's roster write — the Users Status column's flip and the
+    profile card's field form send subsets of the same patch; the stored row
+    — with the post-write identity — comes back. */
+export async function patchEmployee(
   employeeId: string,
-  status: EmployeeStatus,
-): Promise<EmployeeStatusPatchResult> {
+  patch: EmployeePatch,
+): Promise<EmployeePatchResult> {
   let response: Response
   try {
     response = await fetch(`${API_BASE}/api/employees/${encodeURIComponent(employeeId)}`, {
       method: 'PATCH',
       credentials: CREDENTIALS,
       headers: { 'Content-Type': 'application/json', ...identityHeaders() },
-      body: JSON.stringify({ status }),
+      body: JSON.stringify(patch),
     })
   } catch {
     return { ok: false, detail: NETWORK_UNAVAILABLE.detail, code: NETWORK_UNAVAILABLE.code }
