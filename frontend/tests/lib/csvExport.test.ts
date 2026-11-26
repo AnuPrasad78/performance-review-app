@@ -9,7 +9,7 @@ afterEach(() => {
 })
 
 function csvResponse(): Response {
-  return new Response(new Blob(['csv'], { type: 'text/csv' }), {
+  return new Response('csv', {
     headers: { 'content-type': 'application/csv;charset=utf-8' },
   })
 }
