@@ -141,6 +141,11 @@ a { color: var(--teal-deep); }
 .table-toolbar { display: flex; justify-content: flex-end; margin-bottom: 12px; }
 /* a wide table scrolls inside its card; the page itself never widens for it */
 .table-scroll { overflow-x: auto; }
+/* cells never wrap: a table wider than its card overflows and scrolls,
+   instead of the columns compressing out of readability */
+.table td { white-space: nowrap; }
+/* the "no submission yet" dash: full-width block so it centers in its cell */
+.table__blank { display: block; text-align: center; }
 
 /* pie card head — the caption and its own Search & Filter share one row */
 .pie-card__head {

@@ -5,7 +5,13 @@ import { ReviewDownloadsButton } from '../components/molecules/ReviewDownloadsBu
 import { AdminTemplate } from '../components/templates/AdminTemplate'
 import { useCompletedReviews } from '../hooks/useCompletedReviews'
 import { type ProfileReviewActions } from '../hooks/useProfileReview'
-import { fetchEmployeeFacets, fetchEmployeeEvaluation, fetchReviewBoard } from '../lib/api'
+import {
+  fetchEmployeeFacets,
+  fetchEmployeeEvaluation,
+  fetchReviewBoard,
+  fetchReviewStatusCsvExport,
+} from '../lib/api'
+import { saveCsvBlob } from '../lib/csvDownload'
 import { rosterTotal } from '../lib/reviewStatusStore'
 import { saveReviewPdf } from '../lib/reviewDownloads'
 import { COMPLETION_FILTERS, type CompletionFilter } from '../lib/reviewStatusStore'
@@ -85,6 +91,18 @@ export function ReviewStatusPage() {
   async function downloadCompletedZips(): Promise<void> {
     const result = await completedReviews.download()
     if (!result.ok) notify('error', result.detail)
+  }
+
+  /** The board's Download CSV: the server renders every employee row the
+      composed query matches — search, filters, and sort riding along, never
+      just this page's slice. */
+  async function downloadReviewCsv(): Promise<void> {
+    const result = await fetchReviewStatusCsvExport(tableQuery)
+    if (result.ok) {
+      saveCsvBlob(result.blob, 'review-status.csv')
+      return
+    }
+    notify('error', result.detail)
   }
 
   /** One employee's review document: the page reads and saves a single
@@ -236,6 +254,7 @@ export function ReviewStatusPage() {
           page={tableQuery.page}
           pageCount={pageCount}
           onPageChange={(page) => setTableQuery((current) => ({ ...current, page }))}
+          onDownloadCsv={downloadReviewCsv}
           sort={{
             sortBy: tableQuery.sortBy ?? 'employeeName',
             sortOrder: tableQuery.sortOrder ?? 'asc',

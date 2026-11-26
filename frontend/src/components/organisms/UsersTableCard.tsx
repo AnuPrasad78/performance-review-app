@@ -3,8 +3,9 @@ import { Card } from '../atoms/Card'
 import { Button } from '../atoms/Button'
 import { DataTable, type DataTableColumn, type DataTableSort } from '../molecules/DataTable'
 import { ColumnFilterMenu, type FilterMenuControl } from '../molecules/ColumnFilterMenu'
+import { DownloadCsvButton } from '../molecules/DownloadCsvButton'
+import { Modal } from '../molecules/Modal'
 import { Pager } from '../molecules/Pager'
-import { SegmentedFilter } from '../molecules/SegmentedFilter'
 import { EmployeeDetailCard } from './EmployeeDetailCard'
 import { useProfileReview, type ProfileReviewActions } from '../../hooks/useProfileReview'
 import type {
@@ -13,11 +14,6 @@ import type {
   EmployeePatchResult,
   EmployeeStatus,
 } from '../../lib/types'
-
-const STATUS_OPTIONS: ReadonlyArray<{ value: EmployeeStatus; label: string }> = [
-  { value: 'Active', label: 'Active' },
-  { value: 'Inactive', label: 'Inactive' },
-]
 
 export interface UsersTableCardProps {
   employees: readonly Employee[]
@@ -73,8 +69,10 @@ export function UsersTableCard({
       re-read is still in flight (its confirm below drops it), so a save that
       moved Employee ID or email never blinks the popup away. */
   const [savedRow, setSavedRow] = useState<Employee | null>(null)
-  const [downloading, setDownloading] = useState(false)
   const [statusBusyId, setStatusBusyId] = useState<string | null>(null)
+  /** The row whose deactivation is awaiting the confirm popup — the flip
+      only patches once the admin answers the dialog. */
+  const [deactivationTarget, setDeactivationTarget] = useState<Employee | null>(null)
   const selected: Employee | null =
     selectedId === null
       ? null
@@ -87,15 +85,6 @@ export function UsersTableCard({
       setSavedRow(null)
     }
   }, [employees, savedRow])
-
-  async function downloadRoster(): Promise<void> {
-    setDownloading(true)
-    try {
-      await onDownloadCsv()
-    } finally {
-      setDownloading(false)
-    }
-  }
 
   async function setStatus(employee: Employee, status: EmployeeStatus): Promise<void> {
     if (onSetStatus === undefined) return
@@ -124,9 +113,10 @@ export function UsersTableCard({
     return result
   }
 
-  /** Sort keys are the wire words the backend whitelists; the Status cell
-      carries the Active/Inactive pair when the page wires the flip, and the
-      click stays clear of the row's profile-card open. */
+  /** Sort keys are the wire words the backend whitelists; the Status cell is
+      one button that names the current state — deactivation asks first,
+      reactivation is safe to take immediately — and the click stays clear of
+      the row's profile-card open. */
   const columns: readonly DataTableColumn<Employee>[] = [
     { key: 'name', header: 'Name', sortKey: 'employeeName', cell: (employee) => employee.name },
     { key: 'employeeId', header: 'Employee ID', sortKey: 'employeeId', cell: (employee) => employee.employeeId, hideOnMobile: true },
@@ -149,18 +139,22 @@ export function UsersTableCard({
         onSetStatus === undefined
           ? (employee) => employee.status
           : (employee) => (
-              <div
-                className="users-status__toggle"
-                onClick={(event) => event.stopPropagation()}
+              <Button
+                variant={employee.status === 'Active' ? 'ghost' : 'primary'}
+                size="sm"
+                aria-label={`${employee.status === 'Active' ? 'Deactivate' : 'Reactivate'} ${employee.name}`}
+                disabled={statusBusyId === employee.employeeId}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  if (employee.status === 'Active') {
+                    setDeactivationTarget(employee)
+                  } else {
+                    void setStatus(employee, 'Active')
+                  }
+                }}
               >
-                <SegmentedFilter
-                  options={STATUS_OPTIONS}
-                  value={employee.status}
-                  onChange={(status) => void setStatus(employee, status)}
-                  ariaLabel={`${employee.name}'s employment status`}
-                  disabled={statusBusyId === employee.employeeId}
-                />
-              </div>
+                {employee.status}
+              </Button>
             ),
     },
   ]
@@ -176,9 +170,7 @@ export function UsersTableCard({
   return (
     <Card caption={`Roster · ${employees.length} ${employees.length === 1 ? 'employee' : 'employees'}`} captionAccent>
       <div className="table-toolbar">
-        <Button variant="ghost" size="sm" onClick={() => void downloadRoster()} disabled={downloading}>
-          Download CSV
-        </Button>
+        <DownloadCsvButton onDownload={onDownloadCsv} />
         {tableControls ?? null}
       </div>
       <DataTable
@@ -202,6 +194,36 @@ export function UsersTableCard({
           onSaveEmployee={onSaveEmployee === undefined ? undefined : (patch) => saveEmployee(selected, patch)}
           saveBusy={saveBusy}
         />
+      ) : null}
+      {deactivationTarget !== null ? (
+        <Modal
+          open
+          label={`Deactivate ${deactivationTarget.name}`}
+          onClose={() => setDeactivationTarget(null)}
+        >
+          <div className="modal__body">
+            <p style={{ marginBottom: '12px' }}>
+              This will hide {deactivationTarget.name} from the review roster.
+            </p>
+            <p style={{ color: 'var(--ink-3)' }}>Are you sure you want to deactivate the user?</p>
+          </div>
+          <div className="modal__actions">
+            <Button variant="ghost" onClick={() => setDeactivationTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              busy={statusBusyId === deactivationTarget.employeeId}
+              onClick={() => {
+                const target = deactivationTarget
+                setDeactivationTarget(null)
+                void setStatus(target, 'Inactive')
+              }}
+            >
+              Deactivate
+            </Button>
+          </div>
+        </Modal>
       ) : null}
     </Card>
   )

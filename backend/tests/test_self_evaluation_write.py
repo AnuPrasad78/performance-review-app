@@ -214,8 +214,9 @@ def test_submit_completes_the_review() -> None:
     response = submit(client)
 
     assert response.status_code == 200
-    assert response.json()["submittedAt"] is None  # exact date is A6's stamp
+    assert response.json()["employeeSignedAt"] is not None
     assert evaluations.row.status == "SELF_EVALUATION_COMPLETED"
+    assert evaluations.row.employee_signed_at is not None
 
 
 def test_submit_lands_on_an_already_submitted_review() -> None:

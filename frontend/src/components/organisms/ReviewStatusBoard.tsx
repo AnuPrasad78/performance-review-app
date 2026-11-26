@@ -2,6 +2,7 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { Card } from '../atoms/Card'
 import { DataTable, type DataTableColumn, type DataTableSort } from '../molecules/DataTable'
 import { ColumnFilterMenu, type FilterMenuControl } from '../molecules/ColumnFilterMenu'
+import { DownloadCsvButton } from '../molecules/DownloadCsvButton'
 import { Pager } from '../molecules/Pager'
 import { PieChart } from '../molecules/PieChart'
 import { ReviewStatusPill } from '../molecules/ReviewStatusPill'
@@ -15,6 +16,7 @@ import {
   REVIEW_STATUS_WORDS,
   type EmployeeReviewStatus,
 } from '../../lib/reviewStatusStore'
+import { formatIsoDate } from '../../lib/dates'
 import type { ReviewStatus } from '../../lib/types'
 
 const STATUS_ORDER = REVIEW_STATUS_WORDS
@@ -59,6 +61,10 @@ export interface ReviewStatusBoardProps {
       in the table card's toolbar. */
   tableControls?: ReactNode
   tableActions?: ReactNode
+  /** The page's Download CSV read: every employee row the composed query
+      matches, roster columns plus the board's own two columns — awaited by
+      the shared button, so the busy state lives in the molecule. */
+  onDownloadCsv: () => Promise<void>
   /** The profile card's review-download seam, keyed to the selected row's
       employee; a row opened for it reveals the card. */
   review?: ProfileReviewActions
@@ -85,6 +91,7 @@ export function ReviewStatusBoard({
   pieControls,
   tableControls,
   tableActions,
+  onDownloadCsv,
   review,
   sort,
   statusFilter,
@@ -126,14 +133,26 @@ export function ReviewStatusBoard({
   /** Sort keys are the wire words the backend whitelists; `status` orders by
       the server's workflow rank. */
   const columns: readonly DataTableColumn<EmployeeReviewStatus>[] = [
-    { key: 'name', header: 'Name', sortKey: 'employeeName', cell: (entry) => entry.employee.name },
-    { key: 'email', header: 'Email', sortKey: 'email', cell: (entry) => entry.employee.email, hideOnMobile: true },
-    { key: 'org', header: 'Org', sortKey: 'org', cell: (entry) => entry.employee.org, hideOnMobile: true },
     {
-      key: 'location',
-      header: 'Location',
-      sortKey: 'location',
-      cell: (entry) => entry.employee.location,
+      key: 'name',
+      header: 'Name',
+      sortKey: 'employeeName',
+      cell: (entry) => {
+        const name = entry.employee.name
+        return <span title={name}>{name.length <= 16 ? name : `${name.slice(0, 16)}...`}</span>
+      },
+    },
+    { key: 'email', header: 'Email', sortKey: 'email', cell: (entry) => entry.employee.email, hideOnMobile: true },
+    { key: 'status', header: 'Form status', sortKey: 'status', cell: (entry) => <ReviewStatusPill status={entry.status} /> },
+    {
+      key: 'submittedAt',
+      header: 'Submitted date',
+      cell: (entry) =>
+        entry.submittedAt === null ? (
+          <span className="table__blank">-</span>
+        ) : (
+          formatIsoDate(entry.submittedAt)
+        ),
       hideOnMobile: true,
     },
     {
@@ -143,7 +162,14 @@ export function ReviewStatusBoard({
       cell: (entry) => entry.employee.reportingManager,
       hideOnMobile: true,
     },
-    { key: 'status', header: 'Form status', sortKey: 'status', cell: (entry) => <ReviewStatusPill status={entry.status} /> },
+    {
+      key: 'location',
+      header: 'Location',
+      sortKey: 'location',
+      cell: (entry) => entry.employee.location,
+      hideOnMobile: true,
+    },
+    { key: 'org', header: 'Org', sortKey: 'org', cell: (entry) => entry.employee.org, hideOnMobile: true },
   ]
 
   return (
@@ -207,12 +233,11 @@ export function ReviewStatusBoard({
         caption={`Employees · ${total} of ${tableRosterTotal}`}
         captionAccent
       >
-        {tableControls !== null && tableControls !== undefined || tableActions ? (
-          <div className="table-toolbar">
-            {tableControls}
-            {tableActions}
-          </div>
-        ) : null}
+        <div className="table-toolbar">
+          <DownloadCsvButton onDownload={onDownloadCsv} label="Download status" />
+          {tableControls}
+          {tableActions}
+        </div>
         <div className="table-region" aria-busy={tableBusy === true || undefined}>
           <DataTable
             columns={columns}

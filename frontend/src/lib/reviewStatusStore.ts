@@ -11,6 +11,8 @@ import type { Employee, ReviewStatus, StatusFilter } from './types'
 export type EmployeeReviewStatus = {
   employee: Employee
   status: ReviewStatus
+  /** Submissions stamp from evaluations.employee_signed_at; null while open. */
+  submittedAt: string | null
 }
 
 export type CompletionFilter = StatusFilter

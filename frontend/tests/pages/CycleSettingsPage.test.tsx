@@ -157,6 +157,7 @@ describe('CycleSettingsPage — the admin API contract', () => {
       managerReviewStart: '2027-01-20',
       managerReviewEnd: '2027-02-10',
       hrApprovalReleaseBy: '2027-02-20',
+      employeeEligibilityDate: '',
     })
   })
 

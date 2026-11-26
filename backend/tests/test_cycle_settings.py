@@ -28,13 +28,18 @@ VALID_SETTINGS = {
 }
 
 
-def stored_cycle(review_year: int, deadline: datetime.datetime) -> ReviewCycle:
+def stored_cycle(
+    review_year: int,
+    deadline: datetime.datetime,
+    eligibility: datetime.date | None = None,
+) -> ReviewCycle:
     return ReviewCycle(
         review_year=review_year,
         submission_deadline=deadline,
         manager_review_start=deadline.date() + datetime.timedelta(days=1),
         manager_review_end=deadline.date() + datetime.timedelta(days=30),
         hr_approval_release_by=deadline.date() + datetime.timedelta(days=45),
+        employee_eligibility_date=eligibility,
     )
 
 
@@ -98,6 +103,47 @@ def test_get_is_a_404_envelope_when_no_cycle_exists() -> None:
 
     assert response.status_code == 404
     assert response.json()["code"] == "cycle_missing"
+
+
+def test_get_serves_the_eligibility_date_verbatim_and_null_when_unset() -> None:
+    eligible_cycle = stored_cycle(
+        2026,
+        datetime.datetime(2027, 1, 15, 10, 0, tzinfo=UTC),
+        eligibility=datetime.date(2026, 9, 30),
+    )
+    client, _ = make_client([eligible_cycle])
+
+    response = client.get("/api/cycle-settings", headers=ADMIN)
+
+    assert response.status_code == 200
+    assert response.json()["employeeEligibilityDate"] == "2026-09-30"
+
+    unset_client, _ = make_client(
+        [stored_cycle(2026, datetime.datetime(2027, 1, 15, 10, 0, tzinfo=UTC))]
+    )
+    assert unset_client.get("/api/cycle-settings", headers=ADMIN).json()[
+        "employeeEligibilityDate"
+    ] is None
+
+
+def test_put_writes_the_eligibility_date_and_blank_clears_it() -> None:
+    client, cycles = make_client(
+        [stored_cycle(2026, datetime.datetime(2027, 1, 1, 10, 0, tzinfo=UTC))]
+    )
+
+    response = client.put(
+        "/api/cycle-settings", json=dict(VALID_SETTINGS, employeeEligibilityDate="2026-06-30"),
+        headers=ADMIN,
+    )
+    assert response.status_code == 200
+    assert response.json()["employeeEligibilityDate"] == "2026-06-30"
+    assert cycles.cycles[0].employee_eligibility_date == datetime.date(2026, 6, 30)
+
+    cleared = dict(VALID_SETTINGS, employeeEligibilityDate="")
+    cleared_response = client.put("/api/cycle-settings", json=cleared, headers=ADMIN)
+    assert cleared_response.status_code == 200
+    assert cleared_response.json()["employeeEligibilityDate"] is None
+    assert cycles.cycles[0].employee_eligibility_date is None
 
 
 def test_put_updates_the_existing_year_in_place() -> None:

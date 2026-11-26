@@ -115,6 +115,7 @@ export function EmployeeDetailCard({
               <FormField key={field} id={`employee-edit-${field}`} label={EMPLOYEE_FIELD_TITLES[field]} required={field === 'name' || field === 'email' || field === 'employeeId'}>
                 <Input
                   id={`employee-edit-${field}`}
+                  type={field === 'joiningDate' ? 'date' : undefined}
                   value={draftValue(field)}
                   onChange={(event) =>
                     setDraft((current) => ({ ...current, [field]: event.target.value }))

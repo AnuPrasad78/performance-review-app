@@ -10,22 +10,31 @@ const {
   fetchEmployeeFacetsMock,
   fetchCompletedCountMock,
   downloadCompletedReviewZipMock,
+  fetchReviewStatusCsvExportMock,
+  saveCsvBlobMock,
 } = vi.hoisted(() => ({
   fetchReviewBoardMock: vi.fn(),
   fetchEmployeeFacetsMock: vi.fn(),
   fetchCompletedCountMock: vi.fn(),
   downloadCompletedReviewZipMock: vi.fn(),
+  fetchReviewStatusCsvExportMock: vi.fn(),
+  saveCsvBlobMock: vi.fn(),
 }))
 vi.mock('../../src/lib/api', async (importOriginal) => ({
   ...(await importOriginal()),
   fetchReviewBoard: fetchReviewBoardMock,
   fetchEmployeeFacets: fetchEmployeeFacetsMock,
   fetchCompletedCount: fetchCompletedCountMock,
+  fetchReviewStatusCsvExport: fetchReviewStatusCsvExportMock,
   setApiIdentity: vi.fn(),
 }))
 vi.mock('../../src/lib/reviewDownloads', () => ({
   downloadCompletedReviewZip: downloadCompletedReviewZipMock,
   saveReviewPdf: vi.fn(),
+}))
+vi.mock('../../src/lib/csvDownload', () => ({
+  saveCsvBlob: saveCsvBlobMock,
+  downloadCsv: vi.fn(),
 }))
 
 function wireReview(email: string, name: string, status: ReviewStatusWire['status'], index: number): ReviewStatusWire {
@@ -43,9 +52,11 @@ function wireReview(email: string, name: string, status: ReviewStatusWire['statu
       deliveryManager: 'Priya Raghavan',
       businessPartner: 'John D',
       reportingManager: 'Priya Raghavan',
-      status: 'Active',
+     status: 'Active',
+     joiningDate: '',
     },
     status,
+    submittedAt: null,
   }
 }
 
@@ -111,6 +122,12 @@ beforeEach(() => {
   fetchCompletedCountMock.mockResolvedValue({ ok: true, count: 2 })
   downloadCompletedReviewZipMock.mockReset()
   downloadCompletedReviewZipMock.mockResolvedValue({ ok: true, count: 2 })
+  fetchReviewStatusCsvExportMock.mockReset()
+  fetchReviewStatusCsvExportMock.mockResolvedValue({
+    ok: true,
+    blob: new Blob(['csv'], { type: 'text/csv' }),
+  })
+  saveCsvBlobMock.mockReset()
 })
 
 describe('ReviewStatusPage', () => {
@@ -490,6 +507,40 @@ it('the pie card veils its stale numbers while a filtered read is in flight', as
     render(page())
 
     expect(await screen.findByText('Could not reach the review API.')).toBeInTheDocument()
+  })
+
+  it('Download CSV exports the whole matched set with the composed query', async () => {
+    render(page())
+    const user = userEvent.setup()
+    await screen.findByRole('table')
+
+    await user.click(screen.getByRole('button', { name: 'Filter by Location' }))
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'Filter by Location' })).getByRole('button', { name: 'India' }),
+    )
+    await waitFor(() => {
+      expect(fetchReviewBoardMock).toHaveBeenLastCalledWith({ page: 1, status: 'all', location: 'India' })
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Download status' }))
+    await waitFor(() => {
+      expect(fetchReviewStatusCsvExportMock).toHaveBeenLastCalledWith({
+        page: 1,
+        status: 'all',
+        location: 'India',
+      })
+    })
+    expect(saveCsvBlobMock).toHaveBeenCalledWith(expect.any(Blob), 'review-status.csv')
+
+    saveCsvBlobMock.mockClear()
+    fetchReviewStatusCsvExportMock.mockClear()
+    fetchReviewStatusCsvExportMock.mockResolvedValue({
+      ok: false,
+      detail: 'The export endpoint is unavailable.',
+      code: 'network_error',
+    })
+    await user.click(screen.getByRole('button', { name: 'Download status' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('The export endpoint is unavailable.')
   })
 
   it('announces the matched completed count and streams the ZIP on click', async () => {

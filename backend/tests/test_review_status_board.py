@@ -2,6 +2,8 @@
 for the current cycle, the six stored statuses, composed search/filters, and
 the admin role gate. Repositories are stubbed, so no database is involved."""
 
+import datetime
+
 from tests.evaluation_fixtures import (
     evaluation,
     make_board_client,
@@ -23,7 +25,13 @@ def test_board_joins_roster_rows_with_evaluation_states() -> None:
     rows = [
         evaluation("SELF_EVALUATION_IN_PROGRESS", employee_id="EMP-V001"),
         evaluation("NOT_STARTED", employee_id="EMP-V002"),
-        evaluation("IN_MANAGER_REVIEW", employee_id="EMP-V003"),
+        evaluation(
+            "IN_MANAGER_REVIEW",
+            employee_id="EMP-V003",
+            employee_signed_at=datetime.datetime(
+                2027, 1, 10, 14, 30, tzinfo=datetime.timezone.utc
+            ),
+        ),
     ]
     client = make_board_client([asha, bilal, cara, devika], rows, admin_emails=[ASHA_EMAIL])
 
@@ -45,8 +53,18 @@ def test_board_joins_roster_rows_with_evaluation_states() -> None:
         "EMP-V003",
         "EMP-V004",
     ]
-    # The whole-roster distribution rides along for the tiles and pie — and
-    # with no search/filter words present, that means the entire roster.
+    # The Submitted date column's data: employee_signed_at of the evaluation,
+    # None while the employee still owns the form.
+    submitted_dates = {
+        entry["employee"]["employeeId"]: entry["submittedAt"] for entry in payload["reviews"]
+    }
+    assert submitted_dates == {
+        "EMP-V001": None,
+        "EMP-V002": None,
+        "EMP-V003": "2027-01-10",
+        "EMP-V004": None,
+    }
+    # The whole-roster distribution rides along for the tiles and pie.
     assert payload["total"] == 4
     assert payload["page"] == 1
     assert payload["pageSize"] == 10

@@ -8,6 +8,8 @@ across the roster and non-blank, and a primary-key move travels through the
 one write the repository owns.
 """
 
+import datetime
+
 from app.core.errors import AppError
 from app.models.employee import Employee
 from app.repositories.employee_repository import EmployeeRepository
@@ -63,7 +65,7 @@ async def patch_employee(
     if patch.name is not None:
         _require_identity(patch.name, "Name", "name_blank")
 
-    values: dict[str, str] = {}
+    values: dict[str, str | datetime.date] = {}
     for field, column in _PATCH_COLUMNS.items():
         # The identities are not copied verbatim: employee_id rides the write
         # as the re-key, name/e-mail as the trimmed words the guards produced.
@@ -73,6 +75,8 @@ async def patch_employee(
             values[column] = patch.name.strip()
         elif field == "email" and email is not None:
             values[column] = email
+        elif field == "joining_date" and patch.joining_date is not None:
+            values[column] = patch.joining_date
         elif field not in _IDENTITY_FIELDS:
             text = getattr(patch, field, None)
             if text is not None:
