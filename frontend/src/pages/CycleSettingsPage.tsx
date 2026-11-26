@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { CycleSettingsForm } from '../components/organisms/CycleSettingsForm'
 import { AdminTemplate } from '../components/templates/AdminTemplate'
+import { Skeleton } from '../components/atoms/Skeleton'
+import { useDelaySkeleton } from '../hooks/useDelaySkeleton'
 import { fetchCycleSettings, saveCycleSettings } from '../lib/api'
 import { draftToDeadlineLabel } from '../lib/cycleValidation'
 import { formatIsoDate } from '../lib/dates'
@@ -11,6 +13,8 @@ export function CycleSettingsPage() {
   const { notify } = useAdminStore()
   const [settings, setSettings] = useState<CycleSettings | null>(null)
   const [settled, setSettled] = useState(false)
+  /** Placeholder bands wait 180ms before showing — fast answers never flash. */
+  const skeletonVisible = useDelaySkeleton(!settled)
 
   useEffect(() => {
     let cancelled = false
@@ -52,7 +56,25 @@ export function CycleSettingsPage() {
       {settled ? (
         <CycleSettingsForm initial={settings} onSave={save} />
       ) : (
-        <p className="muted">Loading the review cycle.</p>
+        <div role="status" aria-label="Loading the review cycle">
+          <span className="sr-only">Loading the review cycle.</span>
+          {skeletonVisible ? (
+            <div className="card card--padded">
+              <div className="skeleton-row" style={{ gap: '18px' }}>
+                <Skeleton height="40px" width="220px" />
+                <Skeleton height="40px" width="220px" />
+              </div>
+              <div className="skeleton-row" style={{ gap: '18px' }}>
+                <Skeleton height="40px" width="220px" />
+                <Skeleton height="40px" width="220px" />
+              </div>
+              <div className="skeleton-row" style={{ gap: '18px' }}>
+                <Skeleton height="40px" width="220px" />
+                <Skeleton height="40px" width="120px" />
+              </div>
+            </div>
+          ) : null}
+        </div>
       )}
     </AdminTemplate>
   )

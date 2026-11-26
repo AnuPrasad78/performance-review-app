@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthProvider } from '../../src/state/AuthContext'
@@ -138,12 +138,17 @@ describe('EmployeeDashboardPage — shell', () => {
     expect(screen.queryByRole('button', { name: 'Previous' })).not.toBeInTheDocument()
   })
 
-  it('shows the loading state before the API answers', () => {
+  it('shows the loading state before the API answers', async () => {
     vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(() => null)))
 
     render(page())
 
-    expect(screen.getByText('Loading your review.')).toBeInTheDocument()
+    // The sr-only announcement rides the outlined body; the bands appear
+    // after the flash guard, and mirror the wizard's first screen.
+    expect(await screen.findByText('Loading your review.')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(document.querySelectorAll('.skeleton').length).toBeGreaterThan(0)
+    })
   })
 
   it('renders the API failure message when the endpoint cannot be reached', async () => {

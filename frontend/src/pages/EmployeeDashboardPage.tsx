@@ -6,6 +6,7 @@ import { OverallRatingPanel } from '../components/organisms/OverallRatingPanel'
 import { ForwardCommitmentsPanel } from '../components/organisms/ForwardCommitmentsPanel'
 import { SignOffPanel } from '../components/organisms/SignOffPanel'
 import { Button } from '../components/atoms/Button'
+import { Skeleton } from '../components/atoms/Skeleton'
 import { Card } from '../components/atoms/Card'
 import { Modal } from '../components/molecules/Modal'
 import { saveSelfEvaluation, submitSelfEvaluation, fetchSelfEvaluation } from '../lib/api'
@@ -25,6 +26,7 @@ import {
 import { validateSelfEvaluation } from '../lib/selfEvaluationValidation'
 import { QUESTION_LABELS } from '../lib/selfEvaluationContent'
 import { useAutoSave } from '../hooks/useAutoSave'
+import { useDelaySkeleton } from '../hooks/useDelaySkeleton'
 import type {
   AssessmentQuestionId,
   ForwardCommitment,
@@ -73,6 +75,8 @@ export function EmployeeDashboardPage() {
   const now = useDeadlineClock()
   const [record, setRecord] = useState<SelfEvaluationRecord | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
+  /** Placeholder bands wait 180ms before showing — fast answers never flash. */
+  const skeletonVisible = useDelaySkeleton(record === null)
   const [submitting, setSubmitting] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [validation, setValidation] = useState<SelfEvaluationValidation | null>(null)
@@ -173,14 +177,36 @@ export function EmployeeDashboardPage() {
   }
 
   if (record === null) {
+    // The skeleton mirrors the wizard's first screen: section chips, the
+    // step's description and counter, the question card, and the actions row.
     return (
       <div className="hero-page">
         <div className="hero-card brand-frame">
           <HeroHeader sectionProgress={[]} />
-          <div className="hero-card__body">
-            <p className="muted" role="status">
-              Loading your review.
-            </p>
+          <div className="hero-card__body" role="status">
+            <span className="sr-only">Loading your review.</span>
+            {skeletonVisible ? (
+              <div className="page-stack dashboard-skeleton">
+                <div className="skeleton-row">
+                  {Array.from({ length: 4 }).map((_, index) => (
+                    <Skeleton key={index} height="44px" width="150px" />
+                  ))}
+                </div>
+                <Skeleton height="18px" width="60%" />
+                <Skeleton height="14px" width="38%" />
+                <div className="card card--padded">
+                  <Skeleton height="14px" width="32%" />
+                  <div className="dashboard-skeleton__question">
+                    <Skeleton height="40px" width="38%" />
+                    <Skeleton height="176px" />
+                  </div>
+                </div>
+                <div className="form-actions" style={{ paddingTop: '6px' }}>
+                  <Skeleton height="40px" width="130px" />
+                  <Skeleton height="40px" width="110px" />
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
       </div>

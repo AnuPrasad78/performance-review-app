@@ -6,6 +6,8 @@ import { AdminTemplate } from '../components/templates/AdminTemplate'
 import { applyRosterImport, importRosterCsv } from '../lib/api'
 import type { Employee, RosterImportReport, RosterRowError } from '../lib/types'
 import { useEmployees } from '../hooks/useEmployees'
+import { useDelaySkeleton } from '../hooks/useDelaySkeleton'
+import { Skeleton } from '../components/atoms/Skeleton'
 import { useAdminStore } from '../state/AdminContext'
 
 type FailureState = { detail: string; rowErrors: RosterRowError[] } | null
@@ -13,6 +15,8 @@ type FailureState = { detail: string; rowErrors: RosterRowError[] } | null
 export function UploadPage() {
   const { notify } = useAdminStore()
   const roster = useEmployees({ page: 1 })
+  /** The count band waits 180ms before showing — fast answers never flash. */
+  const rosterCountVisible = useDelaySkeleton(!roster.loaded && roster.loading)
   const [analyzing, setAnalyzing] = useState(false)
   const [applying, setApplying] = useState(false)
   const [failure, setFailure] = useState<FailureState>(null)
@@ -67,9 +71,15 @@ export function UploadPage() {
         inFlight={analyzing || applying}
         onFileSelected={(file) => void analyzeFile(file)}
       />
-      <p className="mono muted" style={{ fontSize: '11px', letterSpacing: '0.08em' }}>
-        CURRENT ROSTER · {roster.total} {roster.total === 1 ? 'EMPLOYEE' : 'EMPLOYEES'}
-      </p>
+      {!roster.loaded && roster.loading && rosterCountVisible ? (
+        <p className="mono muted" style={{ fontSize: '11px', letterSpacing: '0.08em' }} role="status">
+          <Skeleton height="11px" width="170px" />
+        </p>
+      ) : (
+        <p className="mono muted" style={{ fontSize: '11px', letterSpacing: '0.08em' }}>
+          CURRENT ROSTER · {roster.total} {roster.total === 1 ? 'EMPLOYEE' : 'EMPLOYEES'}
+        </p>
+      )}
       <ImportErrorDialog
         open={failure !== null}
         detail={failure?.detail ?? ''}

@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useEmployees } from '../hooks/useEmployees'
 import { useCompletedReviews } from '../hooks/useCompletedReviews'
+import { useDelaySkeleton } from '../hooks/useDelaySkeleton'
+import { Card } from '../components/atoms/Card'
+import { Skeleton } from '../components/atoms/Skeleton'
+import { TableSkeleton } from '../components/molecules/TableSkeleton'
 import { UsersTableCard } from '../components/organisms/UsersTableCard'
 import { TableQueryControls, type TableFilterSpec } from '../components/molecules/TableQueryControls'
 import { ReviewDownloadsButton } from '../components/molecules/ReviewDownloadsButton'
@@ -40,6 +44,8 @@ export function UsersPage() {
   const [query, setQuery] = useState<UsersQuery>(EMPTY_QUERY)
   const [facets, setFacets] = useState<RosterFacets | null>(null)
   const roster = useEmployees(query)
+  /** Placeholder bands wait 180ms before showing — fast answers never flash. */
+  const rosterSkeletonVisible = useDelaySkeleton(!roster.loaded && roster.loading)
   const completedReviews = useCompletedReviews(query)
   const pageCount = Math.max(1, Math.ceil(roster.total / roster.pageSize))
 
@@ -196,9 +202,33 @@ export function UsersPage() {
       {roster.error !== null ? (
         <p style={{ color: 'var(--red-deep)' }}>{roster.error}</p>
       ) : !roster.loaded && roster.loading ? (
-        <p className="mono muted" style={{ fontSize: '11px' }}>
-          LOADING ROSTER…
-        </p>
+        <Card captionAccent>
+          <div role="status" aria-label="Loading the roster">
+            <span className="sr-only">Loading the roster.</span>
+            {rosterSkeletonVisible ? (
+              <>
+                <div className="skeleton-row" style={{ justifyContent: 'flex-end' }}>
+                  <Skeleton height="34px" width="120px" />
+                  <Skeleton height="34px" width="140px" />
+                </div>
+                <TableSkeleton
+                  columns={[
+                    { weight: 2.4 },
+                    { weight: 1.6, desktopOnly: true },
+                    { weight: 2.6 },
+                    { weight: 2.2, desktopOnly: true },
+                    { weight: 1.6, desktopOnly: true },
+                    { weight: 2.4, desktopOnly: true },
+                    { weight: 1.4, desktopOnly: true },
+                  ]}
+                />
+                <div className="skeleton-row" style={{ justifyContent: 'center' }}>
+                  <Skeleton height="12px" width="88px" />
+                </div>
+              </>
+            ) : null}
+          </div>
+        </Card>
       ) : (
         <UsersTableCard
           employees={roster.employees}
