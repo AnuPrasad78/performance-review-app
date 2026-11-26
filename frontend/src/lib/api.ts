@@ -233,7 +233,12 @@ export async function importRosterCsv(file: File): Promise<RosterImportResult> {
   body.append('file', file, file.name)
   let response: Response
   try {
-    response = await fetch(`${API_BASE}/api/employees/import`, { method: 'POST', body, credentials: CREDENTIALS })
+    response = await fetch(`${API_BASE}/api/employees/import`, {
+      method: 'POST',
+      body,
+      credentials: CREDENTIALS,
+      headers: identityHeaders(),
+    })
   } catch {
     return {
       ok: false,
@@ -298,7 +303,7 @@ export async function applyRosterImport(payload: {
     response = await fetch(`${API_BASE}/api/employees/import/apply`, {
       method: 'POST',
       credentials: CREDENTIALS,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...identityHeaders() },
       body: JSON.stringify({
         inserts: payload.inserts.map(employeeToWire),
         updates: payload.updates.map(employeeToWire),
@@ -401,7 +406,10 @@ export async function fetchReviewBoard(query: ReviewBoardQuery): Promise<ReviewB
 export async function fetchEmployees(query: RosterQuery & { page: number }): Promise<EmployeeListResult> {
   let response: Response
   try {
-    response = await fetch(`${API_BASE}/api/employees?${tableQueryParams(query)}`)
+    response = await fetch(`${API_BASE}/api/employees?${tableQueryParams(query)}`, {
+      headers: identityHeaders(),
+      credentials: CREDENTIALS,
+    })
   } catch {
     return { ok: false, detail: NETWORK_UNAVAILABLE.detail, code: NETWORK_UNAVAILABLE.code }
   }

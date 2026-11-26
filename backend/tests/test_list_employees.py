@@ -13,6 +13,9 @@ from app.schemas.table_query import TableQuery
 from tests.evaluation_fixtures import matches_query, order_by_query, roster_employee
 
 
+ADMIN = "hr.admin@emids.com"
+
+
 class _ListingStub:
     """The real repository's paged() mirrored: filter, order, slice."""
 
@@ -33,16 +36,25 @@ class _ListingStub:
         offset = (page - 1) * page_size
         return rows[offset : offset + page_size], len(rows)
 
+    async def get_by_email(self, email: str) -> Employee | None:
+        # The admin is off-roster: identity resolves from the allow-list.
+        return None
+
 
 def make_client(employees: list[Employee]) -> TestClient:
     settings = Settings(
         database_url="postgresql+asyncpg://ignored:ignored@localhost:5432/ignored",
-        stub_admin_emails=["asha_menon@emids.com"],
+        stub_admin_emails=[ADMIN],
     )
     app = create_app(settings)
     app.dependency_overrides[get_settings] = lambda: settings
     app.dependency_overrides[get_employee_repository] = lambda: _ListingStub(employees)
-    return TestClient(app)
+    return TestClient(app, headers={"X-Stub-User": ADMIN})
+
+
+def test_the_list_is_admin_only() -> None:
+    client = make_client([])
+    assert client.get("/api/employees", headers={"X-Stub-User": ""}).status_code == 401
 
 
 def _employees() -> list[Employee]:
