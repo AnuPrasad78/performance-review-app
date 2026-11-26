@@ -1,7 +1,7 @@
 /** Mirrors the roster CSV the backend validates (see POST /api/employees/import):
     Employee Name, Employee ID, Email, Designation, Location, Org,
     Business Unit, Current Account / Project, Delivery Head, Delivery Manager,
-    Business Partner, Reporting Manager, Status. */
+    Business Partner, Reporting Manager, Status, Date of Joining. */
 export type EmployeeStatus = 'Active' | 'Inactive'
 
 export interface Employee {
@@ -18,6 +18,9 @@ export interface Employee {
   businessPartner: string
   reportingManager: string
   status: EmployeeStatus
+  /** ISO date ('' when the roster cell is blank) — the review-form
+      eligibility gate compares this against the cycle's cutoff date. */
+  joiningDate: string
 }
 
 /** One cycle's settings as the admin API serves them (GET/PUT /api/cycle-settings).
@@ -29,6 +32,9 @@ export interface CycleSettings {
   managerReviewStart: string
   managerReviewEnd: string
   hrApprovalReleaseBy: string
+  /** The optional joining-date cutoff ('' = no restriction) — employees
+      whose Date of Joining comes after it cannot access this cycle's form. */
+  employeeEligibilityDate: string
 }
 
 /** The admin form's editable view of CycleSettings: the deadline split into a
@@ -41,6 +47,7 @@ export interface CycleSettingsDraft {
   managerReviewStart: string
   managerReviewEnd: string
   hrApprovalReleaseBy: string
+  eligibilityDate: string
 }
 
 export interface RosterRowError {
@@ -146,6 +153,7 @@ export type CycleSettingsFieldErrors = {
   managerReviewStart: string | null
   managerReviewEnd: string | null
   hrApprovalReleaseBy: string | null
+  eligibilityDate: string | null
 }
 
 export type CycleSettingsResult =
@@ -304,6 +312,8 @@ export interface SelfEvaluationPartial {
 export interface ReviewStatusWire {
   employee: Employee
   status: ReviewStatus
+  /** The employee's submission stamp, from evaluations.employee_signed_at. */
+  submittedAt: string | null
 }
 
 /** One server page of the admin board. `total` counts the rows under the
@@ -362,6 +372,7 @@ export interface EmployeePatch {
   businessPartner?: string
   reportingManager?: string
   status?: EmployeeStatus
+  joiningDate?: string
 }
 
 /** PATCH /api/employees/{id}: the stored roster row comes back, already

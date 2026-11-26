@@ -173,7 +173,7 @@ def test_the_status_filter_composes_with_roster_filters_and_pages() -> None:
 EXPORT_HEADERS = (
     "Employee Name,Employee ID,Email,Designation,Location,Org,Business Unit,"
     "Current Account / Project,Delivery Head,Delivery Manager,Business Partner,"
-    "Reporting Manager,Status"
+    "Reporting Manager,Status,Date of Joining"
 )
 
 

@@ -150,6 +150,26 @@ export function CycleSettingsForm({ initial, onSave }: CycleSettingsFormProps) {
               />
             </FormField>
           </div>
+          <div className="form-row">
+            <FormField
+              id="employee-eligibility-date"
+              label="Employee eligibility date"
+              error={validation.fieldErrors.eligibilityDate}
+            >
+              <Input
+                id="employee-eligibility-date"
+                type="date"
+                value={draft.eligibilityDate}
+                onChange={(event) => update('eligibilityDate', event.target.value)}
+                onClick={openDatePicker}
+              />
+            </FormField>
+            <p className="muted">
+              Employees whose Date of Joining comes after this date cannot access
+              this review cycle — they will instead see the next-cycle welcome. Leave
+              the field empty when there is no joining-date restriction.
+            </p>
+          </div>
           {serverError ? (
             <p className="form-date-error" role="alert">
               {serverError}

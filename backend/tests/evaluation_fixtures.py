@@ -53,6 +53,10 @@ PASSED_CYCLE = ReviewCycle(
 def roster_employee(employee_id: str = "EMP-V001", name: str = "Asha Menon") -> Employee:
     employee = Employee(employee_id=employee_id)
     for _schema_field, column in ROSTER_ATTRIBUTES:
+        if column == "joining_date":
+            # The one date member: leave it None here; tests name the date
+            # they want explicitly.
+            continue
         setattr(employee, column, "")
     employee.employee_name = name
     # Roster emails follow the first_lastname convention the real CSV uses.

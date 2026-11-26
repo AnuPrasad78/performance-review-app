@@ -7,7 +7,7 @@ the use cases — read, partial save, submit, board — live in the service.
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response
 
 from app.core.auth import AuthUser, get_admin_user, get_roster_user
 from app.repositories.evaluation_repository import (
@@ -30,6 +30,7 @@ from app.schemas.self_evaluation import (
     SelfEvaluationPatch,
 )
 from app.services.evaluation_export import completed_count, completed_documents, employee_document
+from app.services.review_status_export import review_status_csv
 from app.services.self_evaluation import (
     current_self_evaluation,
     employee_form_status,
@@ -54,6 +55,24 @@ async def list_review_form_statuses(
         cycle_repository=cycle_repository,
         paging=bounds,
         query=query,
+    )
+
+
+@router.get("/evaluations/export/status")
+async def export_review_status_csv(
+    _admin: Annotated[AuthUser, Depends(get_admin_user)],
+    employee_repository: Annotated[EmployeeRepository, Depends(get_employee_repository)],
+    cycle_repository: Annotated[ReviewCycleRepository, Depends(get_review_cycle_repository)],
+    query: Annotated[TableQuery, Depends(board_query)],
+) -> Response:
+    """The board's Download CSV: every employee row the composed board query
+    matches (no paging) — roster columns plus form status and submitted
+    date, in the board's order."""
+    content = await review_status_csv(employee_repository, cycle_repository, query)
+    return Response(
+        content=content,
+        media_type="application/csv;charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="review-status.csv"'},
     )
 
 

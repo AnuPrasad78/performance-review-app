@@ -8,6 +8,8 @@ import type { Employee, RawReviewStatus, ReviewStatus, StatusFilter } from './ty
 export type EmployeeReviewStatus = {
   employee: Employee
   status: ReviewStatus
+  /** Submissions stamp from evaluations.employee_signed_at; null while open. */
+  submittedAt: string | null
 }
 
 /** The status filter's nouns; each names the backend's status= query word. */

@@ -73,6 +73,7 @@ export function EmployeeDashboardPage() {
   const now = useDeadlineClock()
   const [record, setRecord] = useState<SelfEvaluationRecord | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [notEligible, setNotEligible] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [validation, setValidation] = useState<SelfEvaluationValidation | null>(null)
@@ -131,6 +132,10 @@ export function EmployeeDashboardPage() {
         setSectionIndex(resumedSection)
         setQuestionIndex(resumedQuestion)
         setRecord(initial)
+      } else if (result.code === 'not_eligible') {
+        // The cycle's joining-date cutoff: the welcome the recent joiner
+        // sees at sign-in, in the server's own wording.
+        setNotEligible(result.detail)
       } else {
         setLoadError(result.detail)
       }
@@ -150,6 +155,21 @@ export function EmployeeDashboardPage() {
     lastResumeRef.current = json
     saveResumeIndices(record.draft.employee.email, indices)
   }, [record, sectionIndex, questionIndex])
+
+  if (notEligible !== null) {
+    return (
+      <div className="hero-page">
+        <div className="hero-card brand-frame">
+          <HeroHeader sectionProgress={[]} />
+          <div className="hero-card__body">
+            <Card caption="Welcome to emids" captionAccent>
+              <p>{notEligible}</p>
+            </Card>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   if (loadError !== null) {
     return (

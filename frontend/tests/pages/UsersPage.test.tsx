@@ -57,6 +57,7 @@ function employee(employeeId: string, name: string, email: string): Employee {
     businessPartner: 'John D',
     reportingManager: 'Priya Raghavan',
     status: 'Active',
+    joiningDate: '',
   }
 }
 
@@ -453,7 +454,7 @@ describe('UsersPage', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('the Status column carries the Active/Inactive pair and the pick flips the row', async () => {
+  it('deactivating asks first and the confirmed flip patches the row', async () => {
     fetchEmployeesMock.mockResolvedValue(pageResult([ASHA], 1))
     patchEmployeeMock.mockResolvedValue({
       ok: true,
@@ -463,14 +464,23 @@ describe('UsersPage', () => {
     const user = userEvent.setup()
     await screen.findByText('Roster · 1 employee')
 
-    await user.click(within(screen.getByRole('row', { name: /Asha Menon/ })).getByRole('button', { name: 'Inactive' }))
+    await user.click(
+      within(screen.getByRole('row', { name: /Asha Menon/ })).getByRole('button', { name: 'Deactivate Asha Menon' }),
+    )
+
+    // The confirm popup holds the patch — nothing moves until the answer.
+    const popup = await screen.findByRole('dialog', { name: 'Deactivate Asha Menon' })
+    expect(screen.getByText('Are you sure you want to deactivate the user?')).toBeInTheDocument()
+    expect(patchEmployeeMock).not.toHaveBeenCalled()
+
+    await user.click(within(popup).getByRole('button', { name: 'Deactivate' }))
 
     await waitFor(() => {
       expect(patchEmployeeMock).toHaveBeenCalledWith('EMP-V001', { status: 'Inactive' })
       // The re-read keeps the same query — the page never moves.
       expect(fetchEmployeesMock).toHaveBeenLastCalledWith({ page: 1 })
     })
-    // The flip's click stays clear of the row's card open.
+    // The flip's confirms stay clear of the row's card open.
     expect(screen.queryByRole('dialog', { name: 'More about Asha Menon' })).not.toBeInTheDocument()
   })
 
@@ -485,7 +495,11 @@ describe('UsersPage', () => {
     const user = userEvent.setup()
     await screen.findByText('Roster · 1 employee')
 
-    await user.click(within(screen.getByRole('row', { name: /Asha Menon/ })).getByRole('button', { name: 'Inactive' }))
+    await user.click(
+      within(screen.getByRole('row', { name: /Asha Menon/ })).getByRole('button', { name: 'Deactivate Asha Menon' }),
+    )
+    const popup = await screen.findByRole('dialog', { name: 'Deactivate Asha Menon' })
+    await user.click(within(popup).getByRole('button', { name: 'Deactivate' }))
 
     expect(await screen.findByRole('status')).toHaveTextContent(
       'Could not reach the review API.',

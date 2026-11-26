@@ -99,6 +99,7 @@ function employeeFrom(value: unknown): Employee | null {
     businessPartner: stringField('businessPartner'),
     reportingManager: stringField('reportingManager'),
     status: value.status === 'Inactive' ? 'Inactive' : 'Active',
+    joiningDate: stringField('joiningDate'),
   }
 }
 
@@ -189,8 +190,10 @@ function envelopeFields(parsed: Record<string, unknown>): { detail: string; code
   }
 }
 
-/** The wire form of the roster contract — camelCase keys of POST/apply bodies. */
-function employeeToWire(employee: Employee): Record<string, string> {
+/** The wire form of the roster contract — camelCase keys of POST/apply bodies.
+    joiningDate is the one date: a blank roster cell goes on the wire as null
+    (the backend's date contract), never as an empty string. */
+function employeeToWire(employee: Employee): Record<string, string | null> {
   return {
     employeeId: employee.employeeId,
     name: employee.name,
@@ -205,6 +208,7 @@ function employeeToWire(employee: Employee): Record<string, string> {
     businessPartner: employee.businessPartner,
     reportingManager: employee.reportingManager,
     status: employee.status,
+    joiningDate: employee.joiningDate === '' ? null : employee.joiningDate,
   }
 }
 
@@ -327,7 +331,8 @@ function reviewStatusFrom(value: unknown): ReviewStatusWire | null {
   if (employee === null) return null
   const wireStatus = value.status as RawReviewStatus
   if (!BOARD_STATUSES.includes(wireStatus)) return null
-  return { employee, status: RAW_TO_DISPLAY[wireStatus] }
+  const submittedAt = typeof value.submittedAt === 'string' ? value.submittedAt : null
+  return { employee, status: RAW_TO_DISPLAY[wireStatus], submittedAt }
 }
 
 /** Wire words the backend treats as defaults — omitting them keeps the query
@@ -428,16 +433,17 @@ function wholesetQuery(
   return reviewed
 }
 
-export async function fetchRosterCsvExport(
-  query: RosterQuery,
-): Promise<RosterCsvExportResult> {
+/** One whole-set CSV read for both admin exports: the composed query
+    without the page slice, an identity-bearing fetch, and the content type
+    check before the blob — the same failure envelopes either table's button
+    turns into a toast. */
+async function csvBlob(path: string, query: RosterQuery): Promise<RosterCsvExportResult> {
   let response: Response
   try {
     // The export covers the whole matched set — the page slice never rides it.
-    response = await fetch(
-      `${API_BASE}/api/employees/export?${tableQueryParams(wholesetQuery(query))}`,
-      { headers: identityHeaders() },
-    )
+    response = await fetch(`${API_BASE}${path}?${tableQueryParams(wholesetQuery(query))}`, {
+      headers: identityHeaders(),
+    })
   } catch {
     return { ok: false, detail: NETWORK_UNAVAILABLE.detail, code: NETWORK_UNAVAILABLE.code }
   }
@@ -452,6 +458,18 @@ export async function fetchRosterCsvExport(
     return { ok: false, detail: UNSUPPORTED_ENV_ERROR.detail, code: 'unsupported_environment' }
   }
   return { ok: true, blob: await response.blob() }
+}
+
+export function fetchRosterCsvExport(query: RosterQuery): Promise<RosterCsvExportResult> {
+  return csvBlob('/api/employees/export', query)
+}
+
+/** The review board's Download CSV read: every employee the composed board
+    query matches — roster columns plus form status and submitted date —
+    with the query's status word riding along (the board's own status filter
+    narrows this download, unlike the review documents'). */
+export function fetchReviewStatusCsvExport(query: RosterQuery): Promise<RosterCsvExportResult> {
+  return csvBlob('/api/evaluations/export/status', query)
 }
 
 /** The review document exports name the same failure apart from the roster
@@ -759,12 +777,17 @@ function cycleSettingsFrom(value: unknown): CycleSettings | null {
   if (CYCLE_DATE_KEYS.some((key) => dateField(key) === '')) return null
   const submissionDeadline = dateField('submissionDeadline')
   if (!isIsoInstant(submissionDeadline)) return null
+  // The eligibility date is optional: absent or null on the wire reads as ''
+  // (no restriction), any string rides verbatim for the form's date input.
+  const eligibility =
+    typeof value.employeeEligibilityDate === 'string' ? value.employeeEligibilityDate : ''
   return {
     reviewYear: value.reviewYear,
     submissionDeadline,
     managerReviewStart: dateField('managerReviewStart'),
     managerReviewEnd: dateField('managerReviewEnd'),
     hrApprovalReleaseBy: dateField('hrApprovalReleaseBy'),
+    employeeEligibilityDate: eligibility,
   }
 }
 

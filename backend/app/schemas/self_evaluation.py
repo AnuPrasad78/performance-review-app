@@ -69,6 +69,9 @@ class SelfEvaluationOut(ApiModel):
 class ReviewStatusEntry(ApiModel):
     employee: RosterEmployeeOut
     status: BoardStatus
+    #: The submission stamp comes from the evaluations table's
+    #: employee_signed_at, set at the submit endpoint — not updated_at.
+    submitted_at: datetime.date | None
 
 
 class ReviewStatusList(ApiModel):

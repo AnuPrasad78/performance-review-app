@@ -43,8 +43,15 @@ def copy_row(employee: Employee, row: RosterEmployeeOut) -> None:
 
 def to_row(employee: Employee) -> RosterEmployeeOut:
     # CSV columns are required strings while the table columns are nullable;
-    # an unset cell round-trips as its empty-string parse.
-    values = {schema_field: getattr(employee, column) or "" for schema_field, column in ROSTER_ATTRIBUTES}
+    # an unset cell round-trips as its empty-string parse. joining_date is the
+    # one date member: an unset value round-trips as None, not "".
+    values: dict[str, object] = {}
+    for schema_field, column in ROSTER_ATTRIBUTES:
+        stored = getattr(employee, column)
+        if schema_field == "joining_date":
+            values[schema_field] = stored
+        else:
+            values[schema_field] = stored or ""
     return RosterEmployeeOut(employee_id=employee.employee_id, **values)
 
 
@@ -57,5 +64,8 @@ def changed_wire_fields(existing: Employee, incoming: RosterEmployeeOut) -> list
     return [
         wire_field(schema_field)
         for schema_field, column in diffed
-        if (getattr(existing, column) or "") != getattr(incoming, schema_field)
+        # Both sides are normalized to "" when unset, so a stored row with a
+        # blank cell and an incoming blank cell (or None date) diff as equal
+        # — dates and strings alike — without per-field branches here.
+        if (getattr(existing, column) or "") != (getattr(incoming, schema_field) or "")
     ]

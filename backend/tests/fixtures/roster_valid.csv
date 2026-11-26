@@ -1,9 +1,9 @@
-Employee Name,Employee ID,Email,Designation,Location,Org,Business Unit,Current Account / Project,Delivery Head,Delivery Manager,Business Partner,Reporting Manager,Status
-Asha Menon,EMP-V001,asha_menon@emids.com,Software Engineer,India,Delivery,Payer Digital,Cigna One,Arumugam Thiraviam,Priya Raghavan,John D,Priya Raghavan,Active
-Bilal Khan,EMP-V002,bilal_khan@emids.com,Senior Engineer,India,Delivery,Payer Digital,Molina Member Portal,Harikumar Srinivasan,Suresh Iyer,John D,Suresh Iyer,Active
-Cara Fernandes,EMP-V003,cara_fernandes@emids.com,Tech Lead,USA,Centene Claims,Provider Solutions,Centene Claims,Jagdeep Singh Chawla,Vikram Desai,John D,Vikram Desai,Active
-Devika Nair,EMP-V004,devika_nair@emids.com,QA Lead,India,Delivery,Payer Digital,Elevance Provider,Lorraine Chapman,Anita Joseph,John D,Anita Joseph,Active
-Eshan Gupta,EMP-V005,eshan_gupta@emids.com,Data Engineer,India,Delivery,Enablement Systems,Humana Digital,Mahesh C Bhatt,Rajesh Menon,John D,Rajesh Menon,Active
-Farah Sheikh,EMP-V006,farah_sheikh@emids.com,Business Analyst,USA,Practices,Provider Solutions,Optum Care,Rakesh Kumar Maheshwari,Deepa Krishnan,John D,Deepa Krishnan,Active
-Gaurav Bhatt,EMP-V007,gaurav_bhatt@emids.com,Developer,India,Launchpad,Incubation Labs,CVS Health Platform,Sathiyan Kutty,Manoj Pillai,John D,Manoj Pillai,Inactive
-Heena Roy,EMP-V008,heena_roy@emids.com,Associate Architect,India,Delivery,Payer Digital,FDCE,Sharmila Singh,Kiran Shetty,John D,Kiran Shetty,Active
+Employee Name,Employee ID,Email,Designation,Location,Org,Business Unit,Current Account / Project,Delivery Head,Delivery Manager,Business Partner,Reporting Manager,Status,Date of Joining
+Asha Menon,EMP-V001,asha_menon@emids.com,Software Engineer,India,Delivery,Payer Digital,Cigna One,Arumugam Thiraviam,Priya Raghavan,John D,Priya Raghavan,Active,
+Bilal Khan,EMP-V002,bilal_khan@emids.com,Senior Engineer,India,Delivery,Payer Digital,Molina Member Portal,Harikumar Srinivasan,Suresh Iyer,John D,Suresh Iyer,Active,
+Cara Fernandes,EMP-V003,cara_fernandes@emids.com,Tech Lead,USA,Centene Claims,Provider Solutions,Centene Claims,Jagdeep Singh Chawla,Vikram Desai,John D,Vikram Desai,Active,
+Devika Nair,EMP-V004,devika_nair@emids.com,QA Lead,India,Delivery,Payer Digital,Elevance Provider,Lorraine Chapman,Anita Joseph,John D,Anita Joseph,Active,
+Eshan Gupta,EMP-V005,eshan_gupta@emids.com,Data Engineer,India,Delivery,Enablement Systems,Humana Digital,Mahesh C Bhatt,Rajesh Menon,John D,Rajesh Menon,Active,
+Farah Sheikh,EMP-V006,farah_sheikh@emids.com,Business Analyst,USA,Practices,Provider Solutions,Optum Care,Rakesh Kumar Maheshwari,Deepa Krishnan,John D,Deepa Krishnan,Active,
+Gaurav Bhatt,EMP-V007,gaurav_bhatt@emids.com,Developer,India,Launchpad,Incubation Labs,CVS Health Platform,Sathiyan Kutty,Manoj Pillai,John D,Manoj Pillai,Inactive,
+Heena Roy,EMP-V008,heena_roy@emids.com,Associate Architect,India,Delivery,Payer Digital,FDCE,Sharmila Singh,Kiran Shetty,John D,Kiran Shetty,Active,

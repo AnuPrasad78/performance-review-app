@@ -51,6 +51,7 @@ async def get_cycle_settings(
         manager_review_start=cycle.manager_review_start,
         manager_review_end=cycle.manager_review_end,
         hr_approval_release_by=cycle.hr_approval_release_by,
+        employee_eligibility_date=cycle.employee_eligibility_date,
     )
 
 
@@ -67,6 +68,7 @@ async def upsert_cycle_settings(
             manager_review_start=settings.manager_review_start,
             manager_review_end=settings.manager_review_end,
             hr_approval_release_by=settings.hr_approval_release_by,
+            employee_eligibility_date=settings.employee_eligibility_date,
         )
         await cycle_repository.add(cycle)
     else:
@@ -74,10 +76,12 @@ async def upsert_cycle_settings(
         cycle.manager_review_start = settings.manager_review_start
         cycle.manager_review_end = settings.manager_review_end
         cycle.hr_approval_release_by = settings.hr_approval_release_by
+        cycle.employee_eligibility_date = settings.employee_eligibility_date
     return CycleSettingsOut(
         review_year=cycle.review_year,
         submission_deadline=cycle.submission_deadline,
         manager_review_start=cycle.manager_review_start,
         manager_review_end=cycle.manager_review_end,
         hr_approval_release_by=cycle.hr_approval_release_by,
+        employee_eligibility_date=cycle.employee_eligibility_date,
     )
