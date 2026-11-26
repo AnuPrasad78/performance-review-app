@@ -20,7 +20,7 @@ describe('the whole-set CSV fetches', () => {
 
     const result: RosterCsvExportResult = await fetchReviewStatusCsvExport({
       page: 3,
-      status: 'all',
+      status: 'self_evaluation_in_progress',
       location: 'India',
       sortBy: 'employeeName',
       sortOrder: 'desc',
@@ -32,7 +32,7 @@ describe('the whole-set CSV fetches', () => {
     const url = new URL(fetchSpy.mock.calls[0]![0] as string, 'http://localhost')
     expect(url.pathname).toBe('/api/evaluations/export/status')
     expect(url.searchParams.get('page')).toBeNull()
-    expect(url.searchParams.get('status')).toBe('pending')
+    expect(url.searchParams.get('status')).toBe('self_evaluation_in_progress')
     expect(url.searchParams.get('location')).toBe('India')
     expect(url.searchParams.get('sortOrder')).toBe('desc')
   })
