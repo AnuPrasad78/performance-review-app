@@ -288,6 +288,16 @@
   font-size: 12px;
 }
 
+.login__divider--toggle {
+  width: 100%;
+  background: transparent;
+  border: none;
+  padding: 4px 0;
+  cursor: pointer;
+  color: #6b7280;
+}
+.login__divider--toggle:hover { color: #1f2429; }
+
 .login__sso-btn {
   width: 100%;
   height: 44px;

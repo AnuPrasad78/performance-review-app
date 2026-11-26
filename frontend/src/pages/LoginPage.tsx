@@ -37,6 +37,7 @@ export function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [manualOpen, setManualOpen] = useState(false)
 
   function handleSubmit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault()
@@ -68,14 +69,22 @@ export function LoginPage() {
           Sign in with Emids SSO
         </button>
 
-        <div className="login__divider" role="separator">
-          <span>or sign in with your email</span>
-        </div>
+        <button
+          type="button"
+          className="login__divider login__divider--toggle"
+          aria-expanded={manualOpen}
+          aria-controls="login-manual-form"
+          onClick={() => setManualOpen((current) => !current)}
+        >
+          <span>or sign in with username</span>
+          <Icon name={manualOpen ? 'chevron-up' : 'chevron-down'} size={14} />
+        </button>
 
-        <form onSubmit={handleSubmit} noValidate>
+        {manualOpen ? (
+        <form id="login-manual-form" onSubmit={handleSubmit} noValidate>
           <div className="field">
             <label className="field__label" htmlFor="login-email">
-              Company Email
+              Username
             </label>
             <div className="icon-control">
               <span className="icon-control__lead" aria-hidden="true">
@@ -137,6 +146,7 @@ export function LoginPage() {
             Sign in
           </Button>
         </form>
+        ) : null}
       </div>
     </LoginTemplate>
   )
