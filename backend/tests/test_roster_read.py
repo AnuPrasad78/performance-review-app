@@ -1,8 +1,9 @@
 """The Users table's reads behind services/roster_read: the form-status
-filter on GET /api/employees (the board's pending/completed buckets applied
-through the year's evaluation join) and the admin-gated CSV export that
-honors the same composed query. Repositories are stubbed; the stub mirrors
-the real paged/matching reads the way evaluation_fixtures does."""
+filter on GET /api/employees (each filter word naming exactly its stored
+lifecycle word, applied through the year's evaluation join) and the
+admin-gated CSV export that honors the same composed query. Repositories are
+stubbed; the stub mirrors the real paged/matching reads the way
+evaluation_fixtures does."""
 
 from fastapi.testclient import TestClient
 
@@ -22,8 +23,8 @@ from tests.evaluation_fixtures import (
 ADMIN_EVERYONE = ["asha_menon@emids.com"]
 ADMIN_IDENTITY = {"X-Stub-User": ADMIN_EVERYONE[0]}
 
-#: The board's bucket split, by fixture: Asha never submitted, Bilal is mid
-#: self-eval, Cara's review sits in the manager phase (post-submission).
+#: The lifecycle spread, by fixture: Asha's row was never opened (and Bilal's
+#: is mid self-eval), Cara's review sits in the manager phase.
 ROWS_STATUS = {"EMP-V001": "not_started", "EMP-V002": "self_evaluation_in_progress", "EMP-V003": "in_manager_review"}
 
 
@@ -123,25 +124,35 @@ def _employees() -> list[Employee]:
 # --- the form-status filter on the Users list --------------------------------
 
 
-def test_pending_narrows_the_list_to_rows_the_employee_still_owns() -> None:
+def test_a_status_word_narrows_the_list_to_exactly_that_word() -> None:
     client = make_client(_employees(), ROWS_STATUS)
 
-    response = client.get("/api/employees", params={"status": "pending"})
+    response = client.get("/api/employees", params={"status": "self_evaluation_in_progress"})
 
     body = response.json()
-    # not_started and self_evaluation_in_progress are pending; the manager
-    # phase is past submission.
-    assert [row["employeeId"] for row in body["employees"]] == ["EMP-V001", "EMP-V002"]
-    assert body["total"] == 2
+    # The word *is* the filter: Bilal's form is underway; neither the never-
+    # opened row nor the manager-phase one answers the same word.
+    assert [row["employeeId"] for row in body["employees"]] == ["EMP-V002"]
+    assert body["total"] == 1
 
 
-def test_completed_narrows_the_list_to_past_submission() -> None:
+def test_the_manager_phase_word_narrows_to_that_stage_alone() -> None:
     client = make_client(_employees(), ROWS_STATUS)
 
-    response = client.get("/api/employees", params={"status": "completed"})
+    response = client.get("/api/employees", params={"status": "in_manager_review"})
 
     body = response.json()
     assert [row["employeeId"] for row in body["employees"]] == ["EMP-V003"]
+    assert body["total"] == 1
+
+
+def test_not_started_covers_both_never_opened_and_opened_empty() -> None:
+    client = make_client(_employees(), ROWS_STATUS)
+
+    response = client.get("/api/employees", params={"status": "not_started"})
+
+    body = response.json()
+    assert [row["employeeId"] for row in body["employees"]] == ["EMP-V001"]
     assert body["total"] == 1
 
 
@@ -149,7 +160,7 @@ def test_a_missing_cycle_answers_cycle_missing_only_when_the_filter_needs_it() -
     client = make_client(_employees(), ROWS_STATUS, cycle=False)
 
     plain = client.get("/api/employees")
-    filtered = client.get("/api/employees", params={"status": "pending"})
+    filtered = client.get("/api/employees", params={"status": "not_started"})
 
     assert plain.status_code == 200
     assert filtered.status_code == 404
@@ -161,10 +172,10 @@ def test_the_status_filter_composes_with_roster_filters_and_pages() -> None:
 
     response = client.get(
         "/api/employees",
-        params={"status": "pending", "org": "Delivery", "sortBy": "employeeName", "sortOrder": "desc"},
+        params={"status": "self_evaluation_in_progress", "org": "Delivery", "sortBy": "employeeName", "sortOrder": "desc"},
     )
 
-    assert [row["employeeId"] for row in response.json()["employees"]] == ["EMP-V002", "EMP-V001"]
+    assert [row["employeeId"] for row in response.json()["employees"]] == ["EMP-V002"]
 
 
 # --- the CSV export ----------------------------------------------------------
@@ -187,7 +198,7 @@ def test_the_export_streams_the_matched_rows_as_roster_csv() -> None:
     assert 'attachment; filename="employee-roster.csv"' in response.headers["content-disposition"]
     body = response.content.decode("utf-8")
     lines = body.split("\r\n")
-    assert lines[0] == "\ufeff" + EXPORT_HEADERS
+    assert lines[0] == chr(0xFEFF) + EXPORT_HEADERS
     assert len(lines) == 5  # header + 3 rows + trailing newline
     assert lines[1].startswith("Asha Menon,EMP-V001,asha_menon@emids.com")
 
@@ -196,13 +207,15 @@ def test_the_export_honors_the_composed_filters() -> None:
     client = make_client(_employees(), ROWS_STATUS)
 
     response = client.get(
-        "/api/employees/export", params={"status": "pending", "org": "Delivery"}, headers=ADMIN_IDENTITY
+        "/api/employees/export",
+        params={"status": "in_manager_review", "org": "Delivery"},
+        headers=ADMIN_IDENTITY,
     )
 
     rows = [line for line in response.content.decode("utf-8").split("\r\n") if line]
-    assert len(rows) == 3  # header + Asha + Bilal, the pending Delivery rows
-    assert rows[0] == "﻿" + EXPORT_HEADERS
-    assert [row.removeprefix("﻿").split(",")[1] for row in rows[1:]] == ["EMP-V001", "EMP-V002"]
+    assert len(rows) == 2  # header + Cara, the manager-phase Delivery row
+    assert rows[0] == chr(0xFEFF) + EXPORT_HEADERS
+    assert [row.removeprefix(chr(0xFEFF)).split(",")[1] for row in rows[1:]] == ["EMP-V003"]
 
 
 def test_the_export_requires_an_admin_identity() -> None:

@@ -13,12 +13,12 @@ import type {
   RosterFacetsResult,
   RosterImportResult,
   RosterQuery,
-  RawReviewStatus,
   ReviewBoardPage,
   ReviewBoardQuery,
   ReviewBoardResult,
   ReviewCountResult,
   ReviewDocumentsResult,
+  ReviewStatus,
   ReviewStatusWire,
   SelfEvaluationApiResult,
   SelfEvaluationPartial,
@@ -28,7 +28,7 @@ import type {
   TopicResponses,
 } from './types'
 import { isIsoInstant } from './dates'
-import { RAW_TO_DISPLAY } from './reviewStatusStore'
+import { REVIEW_STATUS_WORDS } from './reviewStatusStore'
 
 /** Same-origin /api by default (Vite dev proxy in dev); VITE_API_URL points at
     a direct, absolute API base where the frontend is served separately. */
@@ -303,7 +303,7 @@ export async function applyRosterImport(payload: {
       }),
     })
   } catch {
-    return { ok: false, detail: NETWORK_UNAVAILABLE.detail, code: NETWORK_UNAVAILABLE.code }
+    return { ok: false, ...{ detail: UNSUPPORTED_ENV_ERROR.detail, code: 'unsupported_environment' } }
   }
   const parsed = await envelopeOf(response)
   if (parsed === null) {
@@ -316,18 +316,18 @@ export async function applyRosterImport(payload: {
   return { ok: true, importedCount: parsed.importedCount, updatedCount: parsed.updatedCount }
 }
 
-/** The board parse trusts exactly the backend's six wire words — the keys of
-    RAW_TO_DISPLAY — and reuses that module's collapse, so the display
-    mapping exists once (lib/reviewStatusStore), never re-coded here. */
-const BOARD_STATUSES = Object.keys(RAW_TO_DISPLAY) as RawReviewStatus[]
+/** The board parse trusts exactly the backend's six wire words and keeps
+    each word verbatim — the row's status *is* the display word now; the
+    vocabulary's single ordered list lives once (lib/reviewStatusStore). */
+const BOARD_STATUSES = REVIEW_STATUS_WORDS
 
 function reviewStatusFrom(value: unknown): ReviewStatusWire | null {
   if (!isRecord(value)) return null
   const employee = employeeFrom(value.employee)
   if (employee === null) return null
-  const wireStatus = value.status as RawReviewStatus
-  if (!BOARD_STATUSES.includes(wireStatus)) return null
-  return { employee, status: RAW_TO_DISPLAY[wireStatus] }
+  const status = value.status as ReviewStatus
+  if (!BOARD_STATUSES.includes(status)) return null
+  return { employee, status }
 }
 
 /** Wire words the backend treats as defaults — omitting them keeps the query
@@ -353,10 +353,10 @@ function tableQueryParams(query: object): string {
 function boardPageFrom(parsed: Record<string, unknown>): ReviewBoardPage | null {
   if (!Array.isArray(parsed.reviews)) return null
   const isCount = (value: unknown): value is number => typeof value === 'number'
-  const counts: Partial<Record<RawReviewStatus, number>> = {}
+  const counts: Partial<Record<ReviewStatus, number>> = {}
   if (isRecord(parsed.statusCounts)) {
     for (const [key, value] of Object.entries(parsed.statusCounts)) {
-      const word = key as RawReviewStatus
+      const word = key as ReviewStatus
       if (BOARD_STATUSES.includes(word) && isCount(value)) counts[word] = value
     }
   }
@@ -416,8 +416,8 @@ export async function fetchEmployees(query: RosterQuery & { page: number }): Pro
 
 /** A whole-set read's wire: the composed query without the page slice —
     the roster CSV keeps its status word (the export honors it); the review
-    exports serve a fixed completed bucket server-side, so their word has to
-    drop lest it pretend to narrow the download. */
+    exports serve a fixed past-submission bucket server-side, so their word
+    has to drop lest it pretend to narrow the download. */
 function wholesetQuery(
   query: RosterQuery,
   { dropStatus = false }: { dropStatus?: boolean } = {},
@@ -462,7 +462,7 @@ const REVIEW_EXPORT_UNAVAILABLE = {
 }
 
 /** The bulk button's number: completed reviews under the composed roster
-    query (the status word rides out — the export always reads the completed
+    query (the status word rides out — the export always reads the finished
     bucket). */
 export async function fetchCompletedCount(query: RosterQuery): Promise<ReviewCountResult> {
   let response: Response
@@ -604,6 +604,7 @@ function facetsFrom(parsed: Record<string, unknown>): RosterFacets | null {
   const locations = wordList('locations')
   const orgs = wordList('orgs')
   const businessUnits = wordList('businessUnits')
+  const businessPartners = wordList('businessPartners')
   const reportingManagers = wordList('reportingManagers')
   const employmentStatuses = wordList('employmentStatuses')
   if (
@@ -611,12 +612,21 @@ function facetsFrom(parsed: Record<string, unknown>): RosterFacets | null {
     locations === null ||
     orgs === null ||
     businessUnits === null ||
+    businessPartners === null ||
     reportingManagers === null ||
     employmentStatuses === null
   ) {
     return null
   }
-  return { designations, locations, orgs, businessUnits, reportingManagers, employmentStatuses }
+  return {
+    designations,
+    locations,
+    orgs,
+    businessUnits,
+    businessPartners,
+    reportingManagers,
+    employmentStatuses,
+  }
 }
 
 export async function fetchEmployeeFacets(): Promise<RosterFacetsResult> {

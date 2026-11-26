@@ -8,7 +8,7 @@ export default defineConfig({
       // Same-origin /api → review API; VITE_API_URL keeps direct-URL deploys.
       '/api': {
         // 8010 is the review API's port — 8000 belongs to a stale WSL relay.
-        target: 'http://localhost:8010',
+        target: 'http://localhost:8000',
         changeOrigin: true,
       },
     },

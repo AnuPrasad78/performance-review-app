@@ -1,11 +1,11 @@
 """Serves the admin Users table's reads: the list page and its CSV export.
 
-The Users table shares the board's form-status filter (`status`: all |
-pending | completed), so both reads resolve query.status through the same
-bucket map the board's service owns (FILTER_STATUS_WORDS), against the
-current cycle. The export renders the roster CSV contract verbatim — the
-same headers the import validates, Title case — so a download round-trips
-through the upload.
+The Users table shares the board's form-status filter (`status`: all | one
+of the six stored lifecycle words), so both reads resolve query.status
+through the same per-word map the board's service owns
+(FILTER_STATUS_WORDS), against the current cycle. The export renders the
+roster CSV contract verbatim — the same headers the import validates, Title
+case — so a download round-trips through the upload.
 """
 
 import csv
@@ -47,7 +47,7 @@ def export_csv(employees: list[Employee]) -> str:
     for employee in employees:
         row = to_row(employee)
         writer.writerow(getattr(row, field) for _header, field in _EXPORT_COLUMNS)
-    return "\ufeff" + buffer.getvalue()
+    return chr(0xFEFF) + buffer.getvalue()
 
 
 async def _status_terms(

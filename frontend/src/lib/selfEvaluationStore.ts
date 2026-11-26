@@ -169,24 +169,40 @@ export function commitmentsPayloadFromDraft(draft: SelfEvaluationDraft): SelfEva
   }
 }
 
-/** Status derives from what the API persisted, so the strip never invents review state.
-    A signed form still counts as submitted — the display vocabulary has no signed-off word. */
+/** Status derives from what the API persisted, so the strip never invents
+    review state. The employee's own record cannot see the manager phase — a
+    submitted form reads `self_evaluation_completed` and stops there; the
+    later lifecycle words are the manager side's business. */
 export function deriveReviewStatus(record: SelfEvaluationRecord): ReviewStatus {
-  if (record.submittedAt !== null || record.employeeSignedAt !== null) return 'submitted'
+  if (record.submittedAt !== null || record.employeeSignedAt !== null) {
+    return 'self_evaluation_completed'
+  }
   const answered = record.draft.questions.some((question) => question.employeeResponse !== '')
-  return answered ? 'in_progress' : 'not_started'
+  return answered ? 'self_evaluation_in_progress' : 'not_started'
 }
 
+/** The six lifecycle words as the admin board renders them (pills, pie
+    legend); keyed by the wire word, verbatim — lib/reviewStatusStore owns
+    the same vocabulary's workflow order and filter nouns. */
 export const REVIEW_STATUS_LABELS: Record<ReviewStatus, string> = {
   not_started: 'Not started',
-  in_progress: 'In progress',
-  submitted: 'Submitted',
+  self_evaluation_in_progress: 'Self-evaluation in progress',
+  self_evaluation_completed: 'Self-evaluation completed',
+  in_manager_review: 'In manager review',
+  manager_evaluation_in_progress: 'Manager evaluation in progress',
+  manager_evaluation_completed: 'Manager evaluation completed',
 }
 
-/** Fixed pill vocabulary only (ui.md §4.1): approved / pending / cancelled wash+text pairs. */
+/** Fixed pill vocabulary only (ui.md §4.1): approved / pending / cancelled wash+text pairs.
+    In-flight stages wear the pending wash; a stage whose own review is done
+    (the two *_completed words) wears approved; the never-opened word wears
+    cancelled. */
 export type ReviewStatusTone = 'approved' | 'pending' | 'cancelled'
 
 export function reviewStatusTone(status: ReviewStatus): ReviewStatusTone {
   if (status === 'not_started') return 'cancelled'
+  if (status === 'self_evaluation_completed' || status === 'manager_evaluation_completed') {
+    return 'approved'
+  }
   return 'pending'
 }

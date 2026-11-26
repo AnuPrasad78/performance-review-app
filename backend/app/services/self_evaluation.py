@@ -378,27 +378,37 @@ def _board_status(evaluation: Evaluation | None) -> BoardStatus:
     return cast(BoardStatus, evaluation.status.lower())
 
 
-#: The admin filter nouns and the stored words they stand for: `pending`
-#: reviews the employee still owns, `completed` everything past submission.
-#: The words derive from the same constants the status column stores, in wire
-#: (lower-cased) form — the same bucketing the frontend's filtering chips
-#: render (lib/reviewStatusStore).
-_FILTER_BUCKETS: dict[str, tuple[str, ...]] = {
-    "not_started": (STATUS_NOT_STARTED,),
-    "pending": (STATUS_NOT_STARTED, STATUS_SELF_EVALUATION_IN_PROGRESS),
-    "completed": (
-        STATUS_SELF_EVALUATION_COMPLETED,
-        STATUS_IN_MANAGER_REVIEW,
-        STATUS_MANAGER_EVALUATION_IN_PROGRESS,
-        STATUS_MANAGER_EVALUATION_COMPLETED,
-    ),
-}
+#: The stored lifecycle words (models/evaluation.py, wire case) — the single
+#: vocabulary the status column stores and the board's filter and export
+#: buckets are derived from. The frontend's ordered list lives in
+#: lib/reviewStatusStore (REVIEW_STATUS_WORDS); keep the two in step.
+_ALL_LIFECYCLE_WORDS: tuple[str, ...] = (
+    STATUS_NOT_STARTED,
+    STATUS_SELF_EVALUATION_IN_PROGRESS,
+    STATUS_SELF_EVALUATION_COMPLETED,
+    STATUS_IN_MANAGER_REVIEW,
+    STATUS_MANAGER_EVALUATION_IN_PROGRESS,
+    STATUS_MANAGER_EVALUATION_COMPLETED,
+)
+
+#: The admin form-status filter words resolve per lifecycle word: a filter
+#: option names exactly its own stored word (wire case), `all` means no
+#: narrowing. The old bucket nouns (`pending`, `completed`) are gone — the
+#: six-word column outgrew them, and the frontend
+#: (lib/reviewStatusStore COMPLETION_FILTERS) renders these same words.
 FILTER_STATUS_WORDS: dict[str, frozenset[str]] = {
     "all": frozenset(),
-    "not_started": frozenset(word.lower() for word in _FILTER_BUCKETS["not_started"]),
-    "pending": frozenset(word.lower() for word in _FILTER_BUCKETS["pending"]),
-    "completed": frozenset(word.lower() for word in _FILTER_BUCKETS["completed"]),
+    **{word.lower(): frozenset({word.lower()}) for word in _ALL_LIFECYCLE_WORDS},
 }
+
+#: The past-submission side of the flow — NOT a filter noun. The export
+#: engine ("hand me every finished review", services/evaluation_export) and
+#: the profile-card form-status probe read this bucket regardless of the
+#: query's own status word; a filter narrows what the admin sees, this
+#: declares what a finished review means.
+PAST_SUBMISSION_WORDS: frozenset[str] = frozenset(
+    word.lower() for word in _ALL_LIFECYCLE_WORDS[2:]
+)
 
 
 async def list_review_statuses(
@@ -437,8 +447,9 @@ async def employee_form_status(
 ) -> FormStatusOut:
     """One employee's form status for the admin profile card — always 200: an
     open review answers `pending`, not an error (the document read's 409 is
-    the download seam's business, never this probe's). Same bucketing the
-    admin tables' form-status filter applies."""
+    the download seam's business, never this probe's). "Completed" is the
+    past-submission bucket (PAST_SUBMISSION_WORDS): the probe states whether
+    the review left the employee's hands, not which stage reached it."""
     employee = await employee_repository.get(employee_id)
     if employee is None:
         raise AppError(
@@ -446,9 +457,7 @@ async def employee_form_status(
         )
     cycle = await current_cycle(cycle_repository)
     evaluation = await evaluation_repository.get_for_employee(employee_id, cycle.review_year)
-    completed = evaluation is not None and evaluation.status.lower() in FILTER_STATUS_WORDS[
-        "completed"
-    ]
+    completed = evaluation is not None and evaluation.status.lower() in PAST_SUBMISSION_WORDS
     return FormStatusOut(
         employee_id=employee_id, form_status="completed" if completed else "pending"
     )

@@ -90,6 +90,7 @@ class RosterFacets(ApiModel):
     locations: list[str]
     orgs: list[str]
     business_units: list[str]
+    business_partners: list[str]
     reporting_managers: list[str]
     employment_statuses: list[str]
 

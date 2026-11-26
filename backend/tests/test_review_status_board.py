@@ -45,7 +45,8 @@ def test_board_joins_roster_rows_with_evaluation_states() -> None:
         "EMP-V003",
         "EMP-V004",
     ]
-    # The whole-roster distribution rides along for the tiles and pie.
+    # The whole-roster distribution rides along for the tiles and pie — and
+    # with no search/filter words present, that means the entire roster.
     assert payload["total"] == 4
     assert payload["page"] == 1
     assert payload["pageSize"] == 10
@@ -85,7 +86,7 @@ def test_board_pages_the_roster_in_roster_order() -> None:
     assert second_page["statusCounts"]["not_started"] == 5
 
 
-def test_board_filter_narrows_rows_and_total_not_counts() -> None:
+def test_board_filter_narrows_to_the_exact_word_counts_untouched() -> None:
     asha = roster_employee("EMP-V001", "Asha Menon")
     bilal = roster_employee("EMP-V002", "Bilal Khan")
     cara = roster_employee("EMP-V003", "Cara Fernandes")
@@ -95,31 +96,75 @@ def test_board_filter_narrows_rows_and_total_not_counts() -> None:
     ]
     client = make_board_client([asha, bilal, cara], rows, admin_emails=[ASHA_EMAIL])
 
-    pending = (
-        client.get("/api/evaluations", params={"status": "pending"}, headers={"X-Stub-User": ASHA_EMAIL})
+    in_progress = (
+        client.get(
+            "/api/evaluations",
+            params={"status": "self_evaluation_in_progress"},
+            headers={"X-Stub-User": ASHA_EMAIL},
+        )
     ).json()
-    completed = (
-        client.get("/api/evaluations", params={"status": "completed"}, headers={"X-Stub-User": ASHA_EMAIL})
+    final = (
+        client.get(
+            "/api/evaluations",
+            params={"status": "manager_evaluation_completed"},
+            headers={"X-Stub-User": ASHA_EMAIL},
+        )
     ).json()
-    not_started = (
-        client.get("/api/evaluations", params={"status": "not_started"}, headers={"X-Stub-User": ASHA_EMAIL})
+    manager_review = (
+        client.get(
+            "/api/evaluations",
+            params={"status": "in_manager_review"},
+            headers={"X-Stub-User": ASHA_EMAIL},
+        )
     ).json()
 
-    # Pending = the employee still owns the review: an in-progress form and
-    # a roster row without any evaluation both qualify.
-    assert [entry["status"] for entry in pending["reviews"]] == [
-        "self_evaluation_in_progress",
-        "not_started",
+    # The word *is* the filter: exactly the rows whose stored status
+    # lower-cases to it — each lifecycle stage is its own option now.
+    assert [entry["status"] for entry in in_progress["reviews"]] == [
+        "self_evaluation_in_progress"
     ]
-    assert pending["total"] == 2
-    # The exact stage noun picks the one started-but-incomplete member alone.
-    assert [entry["status"] for entry in not_started["reviews"]] == ["not_started"]
-    assert not_started["total"] == 1
-    # Counts stay whole-roster whatever the filter narrows.
-    assert pending["statusCounts"].get("manager_evaluation_completed") == 1
-    assert [entry["status"] for entry in completed["reviews"]] == ["manager_evaluation_completed"]
-    assert completed["total"] == 1
-    assert completed["statusCounts"]["not_started"] == 1
+    assert in_progress["total"] == 1
+    assert [entry["status"] for entry in final["reviews"]] == [
+        "manager_evaluation_completed"
+    ]
+    assert final["total"] == 1
+    # A stage with no rows answers an empty page, not the next-best bucket.
+    assert manager_review["reviews"] == []
+    assert manager_review["total"] == 0
+    # The status word never narrows the counts — no other filter word is
+    # present, so the distribution stays the whole roster.
+    assert in_progress["statusCounts"].get("manager_evaluation_completed") == 1
+    assert in_progress["statusCounts"]["not_started"] == 1
+
+
+def test_counts_follow_the_composed_filters_but_not_the_status_word() -> None:
+    asha = roster_employee("EMP-V001", "Asha Menon")           # org Delivery, no row
+    bilal = roster_employee("EMP-V002", "Bilal Khan")          # org Quality
+    bilal.org = "Quality"
+    cara = roster_employee("EMP-V003", "Cara Fernandes")       # org Delivery
+    rows = [
+        evaluation("SELF_EVALUATION_IN_PROGRESS", employee_id="EMP-V002"),
+        evaluation("IN_MANAGER_REVIEW", employee_id="EMP-V003"),
+    ]
+    client = make_board_client([asha, bilal, cara], rows, admin_emails=[ASHA_EMAIL])
+
+    response = (
+        client.get(
+            "/api/evaluations",
+            params={"status": "in_manager_review", "org": "Delivery"},
+            headers={"X-Stub-User": ASHA_EMAIL},
+        )
+    ).json()
+
+    # The table narrows by BOTH words: only Cara satisfies org + status.
+    assert [entry["status"] for entry in response["reviews"]] == ["in_manager_review"]
+    assert response["total"] == 1
+    # The counts narrow by the org filter alone — never the status word, or
+    # the pie would collapse to exactly the one color the funnel picked.
+    assert response["statusCounts"] == {
+        "not_started": 1,
+        "in_manager_review": 1,
+    }
 
 
 def test_manager_phase_words_render_verbatim() -> None:
@@ -209,20 +254,32 @@ def test_board_search_and_dropdown_filters_compose() -> None:
     # Search and filter compose: Cara matches the search but not the org.
     assert composed["reviews"] == []
     assert composed["total"] == 0
-    # And counts never move off the whole roster.
-    status_counts = composed["statusCounts"]
-    assert status_counts["not_started"] == 3
+    # The counts follow the same composed narrowing (no status word present):
+    # the searched org carries Cara alone, the filtered Cara alone, the
+    # composed pair — no one.
+    assert searched["statusCounts"] == {"not_started": 1}
+    assert filtered["statusCounts"] == {"not_started": 1}
+    assert composed["statusCounts"] == {}
 
 
 def test_board_sort_by_status_follows_workflow_rank() -> None:
     asha = roster_employee("EMP-V001", "Asha Menon")
     bilal = roster_employee("EMP-V002", "Bilal Khan")
     cara = roster_employee("EMP-V003", "Cara Fernandes")
+    devika = roster_employee("EMP-V004", "Devika Nair")
+    eshan = roster_employee("EMP-V005", "Eshan Gupta")
+    faisal = roster_employee("EMP-V006", "Faisal Khan")
+    # Six roster rows × five evaluation rows: every lifecycle word exactly
+    # once (the never-opened member needs no row at all), so the sort really
+    # pins all six rank steps.
     rows = [
-        evaluation("SELF_EVALUATION_COMPLETED", employee_id="EMP-V002"),
-        evaluation("SELF_EVALUATION_IN_PROGRESS", employee_id="EMP-V003"),
+        evaluation("SELF_EVALUATION_IN_PROGRESS", employee_id="EMP-V002"),
+        evaluation("SELF_EVALUATION_COMPLETED", employee_id="EMP-V003"),
+        evaluation("IN_MANAGER_REVIEW", employee_id="EMP-V004"),
+        evaluation("MANAGER_EVALUATION_IN_PROGRESS", employee_id="EMP-V005"),
+        evaluation("MANAGER_EVALUATION_COMPLETED", employee_id="EMP-V006"),
     ]
-    client = make_board_client([asha, bilal, cara], rows, admin_emails=[ASHA_EMAIL])
+    client = make_board_client([asha, bilal, cara, devika, eshan, faisal], rows, admin_emails=[ASHA_EMAIL])
 
     ascending = (
         client.get(
@@ -238,13 +295,20 @@ def test_board_sort_by_status_follows_workflow_rank() -> None:
     ).json()
 
     # Workflow order — the lifecycle rank (not started first, manager
-    # evaluation completed last), not the words' alphabetical accident.
+    # evaluation completed last), never the words' alphabetical accident.
+    # The full ladder is exercised so every rank step stays pinned.
     assert [entry["status"] for entry in ascending["reviews"]] == [
         "not_started",
         "self_evaluation_in_progress",
         "self_evaluation_completed",
+        "in_manager_review",
+        "manager_evaluation_in_progress",
+        "manager_evaluation_completed",
     ]
     assert [entry["status"] for entry in descending["reviews"]] == [
+        "manager_evaluation_completed",
+        "manager_evaluation_in_progress",
+        "in_manager_review",
         "self_evaluation_completed",
         "self_evaluation_in_progress",
         "not_started",

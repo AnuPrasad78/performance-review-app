@@ -97,6 +97,7 @@ _FILTER_FIELDS = (
     "location",
     "org",
     "business_unit",
+    "business_partner",
     "reporting_manager",
     "employment_status",
 )
@@ -244,18 +245,21 @@ class _RosterRepository:
         self,
         review_year: int,
         query: TableQuery,
-        statuses: list[str] | None,
+        statuses: list[str],
         page: int,
         page_size: int,
     ) -> RosterYearPage:
         from app.services.self_evaluation import _board_status
 
         pairs = [(one, self._rows.get(one.employee_id)) for one in self._stored]
+        # Counts follow the composed search/dropdown verbs — never the status
+        # word (the word narrows the slice below). Mirror of the real read's
+        # grouped query, whose WHERE carries exactly _roster_conditions.
+        pairs = [pair for pair in pairs if matches_query(pair[0], query)]
         counts: dict[str, int] = {}
         for _, row in pairs:
             word = _board_status(row)
             counts[word] = counts.get(word, 0) + 1
-        pairs = [pair for pair in pairs if matches_query(pair[0], query)]
         if statuses is not None:
             pairs = [pair for pair in pairs if _board_status(pair[1]) in set(statuses)]
 

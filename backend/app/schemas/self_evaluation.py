@@ -18,10 +18,10 @@ from typing import Literal
 from app.schemas.base import ApiModel
 from app.schemas.employee import RosterEmployeeOut
 
-#: The board's status words — the frontend's RawReviewStatus union, verbatim:
+#: The board's status words — the frontend's ReviewStatus union, verbatim:
 #: the stored status vocabulary (models/evaluation.py) in wire (lower-cased)
-#: form. The client's display words collapse from this union in
-#: lib/reviewStatusStore.
+#: form. The admin board renders these words as written (no display collapse
+#: remains); the form-status filter's per-word options name them too.
 BoardStatus = Literal[
     "not_started",
     "self_evaluation_in_progress",
@@ -73,8 +73,8 @@ class ReviewStatusEntry(ApiModel):
 
 class ReviewStatusList(ApiModel):
     """One board page plus the roster-wide facts the tiles and pie render:
-    `total` counts the filtered vocabulary, `statusCounts` the whole roster
-    (its words are the stored statuses' wire form, never camelCase)."""
+    `total` counts the rows under the applied status filter, `statusCounts`
+    the whole roster (its words are the stored statuses' wire form)."""
 
     reviews: list[ReviewStatusEntry]
     total: int
@@ -95,10 +95,11 @@ class CompletedReviewCount(ApiModel):
     completed_count: int
 
 
-#: The Users page's form-status nouns (lib/reviewStatusStore's filter pair) —
-#: completed covers every past-submission word, pending reviews the employee
-#: still owns. One row's answer for the profile card, served with 200 always:
-#: an open review is a status, not an error.
+#: The admin profile card's form-status pair, served by
+#: GET /api/evaluations/{id}/status — `completed` covers every
+#: past-submission word (PAST_SUBMISSION_WORDS in services/self_evaluation),
+#: `pending` the employee-owned pair. Deliberately binary: the card cares
+#: whether the download is available, not which stage reached it.
 FormStatus = Literal["pending", "completed"]
 
 

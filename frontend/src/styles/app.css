@@ -142,6 +142,20 @@ a { color: var(--teal-deep); }
 /* a wide table scrolls inside its card; the page itself never widens for it */
 .table-scroll { overflow-x: auto; }
 
+/* pie card head — the caption and its own Search & Filter share one row */
+.pie-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.pie-card__head .card__caption { margin-bottom: 0; }
+.pie-card__head .table-toolbar { margin-bottom: 0; }
+@media (max-width: 600px) {
+  .pie-card__head { flex-direction: column; align-items: flex-start; }
+}
+
 /* table query controls — popover anchored to the trigger, bottom-left 10px
    soft corner (dropdown panels are its one allowed home, ui.md §7) */
 .table-query-anchor { position: relative; display: inline-flex; margin-left: 10px; }
@@ -769,11 +783,16 @@ a { color: var(--teal-deep); }
 .preview__value { margin: 0; font-size: 13.5px; font-weight: 600; color: var(--ink); }
 .preview__prompt { margin: 0; font-size: 13px; }
 .preview__answer { margin: 0; font-size: 14px; line-height: 1.6; color: var(--ink); white-space: pre-wrap; }
-.preview__manager {
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid var(--hairline-2);
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+/* per-card loading veil — the read's in-flight moment is announced over the
+   stale numbers instead of silently swapping them under the user */
+.pie-card__body, .table-region { position: relative; }
+.card-loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.72);
+  z-index: 5;
 }
+.tiles { transition: opacity 160ms linear; }
+.tiles--dimmed { opacity: 0.55; }

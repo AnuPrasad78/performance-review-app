@@ -127,6 +127,7 @@ async def list_employee_facets(
         locations=facets.locations,
         orgs=facets.orgs,
         business_units=facets.business_units,
+        business_partners=facets.business_partners,
         reporting_managers=facets.reporting_managers,
         employment_statuses=facets.employment_statuses,
     )

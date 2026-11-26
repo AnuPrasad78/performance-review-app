@@ -68,6 +68,7 @@ const FACETS: RosterFacets = {
   locations: ['India', 'Singapore'],
   orgs: ['Delivery', 'Quality'],
   businessUnits: ['Payer Digital', 'Provider Solutions'],
+  businessPartners: ['John D'],
   reportingManagers: ['Priya Raghavan'],
   employmentStatuses: ['Active'],
 }
@@ -272,16 +273,21 @@ describe('UsersPage', () => {
     expect(await screen.findByText('Could not reach the review API.')).toBeInTheDocument()
   })
 
-  it('filters by the form-status nouns the review board uses', async () => {
+  it('filters by the lifecycle status word the review board uses', async () => {
     fetchEmployeesMock.mockResolvedValue(pageResult([ASHA], 1))
     render(page())
     const user = userEvent.setup()
     await screen.findByText('Roster · 1 employee')
 
     await openQueryControls(user)
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Filter by Form status' }), 'completed')
+    // The form-status options are the six stored lifecycle words now — the
+    // word travels verbatim, no bucket noun in between.
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: 'Filter by Form status' }),
+      'self_evaluation_completed',
+    )
 
-    expect(fetchEmployeesMock).toHaveBeenLastCalledWith({ page: 1, status: 'completed' })
+    expect(fetchEmployeesMock).toHaveBeenLastCalledWith({ page: 1, status: 'self_evaluation_completed' })
 
     // Choosing All resets the read to the filterless query; the word drops
     // from the encoded wire in the api layer, like the board's does.
