@@ -7,7 +7,8 @@
 # (access policies), Postgres, the Container Apps environment, the api and web
 # apps and the migration job. On re-runs it re-applies settings, scale and Key
 # Vault references from deploy/<env>.env. Missing secrets are generated
-# (database password, session key) or prompted for (Entra client secret).
+# (database password, session key, provision password) or prompted for
+# (Entra client secret).
 # It never runs migrations: scripts/azure/deploy.sh does that on every release.
 # Needs only Contributor on the subscription (no role assignments are made).
 set -euo pipefail
@@ -168,6 +169,15 @@ if sso_enabled; then
     set_secret entra-client-secret "$value"; unset value
   fi
 fi
+# Generated unless KV_SEED_PROVISION_PASSWORD supplies one; kept on re-runs,
+# since changing it changes everyone's form password.
+if password_sign_in_enabled; then
+  if [[ $(secret_state provision-password) == present ]]; then echo "  provision-password: present"
+  else
+    set_secret provision-password "${KV_SEED_PROVISION_PASSWORD:-$(random_secret 20)}"
+    echo "  provision-password: set"
+  fi
+fi
 
 # ---- images for first creation -------------------------------------------------
 current_image() { # <app>
@@ -224,8 +234,9 @@ if sso_enabled; then
   API_ENV+=("PR_ENTRA_TENANT_ID=$ENTRA_TENANT_ID" "PR_ENTRA_CLIENT_ID=$ENTRA_CLIENT_ID"
     "PR_SSO_REDIRECT_URI=https://$PUBLIC_HOST/api/auth/sso/callback")
 else
-  CLEARED=(PR_ENTRA_TENANT_ID PR_ENTRA_CLIENT_ID PR_ENTRA_CLIENT_SECRET PR_SSO_REDIRECT_URI)
+  CLEARED+=(PR_ENTRA_TENANT_ID PR_ENTRA_CLIENT_ID PR_ENTRA_CLIENT_SECRET PR_SSO_REDIRECT_URI)
 fi
+password_sign_in_enabled || CLEARED+=(PR_PROVISION_PASSWORD)
 API_SCALE=(--cpu "${API_CPU:-0.5}" --memory "${API_MEMORY:-1.0Gi}"
   --min-replicas "${API_MIN_REPLICAS:-1}" --max-replicas "${API_MAX_REPLICAS:-2}"
   --scale-rule-name http --scale-rule-type http
@@ -313,5 +324,8 @@ log "Environment '$ENV_NAME' is set up"
 echo "URL:             https://$PUBLIC_HOST"
 if sso_enabled; then
   echo "Entra redirect:  https://$PUBLIC_HOST/api/auth/sso/callback  (must be on the app registration)"
+fi
+if password_sign_in_enabled; then
+  echo "Form password:   az keyvault secret show --vault-name $KEY_VAULT_NAME -n provision-password --query value -o tsv"
 fi
 echo "Release:         ./scripts/azure/deploy.sh $ENV_NAME   (migrates, then rolls both apps)"

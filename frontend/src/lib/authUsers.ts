@@ -1,8 +1,8 @@
-/** Sign-in over the backend's stub-identity endpoint (backend routers/auth.py).
-    The form keeps its password field untouched so the SSO hand-off later is
-    invisible, but nothing here verifies a password: confidently claiming who
-    you are against the roster is exactly the seam this release ships. The
-    IdP, not this app, owns secrets. */
+/** Sign-in over the backend's email/password form endpoint (backend
+    routers/auth.py). The backend owns the password rule: where a provision
+    password is configured it must match (and a session cookie is issued);
+    developer machines without one trust the address alone. Nothing here
+    inspects the password beyond passing it along. */
 
 import { fetchSession } from './api'
 
@@ -23,11 +23,11 @@ export interface LoginAccount {
 
 export type AuthResult = { ok: true; account: LoginAccount } | { ok: false; error: string }
 
-export async function authenticate(email: string): Promise<AuthResult> {
+export async function authenticate(email: string, password: string): Promise<AuthResult> {
   if (email.trim() === '') {
     return { ok: false, error: 'Enter your email and password to sign in.' }
   }
-  const result = await fetchSession(email.trim().toLowerCase())
+  const result = await fetchSession(email.trim().toLowerCase(), password)
   if (!result.ok) {
     const message =
       result.code === 'network_error'

@@ -639,14 +639,14 @@ export async function fetchEmployeeFacets(): Promise<RosterFacetsResult> {
   return { ok: true, facets }
 }
 
-export async function fetchSession(email: string): Promise<SessionApiResult> {
+export async function fetchSession(email: string, password: string): Promise<SessionApiResult> {
   let response: Response
   try {
     response = await fetch(`${API_BASE}/api/auth/session`, {
       method: 'POST',
       credentials: CREDENTIALS,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email, password }),
     })
   } catch {
     return { ok: false, detail: NETWORK_UNAVAILABLE.detail, code: NETWORK_UNAVAILABLE.code }

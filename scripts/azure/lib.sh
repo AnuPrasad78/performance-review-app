@@ -42,6 +42,10 @@ load_env() {
 # SSO is on when this environment names an Entra app registration.
 sso_enabled() { [[ -n ${ENTRA_CLIENT_ID:-} ]]; }
 
+# The email form checks the shared Key Vault secret provision-password when
+# this environment opts in (PASSWORD_SIGN_IN=true), as the Apex portal does.
+password_sign_in_enabled() { [[ ${PASSWORD_SIGN_IN:-false} == true ]]; }
+
 # Fail before touching Azure when the settings cannot produce a bootable app
 # (mirrors the validators in backend/app/core/config.py).
 validate_settings() {
@@ -52,7 +56,7 @@ validate_settings() {
   if [[ $APP_ENVIRONMENT == prod ]] && ! sso_enabled; then
     errs+=("APP_ENVIRONMENT=prod requires SSO: set ENTRA_TENANT_ID and ENTRA_CLIENT_ID (the API refuses to boot without them)")
   fi
-  if [[ $APP_ENVIRONMENT == dev ]]; then
+  if [[ $APP_ENVIRONMENT == dev ]] && ! password_sign_in_enabled; then
     warn "APP_ENVIRONMENT=dev: the email-only sign-in is on, so anyone who can reach the URL can act as any roster employee. Test data only."
   fi
   if (( ${#errs[@]} )); then
@@ -65,6 +69,7 @@ validate_settings() {
 api_secret_names() {
   echo database-url session-secret
   sso_enabled && echo entra-client-secret
+  password_sign_in_enabled && echo provision-password
   return 0
 }
 secret_setting() {
@@ -72,6 +77,7 @@ secret_setting() {
     database-url) echo PR_DATABASE_URL ;;
     session-secret) echo PR_SESSION_SECRET ;;
     entra-client-secret) echo PR_ENTRA_CLIENT_SECRET ;;
+    provision-password) echo PR_PROVISION_PASSWORD ;;
     *) die "no setting is mapped to secret '$1'" ;;
   esac
 }

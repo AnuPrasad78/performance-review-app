@@ -180,4 +180,35 @@ describe('LoginPage', () => {
 
     expect(await screen.findByRole('heading', { name: 'Annual Performance Review 2026', level: 1 })).toBeInTheDocument()
   })
+
+  it('sends the typed password for the backend to check', async () => {
+    fetchSessionMock.mockResolvedValue(
+      session('EMP-V001', 'Asha Menon', 'asha_menon@emids.com', 'employee'),
+    )
+    render(renderApp())
+    const user = userEvent.setup()
+
+    await user.type(screen.getByLabelText('Company Email'), ' Asha_Menon@emids.com ')
+    await user.type(screen.getByLabelText('Password'), 'Portal@2026')
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+
+    expect(fetchSessionMock).toHaveBeenCalledWith('asha_menon@emids.com', 'Portal@2026')
+  })
+
+  it('surfaces a wrong password without signing in', async () => {
+    fetchSessionMock.mockResolvedValue({
+      ok: false,
+      detail: 'The email or password is incorrect.',
+      code: 'auth_invalid_credentials',
+    })
+    render(renderApp())
+    const user = userEvent.setup()
+
+    await user.type(screen.getByLabelText('Company Email'), 'asha_menon@emids.com')
+    await user.type(screen.getByLabelText('Password'), 'not-it')
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('The email or password is incorrect.')
+    expect(screen.getByRole('heading', { name: 'Welcome', level: 1 })).toBeInTheDocument()
+  })
 })

@@ -54,14 +54,23 @@ internet ─HTTPS─▶ web  (nginx: SPA + /api proxy)        external ingress, 
   - `session-secret`: generated once. It signs the session cookie, so changing
     it signs everyone out.
   - `entra-client-secret`: prompted for once, only when SSO is configured.
+  - `provision-password`: generated once (or taken from
+    `KV_SEED_PROVISION_PASSWORD`), only with `PASSWORD_SIGN_IN=true`. It is the
+    shared password of the email form, the same scheme as the Apex portal.
 - **Sign-in.**
   - With `ENTRA_CLIENT_ID` set, the browser goes to `/api/auth/sso/login`.
     Microsoft redirects back to `https://<web host>/api/auth/sso/callback`,
     and the api sets the session cookie.
   - Setup prints that redirect URI. It must be listed on the app registration
     (*Authentication → Web → Redirect URIs*).
-  - `APP_ENVIRONMENT=dev` also keeps the email-only sign-in. It trusts any
-    roster address typed, so use it for test data only.
+  - `PASSWORD_SIGN_IN=true` makes the email form check `provision-password`:
+    every roster employee and `ADMIN_EMAILS` address signs in with it, and a
+    correct pair sets the same session cookie as SSO. Read it with
+    `az keyvault secret show --vault-name <kv> -n provision-password --query value -o tsv`.
+    To rotate it, set a new value there and restart the api revision.
+  - Without it, `APP_ENVIRONMENT=dev` keeps the email-only sign-in. It trusts
+    any roster address typed, so use it for test data only. In `prod` the
+    form is closed and SSO is the only way in.
   - `prod` requires SSO, and setup refuses to configure prod without it.
 - **Probes.** setup adds them once through ARM, because `az` has no probe
   flags.

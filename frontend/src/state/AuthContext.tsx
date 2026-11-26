@@ -9,9 +9,8 @@ interface AuthState {
       "no session" is not yet an answer the interface may react to, so boots
       hold a splash instead of flickering the login page. */
   booting: boolean
-  /** The password parameter stays in the contract (and its field in the form)
-      so the SSO swap later touches no page code; the backend ignores it in
-      this stub phase. */
+  /** The backend checks the password where a provision password is
+      configured and ignores it on email-only developer machines. */
   signIn: (email: string, password: string) => Promise<AuthResult>
   /** Awaits the server cookie drop so the SSO adoption effect cannot re-adopt
       the very session being signed out of. */
@@ -77,8 +76,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       session,
       booting,
-      signIn: async (email) => {
-        const result = await authenticate(email)
+      signIn: async (email, password) => {
+        const result = await authenticate(email, password)
         if (result.ok) {
           const next: AuthSession = {
             email: result.account.email,
