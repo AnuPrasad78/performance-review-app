@@ -153,6 +153,19 @@ class EmployeeRepository:
         )
         return await self._session.scalar(statement)
 
+    async def set_employment_status(
+        self, employee_id: str, status: str
+    ) -> Employee | None:
+        """The one employee whose employment word moves to `status`, or None
+        when the roster holds no such row. Flush keeps the write visible in
+        the same request (core/db.py commits at its end)."""
+        stored = await self._session.get(Employee, employee_id)
+        if stored is None:
+            return None
+        stored.employment_status = status
+        await self._session.flush()
+        return stored
+
     async def get_many_by_email(self, emails: Sequence[str]) -> dict[str, Employee]:
         """Stored rows keyed by their lower-cased email — roster imports match
         employees by email identity (case-insensitive), not employee_id."""
@@ -241,6 +254,55 @@ class EmployeeRepository:
                 .order_by(*_roster_order(query, status_word))
             )
         return list(result)
+
+    async def count_matching(
+        self,
+        query: TableQuery,
+        *,
+        review_year: int | None = None,
+        statuses: Sequence[str] | None = None,
+    ) -> int:
+        """How many roster rows the composed `query` matches under the same
+        narrowing rules `matching()` applies — the bulk-review count's read,
+        no rows fetched."""
+        conditions = _roster_conditions(query)
+        if statuses is None:
+            total = await self._session.scalar(
+                select(func.count()).select_from(Employee).where(*conditions)
+            )
+            return total or 0
+        status_word = _board_status()
+        assert review_year is not None, "statuses filtering requires the cycle's review year"
+        total = await self._session.scalar(
+            select(func.count())
+            .select_from(Employee)
+            .outerjoin(Evaluation, _year_join(review_year))
+            .where(*conditions, status_word.in_(statuses))
+        )
+        return total or 0
+
+    async def roster_year_matching(
+        self,
+        review_year: int,
+        query: TableQuery,
+        statuses: Sequence[str] | None = None,
+    ) -> list[tuple[Employee, Evaluation | None]]:
+        """Every roster row beside its year's evaluation under the composed
+        `query`, ordered as the list endpoints order them — the review
+        document export's read (the paged board's twin without the slice)."""
+        status_word = _board_status()
+        conditions = _roster_conditions(query)
+        rows_statement = (
+            select(Employee, Evaluation)
+            .outerjoin(Evaluation, _year_join(review_year))
+            .where(*conditions)
+        )
+        if statuses is not None:
+            rows_statement = rows_statement.where(status_word.in_(statuses))
+        result = await self._session.execute(
+            rows_statement.order_by(*_roster_order(query, status_word=status_word))
+        )
+        return [(employee, evaluation) for employee, evaluation in result]
 
     async def roster_year_page(
         self,

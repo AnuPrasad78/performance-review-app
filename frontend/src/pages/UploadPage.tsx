@@ -61,14 +61,14 @@ export function UploadPage() {
     <AdminTemplate
       eyebrow="Admin · Upload"
       title="Employee data upload"
-      lead="Load employees from a roster CSV. Rows whose email already matches a stored employee (case-insensitive) are shown next to the stored record so you can update or keep each one."
+      lead="Upload employees using a roster CSV. Existing employees are matched by email, allowing you to review and update records or keep the existing details."
     >
       <CsvImportCard
         inFlight={analyzing || applying}
         onFileSelected={(file) => void analyzeFile(file)}
       />
       <p className="mono muted" style={{ fontSize: '11px', letterSpacing: '0.08em' }}>
-        ROSTER NOW · {roster.total} {roster.total === 1 ? 'EMPLOYEE' : 'EMPLOYEES'}
+        CURRENT ROSTER · {roster.total} {roster.total === 1 ? 'EMPLOYEE' : 'EMPLOYEES'}
       </p>
       <ImportErrorDialog
         open={failure !== null}

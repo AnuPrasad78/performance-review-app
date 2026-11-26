@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { Card } from '../atoms/Card'
 import { DataTable, type DataTableColumn, type DataTableSort } from '../molecules/DataTable'
 import { ColumnFilterMenu, type FilterMenuControl } from '../molecules/ColumnFilterMenu'
@@ -6,6 +6,8 @@ import { Pager } from '../molecules/Pager'
 import { PieChart } from '../molecules/PieChart'
 import { ReviewStatusPill } from '../molecules/ReviewStatusPill'
 import { StatTile } from '../molecules/StatTile'
+import { EmployeeDetailCard } from './EmployeeDetailCard'
+import { useProfileReview, type ProfileReviewActions } from '../../hooks/useProfileReview'
 import { REVIEW_STATUS_LABELS } from '../../lib/selfEvaluationStore'
 import { displayCounts, type EmployeeReviewStatus } from '../../lib/reviewStatusStore'
 import type { RawReviewStatus, ReviewStatus } from '../../lib/types'
@@ -37,6 +39,12 @@ export interface ReviewStatusBoardProps {
   /** The page's composed search/filter controls, slotted into the table
       toolbar — the status noun they carry replaced the chips row. */
   tableControls?: ReactNode
+  /** The bulk completed-reviews trigger, built by the page, slotted after
+      the Search & filter anchor. */
+  tableActions?: ReactNode
+  /** The profile card's review-download seam, keyed to the selected row's
+      employee; a row opened for it reveals the card. */
+  review?: ProfileReviewActions
   /** Click-to-sort headers; the keys are this page's wire sort words. */
   sort?: DataTableSort
   /** Status, location, and reporting-manager narrowing, chosen at their own
@@ -55,6 +63,8 @@ export function ReviewStatusBoard({
   pageCount,
   onPageChange,
   tableControls,
+  tableActions,
+  review,
   sort,
   statusFilter,
   orgFilter,
@@ -64,6 +74,8 @@ export function ReviewStatusBoard({
   const counts = displayCounts(statusCounts)
   const rosterTotal = counts.not_started + counts.in_progress + counts.submitted
   const completed = counts.submitted
+  const [selected, setSelected] = useState<EmployeeReviewStatus | null>(null)
+  const cardReview = useProfileReview(selected?.employee ?? null, review)
 
   const headerAdornments = useMemo(() => {
     const adornments: Record<string, ReactNode> = {}
@@ -138,7 +150,7 @@ export function ReviewStatusBoard({
             iconTone="negative"
           />
         </div>
-        <Card caption="Completion" captionAccent>
+        <Card caption="Review status" captionAccent>
           <PieChart
             data={STATUS_ORDER.map((status) => ({
               label: REVIEW_STATUS_LABELS[status],
@@ -153,8 +165,11 @@ export function ReviewStatusBoard({
         caption={`Employees · ${total} of ${rosterTotal}`}
         captionAccent
       >
-        {tableControls !== null && tableControls !== undefined ? (
-          <div className="table-toolbar">{tableControls}</div>
+        {tableControls !== null && tableControls !== undefined || tableActions ? (
+          <div className="table-toolbar">
+            {tableControls}
+            {tableActions}
+          </div>
         ) : null}
         <DataTable
           columns={columns}
@@ -162,6 +177,8 @@ export function ReviewStatusBoard({
           rowKey={(entry) => entry.employee.email}
           sort={sort}
           headerAdornments={headerAdornments}
+          onRowClick={review !== undefined ? (entry) => setSelected(entry) : undefined}
+          activeRowKey={review !== undefined ? (selected?.employee.email ?? null) : null}
           emptyMessage={
             rosterTotal === 0
               ? 'No employees loaded. Upload a roster CSV on the Employee data upload page.'
@@ -171,6 +188,16 @@ export function ReviewStatusBoard({
           }
         />
         <Pager page={page} pageCount={pageCount} onPage={onPageChange} />
+        {selected !== null && review !== undefined ? (
+          <EmployeeDetailCard
+            employee={selected.employee}
+            onClose={() => setSelected(null)}
+            formStatus={selected.status === 'submitted' ? 'completed' : 'pending'}
+            reviewCompleted={selected.status === 'submitted'}
+            onDownloadReview={() => void cardReview.onDownloadReview()}
+            reviewBusy={cardReview.reviewBusy}
+          />
+        ) : null}
       </Card>
     </>
   )

@@ -10,6 +10,8 @@ admin confirms (new rows as inserts, collided rows where the admin chose
 Update).
 """
 
+from typing import Literal
+
 from app.schemas.base import ApiModel
 
 
@@ -90,6 +92,18 @@ class RosterFacets(ApiModel):
     business_units: list[str]
     reporting_managers: list[str]
     employment_statuses: list[str]
+
+
+#: The employment words the roster CSV's Status column stores — the profile
+#: card's toggle flips among these two only.
+EmployeeEmploymentStatus = Literal["Active", "Inactive"]
+
+
+class EmployeeStatusPatch(ApiModel):
+    """The profile card's one-member employment-status write; the wire shape
+    stays a patch so future single-field edits reuse the endpoint."""
+
+    status: EmployeeEmploymentStatus
 
 
 #: (RosterEmployeeOut field, employees column) pairs, including the identities.

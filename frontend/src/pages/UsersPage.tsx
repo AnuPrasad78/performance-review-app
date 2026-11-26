@@ -1,13 +1,29 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useEmployees } from '../hooks/useEmployees'
+import { useCompletedReviews } from '../hooks/useCompletedReviews'
 import { UsersTableCard } from '../components/organisms/UsersTableCard'
 import { TableQueryControls, type TableFilterSpec } from '../components/molecules/TableQueryControls'
+import { ReviewDownloadsButton } from '../components/molecules/ReviewDownloadsButton'
 import { AdminTemplate } from '../components/templates/AdminTemplate'
 import { useAdminStore } from '../state/AdminContext'
-import { fetchEmployeeFacets, fetchRosterCsvExport } from '../lib/api'
+import {
+  fetchEmployeeEvaluation,
+  fetchEmployeeFacets,
+  fetchEmployeeFormStatus,
+  fetchRosterCsvExport,
+  patchEmployeeStatus,
+} from '../lib/api'
 import { saveCsvBlob } from '../lib/csvDownload'
+import { saveReviewPdf } from '../lib/reviewDownloads'
 import { COMPLETION_FILTERS } from '../lib/reviewStatusStore'
-import type { RosterFacets, RosterQuery, RosterSortField } from '../lib/types'
+import type { ProfileReviewActions } from '../hooks/useProfileReview'
+import type {
+  Employee,
+  EmployeeStatus,
+  RosterFacets,
+  RosterQuery,
+  RosterSortField,
+} from '../lib/types'
 
 type UsersQuery = RosterQuery & { page: number }
 
@@ -24,6 +40,7 @@ export function UsersPage() {
   const [query, setQuery] = useState<UsersQuery>(EMPTY_QUERY)
   const [facets, setFacets] = useState<RosterFacets | null>(null)
   const roster = useEmployees(query)
+  const completedReviews = useCompletedReviews(query)
   const pageCount = Math.max(1, Math.ceil(roster.total / roster.pageSize))
 
   /** The server exports every employee the composed query matches (not just
@@ -35,6 +52,47 @@ export function UsersPage() {
       return
     }
     notify('error', result.detail)
+  }
+
+  /** The bulk ZIP of completed review PDFs under the composed query — the
+      page turns the shared hook's failure word into the toast. */
+  async function downloadCompletedZips(): Promise<void> {
+    const result = await completedReviews.download()
+    if (!result.ok) notify('error', result.detail)
+  }
+
+  /** One employee's review document: the card's status probe asks the form
+      status endpoint (a pending review answers 200, never a 409), while the
+      page reads and saves the card's PDF through the shared review downloads
+      seam — only reachable once the card knows the review is completed. */
+  const reviewActions = useMemo<ProfileReviewActions>(
+    () => ({
+      load: async (employee) => {
+        const result = await fetchEmployeeFormStatus(employee.employeeId)
+        return result.ok ? result.formStatus : null
+      },
+      download: async (employee) => {
+        const result = await fetchEmployeeEvaluation(employee.employeeId)
+        if (result.ok) {
+          saveReviewPdf(result.data)
+          return
+        }
+        notify('error', result.detail)
+      },
+    }),
+    [notify],
+  )
+
+  /** The card's Active/Inactive flip: the stored row patches, then the
+      roster re-reads its page so the table and the open card show the new
+      word. Failures say so through the toast; the row stays as it was. */
+  async function setStatus(employee: Employee, status: EmployeeStatus): Promise<void> {
+    const result = await patchEmployeeStatus(employee.employeeId, status)
+    if (!result.ok) {
+      notify('error', result.detail)
+      return
+    }
+    roster.refresh()
   }
 
   // The filter dropdowns serve whole-roster values once; they never change
@@ -133,7 +191,7 @@ export function UsersPage() {
     <AdminTemplate
       eyebrow="Admin · Users"
       title="Employees"
-      lead="The roster for this review cycle, loaded from the API — CSV uploads write here too."
+      lead="View and manage employee records for this review cycle. New employees added through CSV uploads will appear here."
     >
       {roster.error !== null ? (
         <p style={{ color: 'var(--red-deep)' }}>{roster.error}</p>
@@ -153,6 +211,15 @@ export function UsersPage() {
               : 'No employees loaded. Upload a roster CSV to get started.'
           }
           onDownloadCsv={downloadCsv}
+          tableActions={
+            <ReviewDownloadsButton
+              count={completedReviews.count}
+              busy={completedReviews.busy}
+              onDownload={() => void downloadCompletedZips()}
+            />
+          }
+          review={reviewActions}
+          onSetStatus={setStatus}
           sort={{
             sortBy: query.sortBy ?? 'employeeName',
             sortOrder: query.sortOrder ?? 'asc',

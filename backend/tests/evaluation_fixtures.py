@@ -173,6 +173,66 @@ class _RosterRepository:
             (one for one in self._stored if one.email == email.strip().lower()), None
         )
 
+    async def set_employment_status(
+        self, employee_id: str, status: str
+    ) -> Employee | None:
+        stored = next(
+            (one for one in self._stored if one.employee_id == employee_id), None
+        )
+        if stored is None:
+            return None
+        stored.employment_status = status
+        return stored
+
+    async def count_matching(
+        self,
+        query: TableQuery,
+        *,
+        review_year: int | None = None,
+        statuses: list[str] | None = None,
+    ) -> int:
+        from app.services.self_evaluation import _board_status
+
+        pairs = [
+            (one, self._rows.get(one.employee_id)) for one in self._stored
+        ]
+        if statuses is not None:
+            # The real read joins the year's evaluations and keeps the matched
+            # status words only — roster rows without an evaluation row drop out.
+            pairs = [
+                pair
+                for pair in pairs
+                if pair[1] is not None
+                and pair[1].review_year == review_year
+                and _board_status(pair[1]) in set(statuses)
+            ]
+        pairs = [pair for pair in pairs if matches_query(pair[0], query)]
+        return len(pairs)
+
+    async def roster_year_matching(
+        self,
+        review_year: int,
+        query: TableQuery,
+        statuses: list[str] | None = None,
+    ) -> list[tuple[Employee, Evaluation | None]]:
+        from app.services.self_evaluation import _board_status
+
+        pairs = [
+            (one, self._rows.get(one.employee_id)) for one in self._stored
+        ]
+        pairs = [pair for pair in pairs if pair[1] is None or pair[1].review_year == review_year]
+        if statuses is not None:
+            pairs = [
+                pair
+                for pair in pairs
+                if pair[1] is not None and _board_status(pair[1]) in set(statuses)
+            ]
+        pairs = [pair for pair in pairs if matches_query(pair[0], query)]
+        rows = [pair[0] for pair in pairs]
+        order_by_query(rows, query)
+        by_id = {pair[0].employee_id: pair for pair in pairs}
+        return [by_id[one.employee_id] for one in rows]
+
     async def roster_year_page(
         self,
         review_year: int,

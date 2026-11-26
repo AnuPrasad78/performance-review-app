@@ -29,6 +29,8 @@ from app.repositories.review_cycle_repository import (
 )
 from app.schemas.employee import (
     EmployeeList,
+    EmployeeStatusPatch,
+    RosterEmployeeOut,
     RosterApplyPayload,
     RosterApplyReport,
     RosterFacets,
@@ -41,6 +43,7 @@ from app.services.roster_diff import diff_roster
 from app.services.roster_import import parse_roster_csv
 from app.services.roster_mapping import to_row
 from app.services.roster_read import employees_page, employees_to_export
+from app.services.roster_status import set_employment_status
 
 router = APIRouter(tags=["employees"])
 
@@ -97,6 +100,19 @@ async def export_employees(
         media_type="application/csv;charset=utf-8",
         headers={"Content-Disposition": 'attachment; filename="employee-roster.csv"'},
     )
+
+
+@router.patch("/employees/{employee_id}", response_model=RosterEmployeeOut)
+async def patch_employee(
+    employee_id: str,
+    patch: EmployeeStatusPatch,
+    _admin: Annotated[AuthUser, Depends(get_admin_user)],
+    repository: Annotated[EmployeeRepository, Depends(get_employee_repository)],
+) -> RosterEmployeeOut:
+    """The profile card's employment-status write — the one-member patch the
+    service applies; the stored row's roster render comes back."""
+    employee = await set_employment_status(employee_id, patch, repository)
+    return to_row(employee)
 
 
 @router.get("/employees/facets", response_model=RosterFacets)

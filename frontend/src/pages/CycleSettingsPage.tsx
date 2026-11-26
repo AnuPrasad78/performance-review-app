@@ -47,7 +47,7 @@ export function CycleSettingsPage() {
     <AdminTemplate
       eyebrow="Admin · Cycle"
       title="Review cycle settings"
-      lead="Set the self-evaluation submission deadline (date and UTC time), the manager review window, and the date HR releases the results. The deadline is the exact instant the employee form closes, for every timezone."
+      lead="Configure the employee submission deadline, manager review period, and HR result release date. All deadlines are based on UTC to ensure consistent timing across time zones."
     >
       {settled ? (
         <CycleSettingsForm initial={settings} onSave={save} />

@@ -3,6 +3,10 @@ import type {
   CycleSettingsResult,
   Employee,
   EmployeeListResult,
+  EmployeeStatus,
+  EmployeeStatusPatchResult,
+  FormStatus,
+  FormStatusResult,
   RosterApplyResult,
   RosterCsvExportResult,
   RosterFacets,
@@ -13,6 +17,8 @@ import type {
   ReviewBoardPage,
   ReviewBoardQuery,
   ReviewBoardResult,
+  ReviewCountResult,
+  ReviewDocumentsResult,
   ReviewStatusWire,
   SelfEvaluationApiResult,
   SelfEvaluationPartial,
@@ -408,15 +414,28 @@ export async function fetchEmployees(query: RosterQuery & { page: number }): Pro
   return { ok: true, employees: employeesFrom(parsed.employees), total: parsed.total, page: parsed.page, pageSize: parsed.pageSize }
 }
 
+/** A whole-set read's wire: the composed query without the page slice —
+    the roster CSV keeps its status word (the export honors it); the review
+    exports serve a fixed completed bucket server-side, so their word has to
+    drop lest it pretend to narrow the download. */
+function wholesetQuery(
+  query: RosterQuery,
+  { dropStatus = false }: { dropStatus?: boolean } = {},
+): Record<string, string | number | undefined> {
+  const { page: _page, ...matched } = query as Record<string, string | number | undefined>
+  if (!dropStatus) return matched
+  const { status: _status, ...reviewed } = matched
+  return reviewed
+}
+
 export async function fetchRosterCsvExport(
   query: RosterQuery,
 ): Promise<RosterCsvExportResult> {
   let response: Response
   try {
     // The export covers the whole matched set — the page slice never rides it.
-    const { page: _page, ...matched } = query as Record<string, string | number | undefined>
     response = await fetch(
-      `${API_BASE}/api/employees/export?${tableQueryParams(matched)}`,
+      `${API_BASE}/api/employees/export?${tableQueryParams(wholesetQuery(query))}`,
       { headers: identityHeaders() },
     )
   } catch {
@@ -433,6 +452,145 @@ export async function fetchRosterCsvExport(
     return { ok: false, detail: UNSUPPORTED_ENV_ERROR.detail, code: 'unsupported_environment' }
   }
   return { ok: true, blob: await response.blob() }
+}
+
+/** The review document exports name the same failure apart from the roster
+    one: the documents, not the roster, are missing when these 404/500. */
+const REVIEW_EXPORT_UNAVAILABLE = {
+  detail: 'The review exports are only available where the review API is running.',
+  code: 'unsupported_environment',
+}
+
+/** The bulk button's number: completed reviews under the composed roster
+    query (the status word rides out — the export always reads the completed
+    bucket). */
+export async function fetchCompletedCount(query: RosterQuery): Promise<ReviewCountResult> {
+  let response: Response
+  try {
+    response = await fetch(
+      `${API_BASE}/api/evaluations/export/count?${tableQueryParams(wholesetQuery(query, { dropStatus: true }))}`,
+      { headers: identityHeaders() },
+    )
+  } catch {
+    return { ok: false, detail: NETWORK_UNAVAILABLE.detail, code: NETWORK_UNAVAILABLE.code }
+  }
+  const parsed = await envelopeOf(response)
+  if (parsed === null) {
+    return { ok: false, ...REVIEW_EXPORT_UNAVAILABLE }
+  }
+  if (!response.ok) return { ok: false, ...envelopeFields(parsed) }
+  if (typeof parsed.completedCount !== 'number') {
+    return { ok: false, ...REVIEW_EXPORT_UNAVAILABLE }
+  }
+  return { ok: true, count: parsed.completedCount }
+}
+
+function reviewDocumentsFrom(parsed: Record<string, unknown>): SelfEvaluationWire[] | null {
+  if (!Array.isArray(parsed.evaluations)) return null
+  const reviews: SelfEvaluationWire[] = []
+  for (const entry of parsed.evaluations) {
+    const document = isRecord(entry) ? selfEvaluationFrom(entry) : null
+    if (document === null) return null
+    reviews.push(document)
+  }
+  return reviews
+}
+
+/** The bulk download's read: every completed review document the composed
+    roster query matches, each in the /evaluations/me wire shape — one
+    parser (selfEvaluationFrom) covers the whole document family. */
+export async function fetchCompletedReviews(query: RosterQuery): Promise<ReviewDocumentsResult> {
+  let response: Response
+  try {
+    response = await fetch(
+      `${API_BASE}/api/evaluations/export?${tableQueryParams(wholesetQuery(query, { dropStatus: true }))}`,
+      { headers: identityHeaders() },
+    )
+  } catch {
+    return { ok: false, detail: NETWORK_UNAVAILABLE.detail, code: NETWORK_UNAVAILABLE.code }
+  }
+  const parsed = await envelopeOf(response)
+  if (parsed === null) {
+    return { ok: false, ...REVIEW_EXPORT_UNAVAILABLE }
+  }
+  if (!response.ok) return { ok: false, ...envelopeFields(parsed) }
+  const reviews = reviewDocumentsFrom(parsed)
+  if (reviews === null) {
+    return { ok: false, ...REVIEW_EXPORT_UNAVAILABLE }
+  }
+  return { ok: true, reviews }
+}
+
+/** One employee's review document for the admin profile card's download; an
+    in-progress review is a 409 `review_not_completed` envelope — the word the
+    card hides its button on. */
+export async function fetchEmployeeEvaluation(
+  employeeId: string,
+): Promise<SelfEvaluationApiResult> {
+  let response: Response
+  try {
+    response = await fetch(`${API_BASE}/api/evaluations/${encodeURIComponent(employeeId)}`, {
+      headers: identityHeaders(),
+    })
+  } catch {
+    return { ok: false, detail: NETWORK_UNAVAILABLE.detail, code: NETWORK_UNAVAILABLE.code }
+  }
+  return selfEvaluationResponse(response)
+}
+
+/** The profile card's status probe — one GET per open card. The endpoint
+    answers 200 for both nouns, so an open review never reads as an HTTP
+    error the way the document read's 409 would. */
+export async function fetchEmployeeFormStatus(
+  employeeId: string,
+): Promise<FormStatusResult> {
+  let response: Response
+  try {
+    response = await fetch(
+      `${API_BASE}/api/evaluations/${encodeURIComponent(employeeId)}/status`,
+      { headers: identityHeaders() },
+    )
+  } catch {
+    return { ok: false, detail: NETWORK_UNAVAILABLE.detail, code: NETWORK_UNAVAILABLE.code }
+  }
+  const parsed = await envelopeOf(response)
+  if (parsed === null) {
+    return { ok: false, detail: REVIEW_UNAVAILABLE.detail, code: REVIEW_UNAVAILABLE.code }
+  }
+  if (!response.ok) return { ok: false, ...envelopeFields(parsed) }
+  if (parsed.formStatus !== 'pending' && parsed.formStatus !== 'completed') {
+    return { ok: false, detail: REVIEW_UNAVAILABLE.detail, code: REVIEW_UNAVAILABLE.code }
+  }
+  return { ok: true, formStatus: parsed.formStatus as FormStatus }
+}
+
+/** The profile card's employment-status flip; the stored row — with its new
+    word — comes back, so the caller can re-strip from the answer itself. */
+export async function patchEmployeeStatus(
+  employeeId: string,
+  status: EmployeeStatus,
+): Promise<EmployeeStatusPatchResult> {
+  let response: Response
+  try {
+    response = await fetch(`${API_BASE}/api/employees/${encodeURIComponent(employeeId)}`, {
+      method: 'PATCH',
+      credentials: CREDENTIALS,
+      headers: { 'Content-Type': 'application/json', ...identityHeaders() },
+      body: JSON.stringify({ status }),
+    })
+  } catch {
+    return { ok: false, detail: NETWORK_UNAVAILABLE.detail, code: NETWORK_UNAVAILABLE.code }
+  }
+  const parsed = await envelopeOf(response)
+  if (parsed === null) {
+    return { ok: false, detail: UNSUPPORTED_ENV_ERROR.detail, code: 'unsupported_environment' }
+  }
+  if (!response.ok) return { ok: false, ...envelopeFields(parsed) }
+  const employee = employeeFrom(parsed)
+  if (employee === null) {
+    return { ok: false, detail: UNSUPPORTED_ENV_ERROR.detail, code: 'unsupported_environment' }
+  }
+  return { ok: true, employee }
 }
 
 function facetsFrom(parsed: Record<string, unknown>): RosterFacets | null {

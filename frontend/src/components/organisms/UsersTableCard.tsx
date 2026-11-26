@@ -5,7 +5,8 @@ import { DataTable, type DataTableColumn, type DataTableSort } from '../molecule
 import { ColumnFilterMenu, type FilterMenuControl } from '../molecules/ColumnFilterMenu'
 import { Pager } from '../molecules/Pager'
 import { EmployeeDetailCard } from './EmployeeDetailCard'
-import type { Employee } from '../../lib/types'
+import { useProfileReview, type ProfileReviewActions } from '../../hooks/useProfileReview'
+import type { Employee, EmployeeStatus } from '../../lib/types'
 
 export interface UsersTableCardProps {
   employees: readonly Employee[]
@@ -22,6 +23,16 @@ export interface UsersTableCardProps {
   /** The page's composed search/filter controls, slotted into the toolbar
       beside Download CSV — the organism renders, never owns, them. */
   tableControls?: ReactNode
+  /** The bulk completed-reviews trigger, fully built by the page and slotted
+      after Download CSV. */
+  tableActions?: ReactNode
+  /** The profile card's review-download seam: the page's read + save for one
+      employee's PDF. Omitted where the review is out of the card's reach. */
+  review?: ProfileReviewActions
+  /** The profile card's employment-status flip: the page patches the stored
+      row (and re-reads the roster); awaited here so the button reflects the
+      pending move. */
+  onSetStatus?: (employee: Employee, status: EmployeeStatus) => Promise<void>
   /** Click-to-sort headers; the keys are this page's wire sort words. */
   sort?: DataTableSort
   /** One funnel control per filtered column, keyed by the column key. */
@@ -53,15 +64,20 @@ export function UsersTableCard({
   emptyMessage,
   onDownloadCsv,
   tableControls,
+  tableActions,
+  review,
+  onSetStatus,
   sort,
   columnFilters,
 }: UsersTableCardProps) {
   const [selectedEmail, setSelectedEmail] = useState<string | null>(null)
   const [downloading, setDownloading] = useState(false)
+  const [statusBusy, setStatusBusy] = useState(false)
   const selected: Employee | null =
     selectedEmail === null
       ? null
       : (employees.find((employee) => employee.email === selectedEmail) ?? null)
+  const cardReview = useProfileReview(selected, review)
 
   async function downloadRoster(): Promise<void> {
     setDownloading(true)
@@ -69,6 +85,16 @@ export function UsersTableCard({
       await onDownloadCsv()
     } finally {
       setDownloading(false)
+    }
+  }
+
+  async function setStatus(status: EmployeeStatus): Promise<void> {
+    if (selected === null || onSetStatus === undefined) return
+    setStatusBusy(true)
+    try {
+      await onSetStatus(selected, status)
+    } finally {
+      setStatusBusy(false)
     }
   }
 
@@ -86,6 +112,7 @@ export function UsersTableCard({
         <Button variant="ghost" size="sm" onClick={() => void downloadRoster()} disabled={downloading}>
           Download CSV
         </Button>
+        {tableActions ?? null}
         {tableControls ?? null}
       </div>
       <DataTable
@@ -99,7 +126,18 @@ export function UsersTableCard({
         activeRowKey={selected?.email ?? null}
       />
       <Pager page={page} pageCount={pageCount} onPage={onPage} />
-      {selected !== null ? <EmployeeDetailCard employee={selected} onClose={() => setSelectedEmail(null)} /> : null}
+      {selected !== null ? (
+        <EmployeeDetailCard
+          employee={selected}
+          onClose={() => setSelectedEmail(null)}
+          formStatus={cardReview.formStatus}
+          reviewCompleted={cardReview.reviewCompleted}
+          onDownloadReview={() => void cardReview.onDownloadReview()}
+          reviewBusy={cardReview.reviewBusy}
+          onSetStatus={onSetStatus === undefined ? undefined : (status) => void setStatus(status)}
+          statusBusy={statusBusy}
+        />
+      ) : null}
     </Card>
   )
 }

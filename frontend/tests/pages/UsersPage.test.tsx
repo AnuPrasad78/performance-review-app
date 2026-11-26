@@ -4,24 +4,48 @@ import { beforeEach, vi } from 'vitest'
 import { AdminStoreProvider } from '../../src/state/AdminContext'
 import { AuthProvider } from '../../src/state/AuthContext'
 import { UsersPage } from '../../src/pages/UsersPage'
-import type { Employee, RosterFacets } from '../../src/lib/types'
+import type { Employee, RosterFacets, SelfEvaluationWire } from '../../src/lib/types'
 
-const { fetchEmployeesMock, fetchEmployeeFacetsMock, fetchRosterCsvExportMock, saveCsvBlobMock } =
-  vi.hoisted(() => ({
-    fetchEmployeesMock: vi.fn(),
-    fetchEmployeeFacetsMock: vi.fn(),
-    fetchRosterCsvExportMock: vi.fn(),
-    saveCsvBlobMock: vi.fn(),
-  }))
+const {
+  fetchEmployeesMock,
+  fetchEmployeeFacetsMock,
+  fetchRosterCsvExportMock,
+  fetchCompletedCountMock,
+  fetchEmployeeFormStatusMock,
+  fetchEmployeeEvaluationMock,
+  patchEmployeeStatusMock,
+  saveCsvBlobMock,
+  saveReviewPdfMock,
+  downloadCompletedReviewZipMock,
+} = vi.hoisted(() => ({
+  fetchEmployeesMock: vi.fn(),
+  fetchEmployeeFacetsMock: vi.fn(),
+  fetchRosterCsvExportMock: vi.fn(),
+  fetchCompletedCountMock: vi.fn(),
+  fetchEmployeeFormStatusMock: vi.fn(),
+  fetchEmployeeEvaluationMock: vi.fn(),
+  patchEmployeeStatusMock: vi.fn(),
+  saveCsvBlobMock: vi.fn(),
+  saveReviewPdfMock: vi.fn(),
+  downloadCompletedReviewZipMock: vi.fn(),
+}))
 vi.mock('../../src/lib/api', async (importOriginal) => ({
   ...(await importOriginal()),
   fetchEmployees: fetchEmployeesMock,
   fetchEmployeeFacets: fetchEmployeeFacetsMock,
   fetchRosterCsvExport: fetchRosterCsvExportMock,
+  fetchCompletedCount: fetchCompletedCountMock,
+  fetchEmployeeFormStatus: fetchEmployeeFormStatusMock,
+  fetchEmployeeEvaluation: fetchEmployeeEvaluationMock,
+  patchEmployeeStatus: patchEmployeeStatusMock,
   setApiIdentity: vi.fn(),
 }))
 vi.mock('../../src/lib/csvDownload', () => ({
   saveCsvBlob: saveCsvBlobMock,
+}))
+vi.mock('../../src/lib/reviewDownloads', () => ({
+  saveReviewPdf: saveReviewPdfMock,
+  downloadCompletedReviewZip: downloadCompletedReviewZipMock,
 }))
 
 function employee(employeeId: string, name: string, email: string): Employee {
@@ -73,13 +97,47 @@ function page(): React.ReactElement {
   )
 }
 
+/** The wire document one employee's download reads (the backend /evaluations
+    record the profile card's PDF is built from). */
+function wireEvaluation(employee: Employee): SelfEvaluationWire {
+  return {
+    employee,
+    reviewYear: 2026,
+    submissionDeadline: '2027-01-15T10:00:00+00:00',
+    deadlinePassed: false,
+    submittedAt: '2026-11-01',
+    employeeSignedAt: '2026-11-01',
+    responses: {
+      contribution: 'Led the intake rewrite.',
+      strengths: 'Data modelling.',
+      development: 'Stakeholder reviews.',
+      support: 'Mentoring.',
+    },
+    managerComments: { contribution: '', strengths: '', development: '', support: '' },
+    overallRating: 4,
+    overallSummary: 'A steady year.',
+    forwardCommitments: [],
+    commitmentsEditable: false,
+  }
+}
+
 beforeEach(() => {
   window.localStorage.clear()
   fetchEmployeesMock.mockReset()
   fetchEmployeeFacetsMock.mockReset()
   fetchRosterCsvExportMock.mockReset()
   saveCsvBlobMock.mockReset()
+  fetchCompletedCountMock.mockReset()
+  fetchEmployeeFormStatusMock.mockReset()
+  fetchEmployeeEvaluationMock.mockReset()
+  patchEmployeeStatusMock.mockReset()
+  saveReviewPdfMock.mockReset()
+  downloadCompletedReviewZipMock.mockReset()
   fetchEmployeeFacetsMock.mockResolvedValue({ ok: true, facets: FACETS })
+  fetchCompletedCountMock.mockResolvedValue({ ok: true, count: 2 })
+  // The default card probe: a pending review answers 200 — the Download
+  // review button stays hidden unless the test opts into a completed one.
+  fetchEmployeeFormStatusMock.mockResolvedValue({ ok: true, formStatus: 'pending' })
 })
 
 describe('UsersPage', () => {
@@ -333,5 +391,149 @@ describe('UsersPage', () => {
 
     expect(await screen.findByRole('status')).toHaveTextContent('The roster export failed.')
     expect(saveCsvBlobMock).not.toHaveBeenCalled()
+  })
+
+  it('announces the matched completed count and streams the ZIP on click', async () => {
+    fetchEmployeesMock.mockResolvedValue(pageResult([ASHA], 1))
+    downloadCompletedReviewZipMock.mockResolvedValue({ ok: true, count: 2 })
+    render(page())
+    const user = userEvent.setup()
+
+    const button = await screen.findByRole('button', { name: 'Download submitted reviews (2)' })
+    await user.click(button)
+
+    await waitFor(() => {
+      expect(downloadCompletedReviewZipMock).toHaveBeenCalledWith(
+        expect.objectContaining({ page: 1 }),
+      )
+    })
+    // A saved ZIP is a success: nothing to say.
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
+  it('surfaces a failed bulk ZIP as a toast and leaves the CSV export untouched', async () => {
+    fetchEmployeesMock.mockResolvedValue(pageResult([ASHA], 1))
+    downloadCompletedReviewZipMock.mockResolvedValue({
+      ok: false,
+      detail: 'Could not reach the review API.',
+      code: 'network_error',
+    })
+    render(page())
+    const user = userEvent.setup()
+    await screen.findByText('Roster · 1 employee')
+
+    await user.click(screen.getByRole('button', { name: 'Download submitted reviews (2)' }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent('Could not reach the review API.')
+    expect(fetchRosterCsvExportMock).not.toHaveBeenCalled()
+  })
+
+  it("keeps the pending completed count unreadable as a disabled button, then recovers", async () => {
+    fetchEmployeesMock.mockResolvedValue(pageResult([ASHA], 1))
+    fetchCompletedCountMock.mockResolvedValue({ ok: true, count: 0 })
+    render(page())
+
+    expect(await screen.findByText('Roster · 1 employee')).toBeInTheDocument()
+    const button = await screen.findByRole('button', { name: 'Download submitted reviews' })
+    expect(button).toBeDisabled()
+  })
+
+  it("shows Download review on a completed employee's card and saves one PDF on click", async () => {
+    fetchEmployeesMock.mockResolvedValue(pageResult([ASHA], 1))
+    fetchEmployeeFormStatusMock.mockResolvedValue({ ok: true, formStatus: 'completed' })
+    fetchEmployeeEvaluationMock.mockResolvedValue({ ok: true, data: wireEvaluation(ASHA) })
+    render(page())
+    const user = userEvent.setup()
+    await screen.findByText('Roster · 1 employee')
+
+    await user.click(screen.getByText('asha_menon@emids.com'))
+    const dialog = screen.getByRole('dialog', { name: 'More about Asha Menon' })
+    const button = await within(dialog).findByRole('button', { name: 'Download review' })
+    await user.click(button)
+
+    await waitFor(() => {
+      expect(saveReviewPdfMock).toHaveBeenCalledWith(
+        expect.objectContaining({ reviewYear: 2026 }),
+      )
+    })
+    expect(fetchEmployeeEvaluationMock).toHaveBeenCalledWith('EMP-V001')
+  })
+
+  it('hides Download review while the review is still in the employee hands', async () => {
+    fetchEmployeesMock.mockResolvedValue(pageResult([ASHA], 1))
+    fetchEmployeeFormStatusMock.mockResolvedValue({ ok: true, formStatus: 'pending' })
+    render(page())
+    const user = userEvent.setup()
+    await screen.findByText('Roster · 1 employee')
+
+    await user.click(screen.getByText('asha_menon@emids.com'))
+    const dialog = await screen.findByRole('dialog', { name: 'More about Asha Menon' })
+
+    await within(dialog).findByText('Pending')
+    expect(
+      within(dialog).queryByRole('button', { name: 'Download review' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it("states the card's form status, and an unread probe renders the em dash", async () => {
+    fetchEmployeesMock.mockResolvedValue(pageResult([ASHA], 1))
+    fetchEmployeeFormStatusMock.mockResolvedValue({
+      ok: false,
+      detail: 'Could not reach the review API.',
+      code: 'network_error',
+    })
+    render(page())
+    const user = userEvent.setup()
+    await screen.findByText('Roster · 1 employee')
+
+    await user.click(screen.getByText('asha_menon@emids.com'))
+    const dialog = await screen.findByRole('dialog', { name: 'More about Asha Menon' })
+
+    await within(dialog).findByText('—')
+    expect(within(dialog).getByText('Form status')).toBeInTheDocument()
+    expect(
+      within(dialog).queryByRole('button', { name: 'Download review' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('the Status cell carries the Active/Inactive pair and the pick flips the row', async () => {
+    fetchEmployeesMock.mockResolvedValue(pageResult([ASHA], 1))
+    patchEmployeeStatusMock.mockResolvedValue({
+      ok: true,
+      employee: { ...ASHA, status: 'Inactive' },
+    })
+    render(page())
+    const user = userEvent.setup()
+    await screen.findByText('Roster · 1 employee')
+
+    await user.click(screen.getByText('asha_menon@emids.com'))
+    const dialog = screen.getByRole('dialog', { name: 'More about Asha Menon' })
+    await user.click(within(dialog).getByRole('button', { name: 'Inactive' }))
+
+    await waitFor(() => {
+      expect(patchEmployeeStatusMock).toHaveBeenCalledWith('EMP-V001', 'Inactive')
+      // The re-read keeps the same query — the page never moves.
+      expect(fetchEmployeesMock).toHaveBeenLastCalledWith({ page: 1 })
+    })
+  })
+
+  it('a failed status flip surfaces as a toast and skips the re-read', async () => {
+    fetchEmployeesMock.mockResolvedValue(pageResult([ASHA], 1))
+    patchEmployeeStatusMock.mockResolvedValue({
+      ok: false,
+      detail: 'Could not reach the review API.',
+      code: 'network_error',
+    })
+    render(page())
+    const user = userEvent.setup()
+    await screen.findByText('Roster · 1 employee')
+
+    await user.click(screen.getByText('asha_menon@emids.com'))
+    const dialog = screen.getByRole('dialog', { name: 'More about Asha Menon' })
+    await user.click(within(dialog).getByRole('button', { name: 'Inactive' }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'Could not reach the review API.',
+    )
   })
 })

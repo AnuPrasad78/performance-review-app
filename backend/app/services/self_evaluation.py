@@ -52,6 +52,7 @@ from app.schemas.table_query import TableQuery
 from app.schemas.self_evaluation import (
     BoardStatus,
     ForwardCommitmentOut,
+    FormStatusOut,
     QuestionResponses,
     ReviewStatusEntry,
     ReviewStatusList,
@@ -129,9 +130,11 @@ def _commitments_editable(evaluation: Evaluation | None, cycle: ReviewCycle) -> 
     return cycle.manager_review_end >= datetime.date.today()
 
 
-def _render(
+def render_document(
     employee: Employee, cycle: ReviewCycle, evaluation: Evaluation | None
 ) -> SelfEvaluationOut:
+    """One read/write response from its stored three rows: the wire render the
+    self-eval's save/submit/GET paths and the admin download use cases share."""
     return SelfEvaluationOut(
         employee=to_row(employee),
         review_year=cycle.review_year,
@@ -196,7 +199,7 @@ async def current_self_evaluation(
 ) -> SelfEvaluationOut:
     cycle, evaluation = await _scoped(user, evaluation_repository, cycle_repository)
     employee = await _roster_employee(user, employee_repository)
-    return _render(employee, cycle, evaluation)
+    return render_document(employee, cycle, evaluation)
 
 
 def _commitment_rows(values: list[ForwardCommitmentOut]) -> list[dict[str, str]]:
@@ -303,7 +306,7 @@ async def save_self_evaluation(
     if patch.forward_commitments is not None:
         evaluation.forward_commitments = _commitment_rows(patch.forward_commitments)
 
-    return _render(employee, cycle, evaluation)
+    return render_document(employee, cycle, evaluation)
 
 
 def _submission_missing_parts(evaluation: Evaluation) -> list[str]:
@@ -362,7 +365,7 @@ async def submit_self_evaluation(
         )
 
     evaluation.status = STATUS_SELF_EVALUATION_COMPLETED
-    return _render(employee, cycle, evaluation)
+    return render_document(employee, cycle, evaluation)
 
 
 def _board_status(evaluation: Evaluation | None) -> BoardStatus:
@@ -422,4 +425,30 @@ async def list_review_statuses(
         page=paging.page,
         page_size=paging.page_size,
         status_counts=page_slice.status_counts,
+    )
+
+
+async def employee_form_status(
+    employee_id: str,
+    *,
+    employee_repository: EmployeeRepository,
+    cycle_repository: ReviewCycleRepository,
+    evaluation_repository: EvaluationRepository,
+) -> FormStatusOut:
+    """One employee's form status for the admin profile card — always 200: an
+    open review answers `pending`, not an error (the document read's 409 is
+    the download seam's business, never this probe's). Same bucketing the
+    admin tables' form-status filter applies."""
+    employee = await employee_repository.get(employee_id)
+    if employee is None:
+        raise AppError(
+            "Employee not found in the roster.", code="employee_missing", status_code=404
+        )
+    cycle = await current_cycle(cycle_repository)
+    evaluation = await evaluation_repository.get_for_employee(employee_id, cycle.review_year)
+    completed = evaluation is not None and evaluation.status.lower() in FILTER_STATUS_WORDS[
+        "completed"
+    ]
+    return FormStatusOut(
+        employee_id=employee_id, form_status="completed" if completed else "pending"
     )
