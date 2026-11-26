@@ -27,6 +27,8 @@ export function ReviewPreviewPanel({ draft, signedAt }: ReviewPreviewPanelProps)
             ['Location', draft.employee.location],
             ['Org / Project', `${draft.employee.org} / ${draft.employee.project}`],
             ['Reporting manager', draft.employee.reportingManager],
+            ['Delivery Head', draft.employee.deliveryHead],
+            ['Business Partner', draft.employee.businessPartner],
             ['Performance period', '1-Jan-2026 to 31-Dec-2026'],
             ['Sign-off date', formatIsoDate(signedAt ?? todayIsoDate())],
           ].map(([label, value]) => (
