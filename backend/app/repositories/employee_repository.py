@@ -82,7 +82,16 @@ _ROSTER_SORTS: dict[RosterSortKey, ColumnElement] = {
     "businessUnit": Employee.business_unit,
     "reportingManager": Employee.reporting_manager,
     "employmentStatus": Employee.employment_status,
+    "project": Employee.current_account_project,
+    "deliveryHead": Employee.delivery_head,
+    "deliveryManager": Employee.delivery_manager,
+    "businessPartner": Employee.business_partner,
+    "joiningDate": Employee.joining_date,
 }
+
+#: Sorts whose column may be empty for a row: blanks trail in either
+#: direction instead of leading every descending sort.
+_NULLS_LAST_SORTS = frozenset({"joiningDate"})
 
 
 def _search_conditions(search: str) -> list[ColumnElement[bool]]:
@@ -110,7 +119,9 @@ def _roster_order(
     """Ordering with the workflow tiebreakers after the admin's choice; the
     board's status sorts by the lifecycle rank (not started → self-eval in
     progress → … → manager evaluation completed), never alphabetically. The
-    rank mirrors the same single vocabulary the column stores (pr_0006)."""
+    rank mirrors the same single vocabulary the column stores (pr_0006).
+    The status and submittedAt sorts need the year's evaluation join, so
+    only the board reads (which pass status_word) offer them."""
     direction = asc if query.sort_order == "asc" else desc
     if status_word is not None and query.sort_by == "status":
         rank = case(
@@ -121,11 +132,17 @@ def _roster_order(
             (status_word == "manager_evaluation_in_progress", 4),
             else_=5,
         )
-        lead: ColumnElement = rank
+        lead: ColumnElement = direction(rank)
+    elif status_word is not None and query.sort_by == "submittedAt":
+        # The board's Submitted date is the employee's sign-off instant;
+        # unsigned rows have no date and sit last in either direction.
+        lead = direction(Evaluation.employee_signed_at).nulls_last()
+    elif query.sort_by in _NULLS_LAST_SORTS:
+        lead = direction(_ROSTER_SORTS[query.sort_by]).nulls_last()
     else:
-        lead = _ROSTER_SORTS[query.sort_by]
+        lead = direction(_ROSTER_SORTS[query.sort_by])
     return [
-        direction(lead),
+        lead,
         asc(Employee.employee_name),
         asc(Employee.employee_id),
     ]

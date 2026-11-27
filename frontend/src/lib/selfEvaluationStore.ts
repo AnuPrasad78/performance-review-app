@@ -188,7 +188,7 @@ export function deriveReviewStatus(record: SelfEvaluationRecord): ReviewStatus {
     legend); keyed by the wire word, verbatim — lib/reviewStatusStore owns
     the same vocabulary's workflow order and filter nouns. */
 export const REVIEW_STATUS_LABELS: Record<ReviewStatus, string> = {
-  not_started: 'Not started',
+  not_started: 'Self-evaluation not started',
   self_evaluation_in_progress: 'Self-evaluation in progress',
   self_evaluation_completed: 'Self-evaluation completed',
   in_manager_review: 'In manager review',

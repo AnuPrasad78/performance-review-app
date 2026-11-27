@@ -106,6 +106,11 @@ export type RosterSortField =
   | 'businessUnit'
   | 'reportingManager'
   | 'employmentStatus'
+  | 'project'
+  | 'deliveryHead'
+  | 'deliveryManager'
+  | 'businessPartner'
+  | 'joiningDate'
 
 export type SortOrder = 'asc' | 'desc'
 

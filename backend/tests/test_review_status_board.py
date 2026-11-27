@@ -343,3 +343,85 @@ def test_board_rejects_an_unknown_sort_word() -> None:
 
     # Whitelisted sort words only — validation rejects before any layer runs.
     assert response.status_code == 422
+
+
+def test_board_sort_by_submitted_date_keeps_unsigned_rows_last() -> None:
+    asha = roster_employee("EMP-V001", "Asha Menon")
+    bilal = roster_employee("EMP-V002", "Bilal Khan")
+    cara = roster_employee("EMP-V003", "Cara Fernandes")
+    devika = roster_employee("EMP-V004", "Devika Nair")
+    utc = datetime.timezone.utc
+    rows = [
+        evaluation(
+            "SELF_EVALUATION_COMPLETED",
+            employee_id="EMP-V002",
+            employee_signed_at=datetime.datetime(2026, 3, 5, tzinfo=utc),
+        ),
+        evaluation(
+            "IN_MANAGER_REVIEW",
+            employee_id="EMP-V003",
+            employee_signed_at=datetime.datetime(2026, 1, 20, tzinfo=utc),
+        ),
+        evaluation("SELF_EVALUATION_IN_PROGRESS", employee_id="EMP-V004"),
+    ]
+    client = make_board_client([asha, bilal, cara, devika], rows, admin_emails=[ASHA_EMAIL])
+
+    def names(order: str) -> list[str]:
+        response = client.get(
+            "/api/evaluations",
+            params={"sortBy": "submittedAt", "sortOrder": order},
+            headers={"X-Stub-User": ASHA_EMAIL},
+        )
+        assert response.status_code == 200
+        return [entry["employee"]["name"] for entry in response.json()["reviews"]]
+
+    # Signed rows by date; the two unsigned rows trail (name order) both ways.
+    assert names("asc") == ["Cara Fernandes", "Bilal Khan", "Asha Menon", "Devika Nair"]
+    assert names("desc") == ["Bilal Khan", "Cara Fernandes", "Asha Menon", "Devika Nair"]
+
+
+def test_submitted_date_sort_orders_by_sign_off_with_nulls_last_in_sql() -> None:
+    from sqlalchemy.dialects import postgresql
+
+    from app.repositories.employee_repository import _board_status, _roster_order
+    from app.schemas.table_query import TableQuery
+
+    for order in ("asc", "desc"):
+        query = TableQuery(sort_by="submittedAt", sort_order=order)
+        lead = _roster_order(query, status_word=_board_status())[0]
+        sql = str(lead.compile(dialect=postgresql.dialect()))
+        assert sql == f"evaluations.employee_signed_at {order.upper()} NULLS LAST"
+
+
+def test_board_accepts_every_upload_field_as_a_sort_word() -> None:
+    asha = roster_employee()
+    client = make_board_client([asha], [], admin_emails=[ASHA_EMAIL])
+    for word in (
+        "employeeId",
+        "designation",
+        "businessUnit",
+        "project",
+        "deliveryHead",
+        "deliveryManager",
+        "businessPartner",
+        "employmentStatus",
+        "joiningDate",
+    ):
+        response = client.get(
+            "/api/evaluations", params={"sortBy": word}, headers={"X-Stub-User": ASHA_EMAIL}
+        )
+        assert response.status_code == 200, word
+
+
+def test_joining_date_sort_keeps_blank_dates_last_in_sql() -> None:
+    from sqlalchemy.dialects import postgresql
+
+    from app.repositories.employee_repository import _board_status, _roster_order
+    from app.schemas.table_query import TableQuery
+
+    for order in ("asc", "desc"):
+        lead = _roster_order(TableQuery(sort_by="joiningDate", sort_order=order), _board_status())[0]
+        sql = str(lead.compile(dialect=postgresql.dialect()))
+        assert sql == f"employees.joining_date {order.upper()} NULLS LAST"
+    plain = _roster_order(TableQuery(sort_by="deliveryHead", sort_order="desc"), _board_status())[0]
+    assert str(plain.compile(dialect=postgresql.dialect())) == "employees.delivery_head DESC"

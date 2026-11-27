@@ -19,6 +19,16 @@ export interface DataTableColumn<Row> {
   /** The wire sort word this header toggles; the column is sortable only
       while the table carries a `sort` prop. */
   sortKey?: string
+  /** Pins the column to the table's left edge while the rest scroll
+      sideways under it — for the leading identity column only. */
+  sticky?: boolean
+}
+
+function cellClass<Row>(column: DataTableColumn<Row>): string | undefined {
+  const classes = [column.hideOnMobile ? 'col-desktop' : '', column.sticky ? 'table__cell--sticky' : '']
+    .filter(Boolean)
+    .join(' ')
+  return classes === '' ? undefined : classes
 }
 
 export interface DataTableProps<Row> {
@@ -68,7 +78,7 @@ export function DataTable<Row>({
               <th
                 key={column.key}
                 scope="col"
-                className={column.hideOnMobile ? 'col-desktop' : undefined}
+                className={cellClass(column)}
                 aria-sort={active ? (sort.sortOrder === 'asc' ? 'ascending' : 'descending') : undefined}
               >
                 {sortable ? (
@@ -117,7 +127,7 @@ export function DataTable<Row>({
                 onKeyDown={selectable ? (event) => activate(event, row) : undefined}
               >
                 {columns.map((column) => (
-                  <td key={column.key} className={column.hideOnMobile ? 'col-desktop' : undefined}>
+                  <td key={column.key} className={cellClass(column)}>
                     {column.cell(row)}
                   </td>
                 ))}

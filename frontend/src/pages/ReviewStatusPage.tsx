@@ -15,7 +15,8 @@ import {
   fetchReviewBoard,
   fetchReviewStatusCsvExport,
 } from '../lib/api'
-import { saveCsvBlob } from '../lib/csvDownload'
+import { appliedFilters } from '../lib/exportFilters'
+import { saveTableExport, type ExportFormat } from '../lib/tableExport'
 import { rosterTotal } from '../lib/reviewStatusStore'
 import { saveReviewPdf } from '../lib/reviewDownloads'
 import { COMPLETION_FILTERS, type CompletionFilter } from '../lib/reviewStatusStore'
@@ -101,16 +102,21 @@ export function ReviewStatusPage() {
     if (!result.ok) notify('error', result.detail)
   }
 
-  /** The board's Download CSV: the server renders every employee row the
+  /** The board's export: the server renders every employee row the
       composed query matches — search, filters, and sort riding along, never
-      just this page's slice. */
-  async function downloadReviewCsv(): Promise<void> {
+      just this page's slice — and the chosen format and the filter-named
+      file are built from that CSV. */
+  async function exportReviewStatus(format: ExportFormat): Promise<void> {
     const result = await fetchReviewStatusCsvExport(tableQuery)
-    if (result.ok) {
-      saveCsvBlob(result.blob, 'review-status.csv')
+    if (!result.ok) {
+      notify('error', result.detail)
       return
     }
-    notify('error', result.detail)
+    await saveTableExport(result.blob, format, {
+      base: 'review-status',
+      title: 'Review status',
+      filters: appliedFilters(tableQuery),
+    })
   }
 
   /** One employee's review document: the page reads and saves a single
@@ -297,7 +303,7 @@ export function ReviewStatusPage() {
           page={tableQuery.page}
           pageCount={pageCount}
           onPageChange={(page) => setTableQuery((current) => ({ ...current, page }))}
-          onDownloadCsv={downloadReviewCsv}
+          onExport={exportReviewStatus}
           sort={{
             sortBy: tableQuery.sortBy ?? 'employeeName',
             sortOrder: tableQuery.sortOrder ?? 'asc',
@@ -326,21 +332,6 @@ export function ReviewStatusPage() {
             value: tableQuery.status,
             options: COMPLETION_FILTERS,
             onChange: (status) => updateTableQuery({ status: status as CompletionFilter }),
-          }}
-          orgFilter={{
-            value: tableQuery.org ?? '',
-            options: withAny('Any', facets?.orgs ?? null),
-            onChange: (org) => updateTableQuery({ org: org || undefined }),
-          }}
-          locationFilter={{
-            value: tableQuery.location ?? '',
-            options: withAny('Any', facets?.locations ?? null),
-            onChange: (location) => updateTableQuery({ location: location || undefined }),
-          }}
-          managerFilter={{
-            value: tableQuery.reportingManager ?? '',
-            options: withAny('Any', facets?.reportingManagers ?? null),
-            onChange: (reportingManager) => updateTableQuery({ reportingManager: reportingManager || undefined }),
           }}
           tableActions={
             <ReviewDownloadsButton

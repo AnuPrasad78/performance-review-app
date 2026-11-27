@@ -35,7 +35,7 @@ export const REVIEW_STATUS_WORDS: readonly ReviewStatus[] = [
     (pending/completed) are gone — the six-word column outgrew them. */
 export const COMPLETION_FILTERS: readonly { value: CompletionFilter; label: string }[] = [
   { value: 'all', label: 'All' },
-  { value: 'not_started', label: 'Not started' },
+  { value: 'not_started', label: 'Self-evaluation not started' },
   { value: 'self_evaluation_in_progress', label: 'Self-evaluation in progress' },
   { value: 'self_evaluation_completed', label: 'Self-evaluation completed' },
   { value: 'in_manager_review', label: 'In manager review' },

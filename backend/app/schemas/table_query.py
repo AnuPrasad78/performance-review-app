@@ -31,6 +31,11 @@ RosterSortKey = Literal[
     "businessUnit",
     "reportingManager",
     "employmentStatus",
+    "project",
+    "deliveryHead",
+    "deliveryManager",
+    "businessPartner",
+    "joiningDate",
 ]
 
 #: `all` means no narrowing; every other word is one of the six stored
@@ -57,6 +62,12 @@ BoardSortKey = Literal[
     "employmentStatus",
     "employeeId",
     "status",
+    "submittedAt",
+    "project",
+    "deliveryHead",
+    "deliveryManager",
+    "businessPartner",
+    "joiningDate",
 ]
 
 

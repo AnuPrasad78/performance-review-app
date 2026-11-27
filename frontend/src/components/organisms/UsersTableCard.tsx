@@ -3,7 +3,8 @@ import { Card } from '../atoms/Card'
 import { Button } from '../atoms/Button'
 import { DataTable, type DataTableColumn, type DataTableSort } from '../molecules/DataTable'
 import { ColumnFilterMenu, type FilterMenuControl } from '../molecules/ColumnFilterMenu'
-import { DownloadCsvButton } from '../molecules/DownloadCsvButton'
+import { ExportMenuButton } from '../molecules/ExportMenuButton'
+import type { ExportFormat } from '../../lib/tableExport'
 import { Modal } from '../molecules/Modal'
 import { Pager } from '../molecules/Pager'
 import { EmployeeDetailCard } from './EmployeeDetailCard'
@@ -23,12 +24,12 @@ export interface UsersTableCardProps {
   /** Empty state next move: a filtered no-match reads differently from an
       unloaded roster — the page, which owns the query, picks it. */
   emptyMessage: string
-  /** The export: the server's CSV of every employee the composed query
+  /** The export in the chosen format, of every employee the composed query
       matches — owned by the page (data fetching lives there), awaited here
       so the button reflects the pending download. */
-  onDownloadCsv: () => Promise<void>
+  onExport: (format: ExportFormat) => Promise<void>
   /** The page's composed search/filter controls, slotted into the toolbar
-      beside Download CSV — the organism renders, never owns, them. */
+      beside the export menu — the organism renders, never owns, them. */
   tableControls?: ReactNode
   /** The profile card's review-download seam: the page's read + save for one
       employee's PDF. Omitted where the review is out of the card's reach. */
@@ -55,7 +56,7 @@ export function UsersTableCard({
   pageCount,
   onPage,
   emptyMessage,
-  onDownloadCsv,
+  onExport,
   tableControls,
   review,
   onSetStatus,
@@ -170,7 +171,11 @@ export function UsersTableCard({
   return (
     <Card caption={`Roster · ${employees.length} ${employees.length === 1 ? 'employee' : 'employees'}`} captionAccent>
       <div className="table-toolbar">
-        <DownloadCsvButton onDownload={onDownloadCsv} label="Employee Master Data View" />
+        <ExportMenuButton
+          label="Employee Master Data View"
+          note="Downloads include only the employees matching the search and filters currently applied."
+          onExport={onExport}
+        />
         {tableControls ?? null}
       </div>
       <DataTable

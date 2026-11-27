@@ -134,6 +134,13 @@ beforeEach(() => {
   fetchEmployeeFormStatusMock.mockResolvedValue({ ok: true, formStatus: 'pending' })
 })
 
+/** Opens the export menu and picks one format — the download only starts
+    once a format is chosen. */
+async function exportAs(user: ReturnType<typeof userEvent.setup>, format: string): Promise<void> {
+  await user.click(screen.getByRole('button', { name: 'Employee Master Data View' }))
+  await user.click(screen.getByRole('menuitem', { name: format }))
+}
+
 describe('UsersPage', () => {
   it('renders the API roster with its count', async () => {
     fetchEmployeesMock.mockResolvedValue(pageResult([ASHA, BILAL], 2))
@@ -357,11 +364,14 @@ describe('UsersPage', () => {
     const user = userEvent.setup()
     await screen.findByText('Roster · 1 employee')
 
-    await user.click(screen.getByRole('button', { name: 'Employee Master Data View' }))
+    await exportAs(user, 'CSV (.csv)')
 
     await waitFor(() => {
       expect(fetchRosterCsvExportMock).toHaveBeenCalledWith({ page: 1 })
-      expect(saveCsvBlobMock).toHaveBeenCalledWith(new Blob(['csv']), 'employee-roster.csv')
+      expect(saveCsvBlobMock).toHaveBeenCalledWith(
+        new Blob(['csv']),
+        expect.stringMatching(/^employee-master-data_all-employees_\d{4}-\d{2}-\d{2}\.csv$/),
+      )
     })
   })
 
@@ -380,10 +390,15 @@ describe('UsersPage', () => {
       expect(fetchEmployeesMock).toHaveBeenLastCalledWith({ page: 1, org: 'Quality', search: 'ash' })
     })
 
-    await user.click(screen.getByRole('button', { name: 'Employee Master Data View' }))
+    await exportAs(user, 'Excel (.xlsx)')
 
     await waitFor(() => {
       expect(fetchRosterCsvExportMock).toHaveBeenLastCalledWith({ page: 1, org: 'Quality', search: 'ash' })
+      // The file name carries the filters in force; the blob is a workbook.
+      expect(saveCsvBlobMock).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+        expect.stringMatching(/^employee-master-data_search-ash_org-quality_\d{4}-\d{2}-\d{2}\.xlsx$/),
+      )
     })
   })
 
@@ -398,13 +413,34 @@ describe('UsersPage', () => {
     const user = userEvent.setup()
     await screen.findByText('Roster · 1 employee')
 
-    await user.click(screen.getByRole('button', { name: 'Employee Master Data View' }))
+    await exportAs(user, 'PDF (.pdf)')
 
     expect(await screen.findByRole('status')).toHaveTextContent('The roster export failed.')
     expect(saveCsvBlobMock).not.toHaveBeenCalled()
   })
 
-  it('the toolbar carries the CSV export alone — no bulk review trigger', async () => {
+  it('the export menu offers CSV, Excel and PDF under the filters note', async () => {
+    fetchEmployeesMock.mockResolvedValue(pageResult([ASHA], 1))
+    render(page())
+    const user = userEvent.setup()
+    await screen.findByText('Roster · 1 employee')
+
+    const trigger = screen.getByRole('button', { name: 'Employee Master Data View' })
+    expect(trigger).toHaveAccessibleDescription(
+      'Downloads include only the employees matching the search and filters currently applied.',
+    )
+    await user.click(trigger)
+    const menu = screen.getByRole('menu', { name: 'Employee Master Data View formats' })
+    expect(within(menu).getByText(/matching the search and filters currently applied/)).toBeInTheDocument()
+    expect(within(menu).getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
+      'CSV (.csv)',
+      'Excel (.xlsx)',
+      'PDF (.pdf)',
+    ])
+    expect(fetchRosterCsvExportMock).not.toHaveBeenCalled()
+  })
+
+  it('the toolbar carries the export menu alone — no bulk review trigger', async () => {
     fetchEmployeesMock.mockResolvedValue(pageResult([ASHA], 1))
     render(page())
 

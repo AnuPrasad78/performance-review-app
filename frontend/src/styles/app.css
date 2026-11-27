@@ -144,6 +144,20 @@ a { color: var(--teal-deep); }
 /* cells never wrap: a table wider than its card overflows and scrolls,
    instead of the columns compressing out of readability */
 .table td { white-space: nowrap; }
+/* A pinned leading column (e.g. Name) stays in view while the rest of the
+   row scrolls under it. Sticky cells need their own opaque fill, matched to
+   the row's hover/active wash; the inset line marks the pinned edge (a
+   collapsed border would scroll away with the cells). */
+.table .table__cell--sticky {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--surface);
+  box-shadow: inset -1px 0 0 var(--hairline);
+}
+.table th.table__cell--sticky { background: var(--canvas); }
+.table tbody tr:hover .table__cell--sticky { background: var(--teal-wash); }
+.table tbody tr.table__row--active .table__cell--sticky { background: var(--teal-light); }
 /* the "no submission yet" dash: full-width block so it centers in its cell */
 .table__blank { display: block; text-align: center; }
 
@@ -268,6 +282,50 @@ a { color: var(--teal-deep); }
   transform-origin: top left;
 }
 .table-filter-popover--flip { transform-origin: top right; }
+
+/* export trigger + format menu: the panel hangs under the button's right
+   edge, headed by the note on what the download covers */
+.export-menu { position: relative; display: inline-flex; }
+.export-menu .btn .icon { margin-left: 2px; }
+.export-menu__panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 46;
+  width: 260px;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--hairline-2);
+  border-radius: 10px 0 0 0;
+  padding: 12px;
+  animation: popover-pop 200ms var(--ease-resolve);
+  transform-origin: top right;
+}
+.export-menu__note {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  background: var(--teal-wash);
+  color: var(--teal-deep);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.export-menu__note .icon { flex: none; margin-top: 1px; }
+.export-menu__option {
+  width: 100%;
+  padding: 9px 8px;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--hairline);
+  font-size: 13px;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.export-menu__option:hover { background: var(--teal-wash); color: var(--teal-deep); }
 .table-filter-popover__heading {
   display: block;
   font-size: 10.5px;

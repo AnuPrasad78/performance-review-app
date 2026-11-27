@@ -2,7 +2,8 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { Card } from '../atoms/Card'
 import { DataTable, type DataTableColumn, type DataTableSort } from '../molecules/DataTable'
 import { ColumnFilterMenu, type FilterMenuControl } from '../molecules/ColumnFilterMenu'
-import { DownloadCsvButton } from '../molecules/DownloadCsvButton'
+import { ExportMenuButton } from '../molecules/ExportMenuButton'
+import type { ExportFormat } from '../../lib/tableExport'
 import { Pager } from '../molecules/Pager'
 import { PieChart } from '../molecules/PieChart'
 import { ReviewStatusPill } from '../molecules/ReviewStatusPill'
@@ -61,22 +62,41 @@ export interface ReviewStatusBoardProps {
       in the table card's toolbar. */
   tableControls?: ReactNode
   tableActions?: ReactNode
-  /** The page's Download CSV read: every employee row the composed query
-      matches, roster columns plus the board's own two columns — awaited by
-      the shared button, so the busy state lives in the molecule. */
-  onDownloadCsv: () => Promise<void>
+  /** The page's export in the chosen format: every employee row the
+      composed query matches, never just the page slice. */
+  onExport: (format: ExportFormat) => Promise<void>
   /** The profile card's review-download seam, keyed to the selected row's
       employee; a row opened for it reveals the card. */
   review?: ProfileReviewActions
   /** Click-to-sort headers; the keys are this page's wire sort words. */
   sort?: DataTableSort
-  /** Status, location, and reporting-manager narrowing, chosen at their own
-      column headers — the table query's words. */
+  /** Evaluation-status narrowing, chosen at its own column header — the
+      table query's status word. */
   statusFilter?: FilterMenuControl
-  orgFilter?: FilterMenuControl
-  locationFilter?: FilterMenuControl
-  managerFilter?: FilterMenuControl
 }
+
+const blankOr = (value: string): ReactNode =>
+  value === '' ? <span className="table__blank">-</span> : value
+
+/** The upload CSV's fields the board did not already show, appended after
+    its own columns so those keep their place; every one sorts. */
+const ROSTER_TAIL_COLUMNS: readonly DataTableColumn<EmployeeReviewStatus>[] = [
+  { key: 'employeeId', header: 'Employee ID', sortKey: 'employeeId', hideOnMobile: true, cell: (entry) => entry.employee.employeeId },
+  { key: 'designation', header: 'Designation', sortKey: 'designation', hideOnMobile: true, cell: (entry) => blankOr(entry.employee.designation) },
+  { key: 'businessUnit', header: 'Business unit', sortKey: 'businessUnit', hideOnMobile: true, cell: (entry) => blankOr(entry.employee.businessUnit) },
+  { key: 'project', header: 'Current account / project', sortKey: 'project', hideOnMobile: true, cell: (entry) => blankOr(entry.employee.project) },
+  { key: 'deliveryHead', header: 'Delivery head', sortKey: 'deliveryHead', hideOnMobile: true, cell: (entry) => blankOr(entry.employee.deliveryHead) },
+  { key: 'deliveryManager', header: 'Delivery manager', sortKey: 'deliveryManager', hideOnMobile: true, cell: (entry) => blankOr(entry.employee.deliveryManager) },
+  { key: 'businessPartner', header: 'Business partner', sortKey: 'businessPartner', hideOnMobile: true, cell: (entry) => blankOr(entry.employee.businessPartner) },
+  { key: 'employmentStatus', header: 'Status', sortKey: 'employmentStatus', hideOnMobile: true, cell: (entry) => entry.employee.status },
+  {
+    key: 'joiningDate',
+    header: 'Date of joining',
+    sortKey: 'joiningDate',
+    hideOnMobile: true,
+    cell: (entry) => (entry.employee.joiningDate === '' ? blankOr('') : formatIsoDate(entry.employee.joiningDate)),
+  },
+]
 
 export function ReviewStatusBoard({
   pieCounts,
@@ -91,25 +111,19 @@ export function ReviewStatusBoard({
   pieControls,
   tableControls,
   tableActions,
-  onDownloadCsv,
+  onExport,
   review,
   sort,
   statusFilter,
-  orgFilter,
-  locationFilter,
-  managerFilter,
 }: ReviewStatusBoardProps) {
   const counts = pieCounts
   const roster = rosterTotal(counts)
+  // Each self-evaluation tile is exactly the pie slice of the same name, so
+  // a tile and its slice can never disagree; manager-phase words show in
+  // the pie alone.
   const notStarted = counts.not_started ?? 0
-  // "In progress" is the in-flight middle of the lifecycle: the open form,
-  // its manager review, and the manager's in-flight evaluation. The two
-  // *_completed words are terminal for tile purposes.
-  const inProgress =
-    (counts.self_evaluation_in_progress ?? 0) +
-    (counts.in_manager_review ?? 0) +
-    (counts.manager_evaluation_in_progress ?? 0)
-  const completed = counts.manager_evaluation_completed ?? 0
+  const inProgress = counts.self_evaluation_in_progress ?? 0
+  const completed = counts.self_evaluation_completed ?? 0
   const [selected, setSelected] = useState<EmployeeReviewStatus | null>(null)
   const cardReview = useProfileReview(selected?.employee ?? null, review)
 
@@ -118,35 +132,29 @@ export function ReviewStatusBoard({
     if (statusFilter !== undefined) {
       adornments.status = <ColumnFilterMenu label="Evaluation status" control={statusFilter} />
     }
-    if (orgFilter !== undefined) {
-      adornments.org = <ColumnFilterMenu label="Org" control={orgFilter} />
-    }
-    if (locationFilter !== undefined) {
-      adornments.location = <ColumnFilterMenu label="Location" control={locationFilter} />
-    }
-    if (managerFilter !== undefined) {
-      adornments.reportingManager = <ColumnFilterMenu label="Reporting manager" control={managerFilter} />
-    }
     return adornments
-  }, [statusFilter, orgFilter, locationFilter, managerFilter])
+  }, [statusFilter])
 
-  /** Sort keys are the wire words the backend whitelists; `status` orders by
-      the server's workflow rank. */
+  /** Sort keys are the wire words the backend whitelists. Every column sorts
+      except Email and Evaluation status; Evaluation status is the one column
+      that filters, from its header funnel. */
   const columns: readonly DataTableColumn<EmployeeReviewStatus>[] = [
     {
       key: 'name',
       header: 'Name',
       sortKey: 'employeeName',
+      sticky: true,
       cell: (entry) => {
         const name = entry.employee.name
         return <span title={name}>{name.length <= 16 ? name : `${name.slice(0, 16)}...`}</span>
       },
     },
-    { key: 'email', header: 'Email', sortKey: 'email', cell: (entry) => entry.employee.email, hideOnMobile: true },
-    { key: 'status', header: 'Evaluation status', sortKey: 'status', cell: (entry) => <ReviewStatusPill status={entry.status} /> },
+    { key: 'email', header: 'Email', cell: (entry) => entry.employee.email, hideOnMobile: true },
+    { key: 'status', header: 'Evaluation status', cell: (entry) => <ReviewStatusPill status={entry.status} /> },
     {
       key: 'submittedAt',
       header: 'Submitted date',
+      sortKey: 'submittedAt',
       cell: (entry) =>
         entry.submittedAt === null ? (
           <span className="table__blank">-</span>
@@ -170,6 +178,8 @@ export function ReviewStatusBoard({
       hideOnMobile: true,
     },
     { key: 'org', header: 'Org', sortKey: 'org', cell: (entry) => entry.employee.org, hideOnMobile: true },
+    // The rest of the roster upload's fields, in the CSV's own order.
+    ...ROSTER_TAIL_COLUMNS,
   ]
 
   return (
@@ -183,7 +193,7 @@ export function ReviewStatusBoard({
             icon="users"
           />
           <StatTile
-            label="Completed"
+            label="Self-evaluation completed"
             value={String(completed)}
             note={`${percentOf(completed, roster)}% completion`}
             noteTone="positive"
@@ -191,13 +201,13 @@ export function ReviewStatusBoard({
             iconTone="positive"
           />
           <StatTile
-            label="In progress"
+            label="Self-evaluation in progress"
             value={String(inProgress)}
             note={`${percentOf(inProgress, roster)}% of employees`}
             icon="clock"
           />
           <StatTile
-            label="Not started"
+            label="Self-evaluation not started"
             value={String(notStarted)}
             note={`${percentOf(notStarted, roster)}% of employees`}
             noteTone="negative"
@@ -234,7 +244,11 @@ export function ReviewStatusBoard({
         captionAccent
       >
         <div className="table-toolbar">
-          <DownloadCsvButton onDownload={onDownloadCsv} label="Download status" />
+          <ExportMenuButton
+          label="Download status"
+          note="Downloads include only the employees matching the search and filters currently applied."
+          onExport={onExport}
+        />
           {tableControls}
           {tableActions}
         </div>

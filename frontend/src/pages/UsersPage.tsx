@@ -15,7 +15,8 @@ import {
   fetchRosterCsvExport,
   patchEmployee,
 } from '../lib/api'
-import { saveCsvBlob } from '../lib/csvDownload'
+import { appliedFilters } from '../lib/exportFilters'
+import { saveTableExport, type ExportFormat } from '../lib/tableExport'
 import { saveReviewPdf } from '../lib/reviewDownloads'
 import { COMPLETION_FILTERS } from '../lib/reviewStatusStore'
 import type { ProfileReviewActions } from '../hooks/useProfileReview'
@@ -50,14 +51,19 @@ export function UsersPage() {
   const pageCount = Math.max(1, Math.ceil(roster.total / roster.pageSize))
 
   /** The server exports every employee the composed query matches (not just
-      this page's slice) as the roster CSV; failures surface as a toast. */
-  async function downloadCsv(): Promise<void> {
+      this page's slice) as the roster CSV; the chosen format and the
+      filter-named file are built from it. Failures surface as a toast. */
+  async function exportRoster(format: ExportFormat): Promise<void> {
     const result = await fetchRosterCsvExport(query)
-    if (result.ok) {
-      saveCsvBlob(result.blob, 'employee-roster.csv')
+    if (!result.ok) {
+      notify('error', result.detail)
       return
     }
-    notify('error', result.detail)
+    await saveTableExport(result.blob, format, {
+      base: 'employee-master-data',
+      title: 'Employee master data',
+      filters: appliedFilters(query),
+    })
   }
 
   /** One employee's review document: the card's status probe asks the form
@@ -256,7 +262,7 @@ export function UsersPage() {
               ? 'No employees match this search or filter. Loosen it in Search & filter.'
               : 'No employees loaded. Upload a roster CSV to get started.'
           }
-          onDownloadCsv={downloadCsv}
+          onExport={exportRoster}
           review={reviewActions}
           onSetStatus={setStatus}
           onSaveEmployee={saveEmployee}

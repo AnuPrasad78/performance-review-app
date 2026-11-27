@@ -134,6 +134,11 @@ SORT_FIELDS: dict[str, str] = {
     "businessUnit": "business_unit",
     "reportingManager": "reporting_manager",
     "employmentStatus": "employment_status",
+    "project": "current_account_project",
+    "deliveryHead": "delivery_head",
+    "deliveryManager": "delivery_manager",
+    "businessPartner": "business_partner",
+    "joiningDate": "joining_date",
 }
 
 
@@ -141,11 +146,26 @@ def order_by_query(
     employees: list[Employee],
     query: TableQuery,
     status_word: Callable[[Employee], str] | None = None,
+    signed_at: Callable[[Employee], datetime.datetime | None] | None = None,
 ) -> None:
     """In-place stub of the real repository's ordering. Two stable passes so
     a descending lead keeps the ascending name/id tiebreakers — the same
-    order the real repository's SQL yields."""
+    order the real repository's SQL yields. submittedAt mirrors the SQL's
+    NULLS LAST: unsigned rows trail in either direction."""
     employees.sort(key=lambda one: (one.employee_name, one.employee_id))
+
+    if query.sort_by in ("submittedAt", "joiningDate"):
+        if query.sort_by == "submittedAt":
+            assert signed_at is not None
+            value_of: Callable[[Employee], object] = signed_at
+        else:
+            def value_of(one: Employee) -> object:
+                return one.joining_date
+        present = [one for one in employees if value_of(one) is not None]
+        missing = [one for one in employees if value_of(one) is None]
+        present.sort(key=value_of, reverse=query.sort_order == "desc")  # type: ignore[arg-type]
+        employees[:] = present + missing
+        return
 
     def lead_value(employee: Employee) -> object:
         if query.sort_by == "status":
@@ -241,9 +261,13 @@ class _RosterRepository:
             ]
         pairs = [pair for pair in pairs if matches_query(pair[0], query)]
         rows = [pair[0] for pair in pairs]
-        order_by_query(rows, query)
+        order_by_query(rows, query, signed_at=self._signed_at)
         by_id = {pair[0].employee_id: pair for pair in pairs}
         return [by_id[one.employee_id] for one in rows]
+
+    def _signed_at(self, employee: Employee) -> datetime.datetime | None:
+        row = self._rows.get(employee.employee_id)
+        return None if row is None else row.employee_signed_at
 
     async def roster_year_page(
         self,
@@ -275,7 +299,7 @@ class _RosterRepository:
             )
 
         rows = [pair[0] for pair in pairs]
-        order_by_query(rows, query, status_word=status_for)
+        order_by_query(rows, query, status_word=status_for, signed_at=self._signed_at)
         by_id = {pair[0].employee_id: pair for pair in pairs}
         pairs = [by_id[one.employee_id] for one in rows]
         offset = (page - 1) * page_size
