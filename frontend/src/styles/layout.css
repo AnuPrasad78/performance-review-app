@@ -343,15 +343,15 @@
 .hero__cards {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 10px;
   align-items: stretch;
 }
 .hero__card {
   margin: 0;
   background: var(--teal-wash);
   border: 1px solid var(--teal-light);
-  border-radius: 14px;
-  padding: 18px 20px;
+  border-radius: 12px;
+  padding: 10px 16px;
   color: var(--teal-deep);
 }
 /* a lone card (submitted review, or no progress yet) spans the row */
@@ -362,9 +362,9 @@
   flex-direction: column;
   justify-content: center;
 }
-.hero__deadline-tagline { font-size: 18px; font-weight: 600; line-height: 1.35; color: var(--black); }
-.hero__deadline-count { font-size: 18px; font-weight: 600; line-height: 1.35; color: var(--teal-deep); margin-top: 10px; }
-.hero__deadline-action { font-size: 14.5px; line-height: 1.4; color: var(--teal-deep); margin-top: 4px; }
+.hero__deadline-tagline { font-size: 14px; font-weight: 600; line-height: 1.35; color: var(--black); }
+.hero__deadline-count { font-size: 14px; font-weight: 700; line-height: 1.35; color: var(--teal-deep); margin-top: 4px; }
+.hero__deadline-action { font-size: 12.5px; line-height: 1.4; color: var(--teal-deep); margin-top: 1px; }
 
 .deadline-closed {
   font-size: 16px;
@@ -418,26 +418,26 @@
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding-top: 14px;
-  padding-bottom: 14px;
+  padding-top: 6px;
+  padding-bottom: 6px;
 }
 .hero__status-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 16px;
-  padding: 10px 0;
+  padding: 6px 0;
 }
 .hero__status-row + .hero__status-row { border-top: 1px solid var(--teal-light); }
 .hero__status-label {
-  font-size: 13.5px;
+  font-size: 11.5px;
   font-weight: 600;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
   color: var(--teal-deep);
 }
 .hero__status-value {
   font-variant-numeric: tabular-nums;
-  font-size: 19px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--black);
   margin: 0;
