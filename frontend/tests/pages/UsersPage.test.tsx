@@ -298,30 +298,42 @@ describe('UsersPage', () => {
     expect(fetchEmployeesMock).toHaveBeenLastCalledWith({ page: 1, status: 'all' })
   })
 
-  it('filters by business unit from the facet list', async () => {
+  it('filters by location from the facet list', async () => {
     fetchEmployeesMock.mockResolvedValue(pageResult([ASHA], 1))
     render(page())
     const user = userEvent.setup()
     await screen.findByText('Roster · 1 employee')
 
     await openQueryControls(user)
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Filter by Business unit' }), 'Provider Solutions')
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Filter by Location' }), 'Singapore')
 
-    expect(fetchEmployeesMock).toHaveBeenLastCalledWith({ page: 1, businessUnit: 'Provider Solutions' })
+    expect(fetchEmployeesMock).toHaveBeenLastCalledWith({ page: 1, location: 'Singapore' })
   })
 
-  it('the Location column funnel narrows the roster without the pop-up', async () => {
+  it('shows the business unit column in place of location', async () => {
+    fetchEmployeesMock.mockResolvedValue(pageResult([ASHA], 1))
+    render(page())
+    await screen.findByText('Roster · 1 employee')
+
+    expect(screen.getByRole('columnheader', { name: /Business unit/ })).toBeInTheDocument()
+    expect(screen.queryByRole('columnheader', { name: /^Location/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('cell', { name: 'Payer Digital' })).toBeInTheDocument()
+  })
+
+  it('the Business unit column funnel narrows the roster without the pop-up', async () => {
     fetchEmployeesMock.mockResolvedValue(pageResult([ASHA], 1))
     render(page())
     const user = userEvent.setup()
     await screen.findByText('Roster · 1 employee')
 
-    await user.click(screen.getByRole('button', { name: 'Filter by Location' }))
+    await user.click(screen.getByRole('button', { name: 'Filter by Business unit' }))
     await user.click(
-      within(screen.getByRole('dialog', { name: 'Filter by Location' })).getByRole('button', { name: 'Singapore' }),
+      within(screen.getByRole('dialog', { name: 'Filter by Business unit' })).getByRole('button', {
+        name: 'Provider Solutions',
+      }),
     )
 
-    expect(fetchEmployeesMock).toHaveBeenLastCalledWith({ page: 1, location: 'Singapore' })
+    expect(fetchEmployeesMock).toHaveBeenLastCalledWith({ page: 1, businessUnit: 'Provider Solutions' })
   })
 
   it('the Status column funnel narrows by the employment word', async () => {
@@ -345,7 +357,7 @@ describe('UsersPage', () => {
     const user = userEvent.setup()
     await screen.findByText('Roster · 1 employee')
 
-    await user.click(screen.getByRole('button', { name: 'Download CSV' }))
+    await user.click(screen.getByRole('button', { name: 'Employee Master Data View' }))
 
     await waitFor(() => {
       expect(fetchRosterCsvExportMock).toHaveBeenCalledWith({ page: 1 })
@@ -368,7 +380,7 @@ describe('UsersPage', () => {
       expect(fetchEmployeesMock).toHaveBeenLastCalledWith({ page: 1, org: 'Quality', search: 'ash' })
     })
 
-    await user.click(screen.getByRole('button', { name: 'Download CSV' }))
+    await user.click(screen.getByRole('button', { name: 'Employee Master Data View' }))
 
     await waitFor(() => {
       expect(fetchRosterCsvExportMock).toHaveBeenLastCalledWith({ page: 1, org: 'Quality', search: 'ash' })
@@ -386,7 +398,7 @@ describe('UsersPage', () => {
     const user = userEvent.setup()
     await screen.findByText('Roster · 1 employee')
 
-    await user.click(screen.getByRole('button', { name: 'Download CSV' }))
+    await user.click(screen.getByRole('button', { name: 'Employee Master Data View' }))
 
     expect(await screen.findByRole('status')).toHaveTextContent('The roster export failed.')
     expect(saveCsvBlobMock).not.toHaveBeenCalled()
@@ -399,7 +411,7 @@ describe('UsersPage', () => {
     expect(await screen.findByText('Roster · 1 employee')).toBeInTheDocument()
     // The completed-reviews trigger lives on the review board alone.
     expect(screen.queryByRole('button', { name: /Download submitted reviews/ })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Download CSV' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Employee Master Data View' })).toBeInTheDocument()
   })
 
   it("shows Download review on a completed employee's card and saves one PDF on click", async () => {

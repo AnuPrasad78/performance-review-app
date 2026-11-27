@@ -118,11 +118,11 @@ export function UsersTableCard({
       reactivation is safe to take immediately — and the click stays clear of
       the row's profile-card open. */
   const columns: readonly DataTableColumn<Employee>[] = [
-    { key: 'name', header: 'Name', sortKey: 'employeeName', cell: (employee) => employee.name },
     { key: 'employeeId', header: 'Employee ID', sortKey: 'employeeId', cell: (employee) => employee.employeeId, hideOnMobile: true },
+    { key: 'name', header: 'Name', sortKey: 'employeeName', cell: (employee) => employee.name },
     { key: 'email', header: 'Email', sortKey: 'email', cell: (employee) => employee.email },
     { key: 'designation', header: 'Designation', sortKey: 'designation', cell: (employee) => employee.designation, hideOnMobile: true },
-    { key: 'location', header: 'Location', sortKey: 'location', cell: (employee) => employee.location, hideOnMobile: true },
+    { key: 'businessUnit', header: 'Business unit', sortKey: 'businessUnit', cell: (employee) => employee.businessUnit, hideOnMobile: true },
     {
       key: 'reportingManager',
       header: 'Reporting manager',
@@ -170,7 +170,7 @@ export function UsersTableCard({
   return (
     <Card caption={`Roster · ${employees.length} ${employees.length === 1 ? 'employee' : 'employees'}`} captionAccent>
       <div className="table-toolbar">
-        <DownloadCsvButton onDownload={onDownloadCsv} />
+        <DownloadCsvButton onDownload={onDownloadCsv} label="Employee Master Data View" />
         {tableControls ?? null}
       </div>
       <DataTable

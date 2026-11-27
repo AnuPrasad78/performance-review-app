@@ -164,17 +164,17 @@ export function UsersPage() {
 
   /** The columns that exist in the roster table narrow at their own headers:
       the key is the column's key, the value the query word it feeds. Org and
-      form-status have no column, so they stay in the toolbar pop-up. */
+      form-status, location have no column, so they stay in the toolbar pop-up. */
   const columnFilters = {
     designation: {
       value: query.designation ?? '',
       options: withAny('Any', facets?.designations ?? null),
       onChange: (designation: string) => updateQuery({ designation: designation || undefined }),
     },
-    location: {
-      value: query.location ?? '',
-      options: withAny('Any', facets?.locations ?? null),
-      onChange: (location: string) => updateQuery({ location: location || undefined }),
+    businessUnit: {
+      value: query.businessUnit ?? '',
+      options: withAny('Any', facets?.businessUnits ?? null),
+      onChange: (businessUnit: string) => updateQuery({ businessUnit: businessUnit || undefined }),
     },
     reportingManager: {
       value: query.reportingManager ?? '',
@@ -202,17 +202,17 @@ export function UsersPage() {
       value: query.org ?? '',
     },
     {
-      key: 'businessUnit',
-      label: 'Business unit',
-      options: withAny('Any', facets?.businessUnits ?? null),
-      value: query.businessUnit ?? '',
+      key: 'location',
+      label: 'Location',
+      options: withAny('Any', facets?.locations ?? null),
+      value: query.location ?? '',
     },
   ]
 
   return (
     <AdminTemplate
-      eyebrow="Admin · Users"
-      title="Employees"
+      eyebrow="Admin"
+      title="Users"
       lead="View and manage employee records for this review cycle. New employees added through CSV uploads will appear here."
     >
       {roster.error !== null ? (
