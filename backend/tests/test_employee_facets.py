@@ -15,6 +15,7 @@ STUB_FACETS = RosterFacetColumns(
     locations=["Bengaluru", "Pune"],
     orgs=["Delivery", "Quality"],
     business_units=["Payer Digital", "Provider Solutions"],
+    business_partners=["John D", "Meena S"],
     reporting_managers=["Priya Raghavan"],
     employment_statuses=["Active"],
 )
@@ -64,6 +65,7 @@ def test_facets_carry_the_whole_roster_options() -> None:
         "locations": ["Bengaluru", "Pune"],
         "orgs": ["Delivery", "Quality"],
         "businessUnits": ["Payer Digital", "Provider Solutions"],
+        "businessPartners": ["John D", "Meena S"],
         "reportingManagers": ["Priya Raghavan"],
         "employmentStatuses": ["Active"],
     }

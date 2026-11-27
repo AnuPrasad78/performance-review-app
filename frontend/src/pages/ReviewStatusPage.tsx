@@ -9,7 +9,14 @@ import { ReviewDownloadsButton } from '../components/molecules/ReviewDownloadsBu
 import { AdminTemplate } from '../components/templates/AdminTemplate'
 import { useCompletedReviews } from '../hooks/useCompletedReviews'
 import { type ProfileReviewActions } from '../hooks/useProfileReview'
-import { fetchEmployeeFacets, fetchEmployeeEvaluation, fetchReviewBoard } from '../lib/api'
+import {
+  fetchEmployeeFacets,
+  fetchEmployeeEvaluation,
+  fetchReviewBoard,
+  fetchReviewStatusCsvExport,
+} from '../lib/api'
+import { saveCsvBlob } from '../lib/csvDownload'
+import { rosterTotal } from '../lib/reviewStatusStore'
 import { saveReviewPdf } from '../lib/reviewDownloads'
 import { COMPLETION_FILTERS, type CompletionFilter } from '../lib/reviewStatusStore'
 import { useAdminStore } from '../state/AdminContext'
@@ -20,46 +27,96 @@ import type {
   ReviewBoardPage,
 } from '../lib/types'
 
-interface BoardQuery extends RosterQuery {
+/** The board reads twice, once per scope, against the same endpoint
+    (GET /api/evaluations): the pie card's query — search and dropdown verbs
+    only, no status word, not paged — feeds the tiles and the pie, while the
+    table's composed query feeds its rows, funnels, and pager. A filter
+    narrows exactly the card it lives in; each toolbar owns its words. */
+interface PieQuery {
+  designation?: string
+  businessUnit?: string
+  businessPartner?: string
+}
+
+interface TableQuery extends RosterQuery {
   status: CompletionFilter
   page: number
 }
 
 interface BoardState {
-  query: BoardQuery
-  board: ReviewBoardPage | null
+  pieBoard: ReviewBoardPage | null
+  tableBoard: ReviewBoardPage | null
   error: string | null
 }
 
-const EMPTY_QUERY: BoardQuery = { status: 'pending', page: 1 }
+const EMPTY_PIE_QUERY: PieQuery = {}
+
+/** The table opens on All: no filter word merges the lifecycle stages, so
+    the unfiltered read is the honest first view. */
+const EMPTY_TABLE_QUERY: TableQuery = { status: 'all', page: 1 }
+
+/** The dropdown spec both toolbars render (the same list shape for each of
+    their own scopes); the values are served whole-roster by the facets
+    endpoint once per mount. */
+const FILTER_KEYS: readonly {
+  key: 'designation' | 'businessUnit' | 'businessPartner'
+  facet: 'designations' | 'businessUnits' | 'businessPartners'
+  label: string
+}[] = [
+  { key: 'designation', facet: 'designations', label: 'Designation' },
+  { key: 'businessUnit', facet: 'businessUnits', label: 'Business unit' },
+  { key: 'businessPartner', facet: 'businessPartners', label: 'Business partner' },
+]
 
 const withAny = (label: string, values: string[] | null) => [
   { value: '', label },
   ...(values ?? []).map((value) => ({ value, label: value })),
 ]
 
-/** The board's data arrives as one backend answer per composed query: the
-    page slice plus the whole-roster distribution for the tiles and pie —
-    the roster never loads whole on the client. */
 export function ReviewStatusPage() {
-  const [state, setState] = useState<BoardState>({ query: EMPTY_QUERY, board: null, error: null })
+  const [state, setState] = useState<BoardState>({
+    pieBoard: null,
+    tableBoard: null,
+    error: null,
+  })
+  // Per-scope in-flight flags: each read announces its own loading moment so
+  // the pie and the grid can veil the stale numbers while the new ones travel.
+  const [pieBusy, setPieBusy] = useState(true)
+  const [tableBusy, setTableBusy] = useState(true)
+  const [pieQuery, setPieQuery] = useState<PieQuery>(EMPTY_PIE_QUERY)
+  const [tableQuery, setTableQuery] = useState<TableQuery>(EMPTY_TABLE_QUERY)
   /** Placeholder bands wait 180ms before showing — fast answers never flash. */
-  const boardSkeletonVisible = useDelaySkeleton(state.board === null && state.error === null)
+  const boardSkeletonVisible = useDelaySkeleton(
+    (state.pieBoard === null || state.tableBoard === null) && state.error === null,
+  )
   const [facets, setFacets] = useState<RosterFacets | null>(null)
   const { notify } = useAdminStore()
-  const { query, board, error } = state
-  const completedReviews = useCompletedReviews(query)
+  const { pieBoard, tableBoard, error } = state
+  const completedReviews = useCompletedReviews(tableQuery)
 
-  /** The bulk ZIP of completed review PDFs under the composed query — the
-      page turns the shared hook's failure word into the toast. */
+  /** The bulk ZIP of completed review PDFs under the composed table query —
+      the page turns the shared hook's failure word into the toast. */
   async function downloadCompletedZips(): Promise<void> {
     const result = await completedReviews.download()
     if (!result.ok) notify('error', result.detail)
   }
 
+  /** The board's Download CSV: the server renders every employee row the
+      composed query matches — search, filters, and sort riding along, never
+      just this page's slice. */
+  async function downloadReviewCsv(): Promise<void> {
+    const result = await fetchReviewStatusCsvExport(tableQuery)
+    if (result.ok) {
+      saveCsvBlob(result.blob, 'review-status.csv')
+      return
+    }
+    notify('error', result.detail)
+  }
+
   /** One employee's review document: the page reads and saves a single
       profile card's PDF through the shared review downloads seam; the card
-      shows the download only when the row's pill already reads submitted. */
+      shows the download only when the row's pill reads a past-submission
+      stage (self_evaluation_completed on, whatever the manager phase). */
   const reviewActions = useMemo<ProfileReviewActions>(
     () => ({
       download: async (employee) => {
@@ -75,7 +132,7 @@ export function ReviewStatusPage() {
   )
 
   // The filter dropdowns serve whole-roster values once; they never change
-  // with the query, so they fetch only on mount.
+  // with either query, so they fetch only on mount.
   useEffect(() => {
     let cancelled = false
     void fetchEmployeeFacets().then((result) => {
@@ -86,14 +143,16 @@ export function ReviewStatusPage() {
     }
   }, [])
 
-  // The effect rides the query's content, not its object identity: a select
-  // that re-sets the same word must not re-fetch.
+  // Each scope's effect rides its own query's content, not its identity: a
+  // select that re-sets the same word must not re-fetch either read.
   useEffect(() => {
     let cancelled = false
-    void fetchReviewBoard(query).then((result) => {
+    setPieBusy(true)
+    void fetchReviewBoard({ ...pieQuery, status: 'all', page: 1 }).then((result) => {
       if (cancelled) return
+      setPieBusy(false)
       if (result.ok) {
-        setState((current) => ({ ...current, board: result.board, error: null }))
+        setState((current) => ({ ...current, pieBoard: result.board, error: null }))
       } else {
         setState((current) => ({ ...current, error: result.detail }))
       }
@@ -104,29 +163,59 @@ export function ReviewStatusPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps — the fetch keys off
     // the serialized query; a new object with identical content must re-fetch
     // exactly nothing.
-  }, [JSON.stringify(query)])
+  }, [JSON.stringify(pieQuery)])
+
+  useEffect(() => {
+    let cancelled = false
+    setTableBusy(true)
+    void fetchReviewBoard(tableQuery).then((result) => {
+      if (cancelled) return
+      setTableBusy(false)
+      if (result.ok) {
+        setState((current) => ({ ...current, tableBoard: result.board, error: null }))
+      } else {
+        setState((current) => ({ ...current, error: result.detail }))
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps — the fetch keys off
+    // the serialized query; a new object with identical content must re-fetch
+    // exactly nothing.
+  }, [JSON.stringify(tableQuery)])
 
   const pageCount =
-    board === null ? 1 : Math.max(1, Math.ceil(board.total / board.pageSize))
+    tableBoard === null ? 1 : Math.max(1, Math.ceil(tableBoard.total / tableBoard.pageSize))
 
-  // The query's row set shrank under this page: land on the last page the
+  // The table's row set shrank under this page: land on the last page the
   // server still holds instead of showing an empty grid.
   useEffect(() => {
-    if (pageCount > 0 && query.page > pageCount) {
-      setState((current) => ({ ...current, query: { ...current.query, page: pageCount } }))
+    if (pageCount > 0 && tableQuery.page > pageCount) {
+      setTableQuery((current) => ({ ...current, page: pageCount }))
     }
-  }, [pageCount, query.page])
+  }, [pageCount, tableQuery.page])
 
-  /** Any non-page word moves the read back to the first page — the server
-      answers a different question now. */
-  function updateQuery(patch: Omit<Partial<BoardQuery>, 'page'>): void {
-    setState((current) => ({ ...current, query: { ...current.query, ...patch, page: 1 } }))
+  /** Any non-page word moves the table read back to the first page — the
+      server answers a different question now. */
+  function updateTableQuery(patch: Omit<Partial<TableQuery>, 'page'>): void {
+    setTableQuery((current) => ({ ...current, ...patch, page: 1 }))
   }
 
   /** Filter keys are this page's own spec authorship (TableFilterSpec.key);
       a blank choice means "any" and drops the word from the query. */
-  function chooseFilter(key: string, value: string): void {
-    updateQuery({ [key]: value || undefined } as Omit<Partial<BoardQuery>, 'page'>)
+  function chooseTableFilter(key: string, value: string): void {
+    updateTableQuery({ [key]: value || undefined } as Omit<Partial<TableQuery>, 'page'>)
+  }
+
+  /** The pie card's toolbar owns only its own words; the table's query never
+      hears them. */
+  function updatePieQuery(patch: Partial<PieQuery>): void {
+    setPieQuery((current) => ({ ...current, ...patch }))
+  }
+
+  function choosePieFilter(key: string, value: string): void {
+    updatePieQuery({ [key]: value || undefined })
   }
 
   /** The column headers carry sorting: a first click sorts ascending, a
@@ -134,31 +223,21 @@ export function ReviewStatusPage() {
       queued state, not the last render's — two quick clicks must still see
       the first's order. */
   function chooseSort(sortKey: string): void {
-    setState((current) => ({
+    setTableQuery((current) => ({
       ...current,
-      query: {
-        ...current.query,
-        sortBy: sortKey as RosterSortField,
-        sortOrder: current.query.sortBy === sortKey && current.query.sortOrder === 'asc' ? 'desc' : 'asc',
-        page: 1,
-      },
+      sortBy: sortKey as RosterSortField,
+      sortOrder: current.sortBy === sortKey && current.sortOrder === 'asc' ? 'desc' : 'asc',
+      page: 1,
     }))
   }
 
-  const filters: readonly TableFilterSpec[] = [
-    {
-      key: 'designation',
-      label: 'Designation',
-      options: withAny('Any', facets?.designations ?? null),
-      value: query.designation ?? '',
-    },
-    {
-      key: 'businessUnit',
-      label: 'Business unit',
-      options: withAny('Any', facets?.businessUnits ?? null),
-      value: query.businessUnit ?? '',
-    },
-  ]
+  const buildFilters = (query: Partial<RosterQuery>): readonly TableFilterSpec[] =>
+    FILTER_KEYS.map((spec) => ({
+      key: spec.key,
+      label: spec.label,
+      options: withAny('Any', facets !== null ? facets[spec.facet] : null),
+      value: query[spec.key] ?? '',
+    }))
 
   return (
     <AdminTemplate
@@ -168,7 +247,7 @@ export function ReviewStatusPage() {
     >
       {error !== null ? (
         <p style={{ color: 'var(--red-deep)' }}>{error}</p>
-      ) : board === null ? (
+      ) : pieBoard === null || tableBoard === null ? (
         <Card captionAccent>
           <div role="status" aria-label="Loading the review board">
             <span className="sr-only">Loading the review board.</span>
@@ -209,36 +288,59 @@ export function ReviewStatusPage() {
         </Card>
       ) : (
         <ReviewStatusBoard
-          entries={board.reviews}
-          statusCounts={board.statusCounts}
-          total={board.total}
-          page={query.page}
+          pieCounts={pieBoard.statusCounts}
+          pieBusy={pieBusy}
+          entries={tableBoard.reviews}
+          total={tableBoard.total}
+          tableRosterTotal={rosterTotal(tableBoard.statusCounts)}
+          tableBusy={tableBusy}
+          page={tableQuery.page}
           pageCount={pageCount}
-          onPageChange={(page) => setState((current) => ({ ...current, query: { ...current.query, page } }))}
+          onPageChange={(page) => setTableQuery((current) => ({ ...current, page }))}
+          onDownloadCsv={downloadReviewCsv}
           sort={{
-            sortBy: query.sortBy ?? 'employeeName',
-            sortOrder: query.sortOrder ?? 'asc',
+            sortBy: tableQuery.sortBy ?? 'employeeName',
+            sortOrder: tableQuery.sortOrder ?? 'asc',
             onChange: chooseSort,
           }}
+          // The pie card speaks: its toolbar's words tailor the tiles and
+          // pie, and the status word stays out by construction — the pie's
+          // query has no status.
+          pieControls={
+            <TableQueryControls
+              filters={buildFilters(pieQuery)}
+              onFilterChange={choosePieFilter}
+              onClear={() => setPieQuery(EMPTY_PIE_QUERY)}
+            />
+          }
+          tableControls={
+            <TableQueryControls
+              search={tableQuery.search ?? ''}
+              onSearchChange={(search) => updateTableQuery({ search: search || undefined })}
+              filters={buildFilters(tableQuery)}
+              onFilterChange={chooseTableFilter}
+              onClear={() => setTableQuery(EMPTY_TABLE_QUERY)}
+            />
+          }
           statusFilter={{
-            value: query.status,
+            value: tableQuery.status,
             options: COMPLETION_FILTERS,
-            onChange: (status) => updateQuery({ status: status as CompletionFilter }),
+            onChange: (status) => updateTableQuery({ status: status as CompletionFilter }),
           }}
           orgFilter={{
-            value: query.org ?? '',
+            value: tableQuery.org ?? '',
             options: withAny('Any', facets?.orgs ?? null),
-            onChange: (org) => updateQuery({ org: org || undefined }),
+            onChange: (org) => updateTableQuery({ org: org || undefined }),
           }}
           locationFilter={{
-            value: query.location ?? '',
+            value: tableQuery.location ?? '',
             options: withAny('Any', facets?.locations ?? null),
-            onChange: (location) => updateQuery({ location: location || undefined }),
+            onChange: (location) => updateTableQuery({ location: location || undefined }),
           }}
           managerFilter={{
-            value: query.reportingManager ?? '',
+            value: tableQuery.reportingManager ?? '',
             options: withAny('Any', facets?.reportingManagers ?? null),
-            onChange: (reportingManager) => updateQuery({ reportingManager: reportingManager || undefined }),
+            onChange: (reportingManager) => updateTableQuery({ reportingManager: reportingManager || undefined }),
           }}
           tableActions={
             <ReviewDownloadsButton
@@ -248,15 +350,6 @@ export function ReviewStatusPage() {
             />
           }
           review={reviewActions}
-          tableControls={
-            <TableQueryControls
-              search={query.search ?? ''}
-              onSearchChange={(search) => updateQuery({ search: search || undefined })}
-              filters={filters}
-              onFilterChange={chooseFilter}
-              onClear={() => setState((current) => ({ ...current, query: EMPTY_QUERY }))}
-            />
-          }
         />
       )}
     </AdminTemplate>

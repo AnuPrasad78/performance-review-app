@@ -7,10 +7,12 @@ Accepted shape (the all-valid / managers roster):
 
     Employee Name, Employee ID, Email, Designation, Location, Org,
     Business Unit, Current Account / Project, Delivery Head, Delivery Manager,
-    Business Partner, Reporting Manager, Status
+    Business Partner, Reporting Manager, Status, Date of Joining
 
 Row rules: employee name, employee ID, email, and reporting manager are
-required; email is shape-checked; status is limited to Active/Inactive.
+required; email is shape-checked; status is limited to Active/Inactive; a
+Date of Joining cell, when given, is an ISO date (blank is allowed — the
+review-cycle eligibility gate treats a missing DOJ as eligible).
 Duplicate emails inside one file are skipped (counted); duplicate employee
 IDs are a row error because employee_id is the primary key.
 
@@ -19,6 +21,7 @@ write against stored employees is roster_diff's concern.
 """
 
 import csv
+import datetime
 import re
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -44,12 +47,15 @@ ROSTER_HEADER_COLUMNS = [
     "business partner",
     "reporting manager",
     "status",
+    "date of joining",
 ]
 
 #: Values a row must carry to be importable at all.
 REQUIRED_COLUMNS = ("employee name", "employee id", "email", "reporting manager")
 
 EMAIL_PATTERN = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+
+JOINING_DATE_PATTERN = re.compile(r"\d{4}-\d{2}-\d{2}")
 
 VALID_STATUSES = ("active", "inactive")
 
@@ -130,6 +136,9 @@ def _validate_row(row_index: dict[str, int], cells: list[str]) -> str | None:
     status = value("status")
     if status.lower() not in VALID_STATUSES:
         return f"status must be Active or Inactive, got '{status}'."
+    joining = value("date of joining")
+    if joining != "" and not JOINING_DATE_PATTERN.fullmatch(joining):
+        return f"date of joining must be a YYYY-MM-DD date, got '{joining}'."
     return None
 
 
@@ -190,6 +199,7 @@ def parse_roster_csv(data: bytes) -> ParsedRoster:
             continue
 
         seen_emails.add(email)
+        joining = _cell(row_index, cells, "date of joining")
         employees.append(
             RosterEmployeeOut(
                 employee_id=employee_id,
@@ -205,6 +215,7 @@ def parse_roster_csv(data: bytes) -> ParsedRoster:
                 business_partner=_cell(row_index, cells, "business partner"),
                 reporting_manager=_cell(row_index, cells, "reporting manager"),
                 status=_cell(row_index, cells, "status").capitalize(),
+                joining_date=datetime.date.fromisoformat(joining) if joining != "" else None,
             )
         )
 

@@ -53,6 +53,10 @@ PASSED_CYCLE = ReviewCycle(
 def roster_employee(employee_id: str = "EMP-V001", name: str = "Asha Menon") -> Employee:
     employee = Employee(employee_id=employee_id)
     for _schema_field, column in ROSTER_ATTRIBUTES:
+        if column == "joining_date":
+            # The one date member: leave it None here; tests name the date
+            # they want explicitly.
+            continue
         setattr(employee, column, "")
     employee.employee_name = name
     # Roster emails follow the first_lastname convention the real CSV uses.
@@ -97,6 +101,7 @@ _FILTER_FIELDS = (
     "location",
     "org",
     "business_unit",
+    "business_partner",
     "reporting_manager",
     "employment_status",
 )
@@ -173,15 +178,22 @@ class _RosterRepository:
             (one for one in self._stored if one.email == email.strip().lower()), None
         )
 
-    async def set_employment_status(
-        self, employee_id: str, status: str
-    ) -> Employee | None:
+    async def update_employee(
+        self,
+        employee: Employee,
+        values: dict[str, str],
+        *,
+        employee_id_to: str | None = None,
+    ) -> Employee:
         stored = next(
-            (one for one in self._stored if one.employee_id == employee_id), None
+            (one for one in self._stored if one.employee_id == employee.employee_id), None
         )
-        if stored is None:
-            return None
-        stored.employment_status = status
+        if stored is not employee:
+            raise AssertionError("the service patches a row this roster never served")
+        for column, value in values.items():
+            setattr(stored, column, value)
+        if employee_id_to is not None:
+            stored.employee_id = employee_id_to
         return stored
 
     async def count_matching(
@@ -237,18 +249,21 @@ class _RosterRepository:
         self,
         review_year: int,
         query: TableQuery,
-        statuses: list[str] | None,
+        statuses: list[str],
         page: int,
         page_size: int,
     ) -> RosterYearPage:
         from app.services.self_evaluation import _board_status
 
         pairs = [(one, self._rows.get(one.employee_id)) for one in self._stored]
+        # Counts follow the composed search/dropdown verbs — never the status
+        # word (the word narrows the slice below). Mirror of the real read's
+        # grouped query, whose WHERE carries exactly _roster_conditions.
+        pairs = [pair for pair in pairs if matches_query(pair[0], query)]
         counts: dict[str, int] = {}
         for _, row in pairs:
             word = _board_status(row)
             counts[word] = counts.get(word, 0) + 1
-        pairs = [pair for pair in pairs if matches_query(pair[0], query)]
         if statuses is not None:
             pairs = [pair for pair in pairs if _board_status(pair[1]) in set(statuses)]
 

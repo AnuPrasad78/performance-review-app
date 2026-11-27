@@ -103,7 +103,7 @@ def test_export_count_matches_the_export_total_and_ignores_the_status_word() -> 
     count = (
         client.get(
             "/api/evaluations/export/count",
-            params={"status": "pending"},
+            params={"status": "not_started"},
             headers={"X-Stub-User": ASHA_EMAIL},
         )
     )
@@ -111,6 +111,9 @@ def test_export_count_matches_the_export_total_and_ignores_the_status_word() -> 
         "/api/evaluations/export/count", headers={"X-Stub-User": ASHA_EMAIL}
     )
 
+    # The export serves the fixed past-submission bucket; a recognized status
+    # word on the query is respected as roster narrowing but never pretends
+    # to change the finished-review set.
     assert count.status_code == 200
     assert count.json()["completedCount"] == 3
     assert bare.json()["completedCount"] == 3

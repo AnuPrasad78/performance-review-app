@@ -54,6 +54,10 @@ class ReviewCycle(Base):
     manager_review_start: Mapped[datetime.date]
     manager_review_end: Mapped[datetime.date]
     hr_approval_release_by: Mapped[datetime.date]
+    #: Optional joining-date cutoff: roster members whose Date of Joining
+    #: comes after it cannot access this cycle's review form. NULL = no
+    #: restriction.
+    employee_eligibility_date: Mapped[datetime.date | None]
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

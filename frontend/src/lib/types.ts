@@ -1,7 +1,7 @@
 /** Mirrors the roster CSV the backend validates (see POST /api/employees/import):
     Employee Name, Employee ID, Email, Designation, Location, Org,
     Business Unit, Current Account / Project, Delivery Head, Delivery Manager,
-    Business Partner, Reporting Manager, Status. */
+    Business Partner, Reporting Manager, Status, Date of Joining. */
 export type EmployeeStatus = 'Active' | 'Inactive'
 
 export interface Employee {
@@ -18,6 +18,9 @@ export interface Employee {
   businessPartner: string
   reportingManager: string
   status: EmployeeStatus
+  /** ISO date ('' when the roster cell is blank) — the review-form
+      eligibility gate compares this against the cycle's cutoff date. */
+  joiningDate: string
 }
 
 /** One cycle's settings as the admin API serves them (GET/PUT /api/cycle-settings).
@@ -29,6 +32,9 @@ export interface CycleSettings {
   managerReviewStart: string
   managerReviewEnd: string
   hrApprovalReleaseBy: string
+  /** The optional joining-date cutoff ('' = no restriction) — employees
+      whose Date of Joining comes after it cannot access this cycle's form. */
+  employeeEligibilityDate: string
 }
 
 /** The admin form's editable view of CycleSettings: the deadline split into a
@@ -41,6 +47,7 @@ export interface CycleSettingsDraft {
   managerReviewStart: string
   managerReviewEnd: string
   hrApprovalReleaseBy: string
+  eligibilityDate: string
 }
 
 export interface RosterRowError {
@@ -48,8 +55,6 @@ export interface RosterRowError {
   message: string
 }
 
-/** One uploaded row whose employee_id is already stored — the admin decides
-    per row whether the stored employee is overwritten (Update) or kept. */
 /** One uploaded row whose email identity is already stored (case-insensitive
     match) — the admin decides per row whether the stored employee is
     overwritten (Update) or kept. */
@@ -105,15 +110,16 @@ export type RosterSortField =
 export type SortOrder = 'asc' | 'desc'
 
 /** The admin Users table's composed read: every word is optional and blank
-    means "any" — search (name or designation), the six dropdown filters, the
-    board's form-status noun (all | pending | completed), and the sort; the
-    page rides along as `{ page }`. */
+    means "any" — search (name or designation), the dropdown filters, the
+    form-status word (all | one lifecycle word), and the sort; the page rides
+    along as `{ page }`. */
 export interface RosterQuery {
   search?: string
   designation?: string
   location?: string
   org?: string
   businessUnit?: string
+  businessPartner?: string
   reportingManager?: string
   employmentStatus?: string
   status?: StatusFilter
@@ -121,8 +127,9 @@ export interface RosterQuery {
   sortOrder?: SortOrder
 }
 
-/** The admin board's composed read adds the derived-status noun the chips
-    used to own; the page rides along like the roster's does. */
+/** The admin board's composed read: the form-status word always travels (its
+    default "all" is shipped like any other choice); the page rides along
+    like the roster's does. */
 export type ReviewBoardQuery = RosterQuery & { status: StatusFilter; page: number }
 
 /** The whole-roster dropdown option lists behind GET /api/employees/facets. */
@@ -131,6 +138,7 @@ export interface RosterFacets {
   locations: string[]
   orgs: string[]
   businessUnits: string[]
+  businessPartners: string[]
   reportingManagers: string[]
   employmentStatuses: string[]
 }
@@ -146,6 +154,7 @@ export type CycleSettingsFieldErrors = {
   managerReviewStart: string | null
   managerReviewEnd: string | null
   hrApprovalReleaseBy: string | null
+  eligibilityDate: string | null
 }
 
 export type CycleSettingsResult =
@@ -167,19 +176,13 @@ export interface RatingScaleEntry {
   description: string
 }
 
-/** The fixed pill vocabulary: submitted → pending visuals, not_started →
-    cancelled visuals. `in_progress` and `submitted` are display-only words:
-    the backend's lifecycle words collapse into them but never travel raw
-    (RawReviewStatus is the wire union, exactly). */
-type DisplayOnlyStatus = 'in_progress' | 'submitted'
-export type ReviewStatus = 'not_started' | DisplayOnlyStatus
-
-/** The backend's board vocabulary is the stored status lifecycle verbatim —
-    six wire words (lower-cased stored word; backend BoardStatus in
-    schemas/self_evaluation.py). The display vocabulary collapses them into
-    the three pill words (lib/reviewStatusStore); the manager-phase words
-    have no pills until that phase ships UI. */
-export type RawReviewStatus =
+/** The board's status vocabulary is the stored lifecycle verbatim — six wire
+    words (lower-cased stored word; backend BoardStatus in
+    schemas/self_evaluation.py). The admin board renders these words as
+    written: pills, filter options, pie, and tiles all speak exactly the word
+    a row stores — the display-only collapse that once turned them into three
+    pill words is gone (lib/reviewStatusStore is the vocabulary module). */
+export type ReviewStatus =
   | 'not_started'
   | 'self_evaluation_in_progress'
   | 'self_evaluation_completed'
@@ -303,23 +306,23 @@ export interface SelfEvaluationPartial {
 }
 
 /** One roster row as the admin board sees it: the profile the board renders
-    (the full roster wire shape, reused) plus the display workflow word. */
+    (the full roster wire shape, reused) plus the row's stored workflow word. */
 export interface ReviewStatusWire {
   employee: Employee
   status: ReviewStatus
+  /** The employee's submission stamp, from evaluations.employee_signed_at. */
+  submittedAt: string | null
 }
 
 /** One server page of the admin board. `total` counts the rows under the
     applied status filter; `statusCounts` is the whole-roster distribution in
-    the backend's six-word vocabulary (snake_case, matching `status`). The
-    client's display vocabulary collapses past-submission words into
-    submitted. */
+    the stored lifecycle's wire words (snake_case, matching `status`). */
 export interface ReviewBoardPage {
   readonly reviews: readonly ReviewStatusWire[]
   readonly total: number
   readonly page: number
   readonly pageSize: number
-  readonly statusCounts: Partial<Record<RawReviewStatus, number>>
+  readonly statusCounts: Partial<Record<ReviewStatus, number>>
 }
 
 export type ReviewBoardResult =
@@ -348,11 +351,34 @@ export type FormStatusResult =
   | { ok: true; formStatus: FormStatus }
   | { ok: false; detail: string; code: string }
 
-/** PATCH /api/employees/{id}: the profile card's employment-status flip —
-    the stored roster row comes back, already re-striped. */
-export type EmployeeStatusPatchResult =
+/** The admin's one-employee roster write over PATCH /api/employees/{id} —
+    any subset of the roster record; an omitted field leaves the stored
+    column alone, so the Status column's flip and the edit form share it. */
+export interface EmployeePatch {
+  employeeId?: string
+  name?: string
+  email?: string
+  designation?: string
+  location?: string
+  org?: string
+  businessUnit?: string
+  project?: string
+  deliveryHead?: string
+  deliveryManager?: string
+  businessPartner?: string
+  reportingManager?: string
+  status?: EmployeeStatus
+  joiningDate?: string
+}
+
+/** PATCH /api/employees/{id}: the stored roster row comes back, already
+    re-written — including the post-write identity when the patch moved
+    employee ID or email. */
+export type EmployeePatchResult =
   | { ok: true; employee: Employee }
   | { ok: false; detail: string; code: string }
 
-/** The board's server-side filter noun; the chips vocabulary renders it. */
-export type StatusFilter = 'all' | 'pending' | 'completed' | 'not_started'
+/** The board's form-status filter words: `all` plus one option per lifecycle
+    word — the filter names the stored word itself (backend BoardStatusFilter
+    mirrors it verbatim; the old bucket nouns pending/completed are gone). */
+export type StatusFilter = 'all' | ReviewStatus

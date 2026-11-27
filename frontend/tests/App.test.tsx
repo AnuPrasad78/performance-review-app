@@ -71,6 +71,7 @@ const OPEN_EVALUATION: SelfEvaluationWire = {
     businessPartner: 'John D',
     reportingManager: 'Priya Raghavan',
     status: 'Active',
+    joiningDate: '',
   },
   reviewYear: 2026,
   submissionDeadline: '2027-01-15T10:00:00+00:00',
@@ -204,6 +205,7 @@ describe('App — routed pages', () => {
       businessPartner: 'John D',
       reportingManager: 'Priya Raghavan',
       status: 'Active',
+      joiningDate: '',
     } as const
     importRosterCsvMock.mockResolvedValue({
       ok: true,
