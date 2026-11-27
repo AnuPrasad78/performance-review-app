@@ -116,7 +116,7 @@ export function ReviewStatusBoard({
   const headerAdornments = useMemo(() => {
     const adornments: Record<string, ReactNode> = {}
     if (statusFilter !== undefined) {
-      adornments.status = <ColumnFilterMenu label="Form status" control={statusFilter} />
+      adornments.status = <ColumnFilterMenu label="Evaluation status" control={statusFilter} />
     }
     if (orgFilter !== undefined) {
       adornments.org = <ColumnFilterMenu label="Org" control={orgFilter} />
@@ -143,7 +143,7 @@ export function ReviewStatusBoard({
       },
     },
     { key: 'email', header: 'Email', sortKey: 'email', cell: (entry) => entry.employee.email, hideOnMobile: true },
-    { key: 'status', header: 'Form status', sortKey: 'status', cell: (entry) => <ReviewStatusPill status={entry.status} /> },
+    { key: 'status', header: 'Evaluation status', sortKey: 'status', cell: (entry) => <ReviewStatusPill status={entry.status} /> },
     {
       key: 'submittedAt',
       header: 'Submitted date',

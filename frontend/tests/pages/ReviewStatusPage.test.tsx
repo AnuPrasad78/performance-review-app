@@ -297,9 +297,9 @@ it('the pie card veils its stale numbers while a filtered read is in flight', as
     const user = userEvent.setup()
     await screen.findByRole('table')
 
-    await user.click(screen.getByRole('button', { name: 'Filter by Form status' }))
+    await user.click(screen.getByRole('button', { name: 'Filter by Evaluation status' }))
     await user.click(
-      within(screen.getByRole('dialog', { name: 'Filter by Form status' })).getByRole('button', {
+      within(screen.getByRole('dialog', { name: 'Filter by Evaluation status' })).getByRole('button', {
         name: 'In manager review',
       }),
     )
@@ -319,13 +319,13 @@ it('the pie card veils its stale numbers while a filtered read is in flight', as
     expect(fetchReviewBoardMock).toHaveBeenLastCalledWith({ page: 2, status: 'all' })
     expect(await screen.findByText('Cara Fernandes')).toBeInTheDocument()
 
-    // The status filter hangs off the Form status column's funnel: picking
+    // The status filter hangs off the Evaluation status column's funnel: picking
     // one lifecycle word rides it, and the query change hands the read back
     // to page one.
     fetchReviewBoardMock.mockResolvedValue({ ok: true, board: { ...PAGE_ONE, page: 1, reviews: PAGE_ONE.reviews, total: 2 } })
-    await user.click(screen.getByRole('button', { name: 'Filter by Form status' }))
+    await user.click(screen.getByRole('button', { name: 'Filter by Evaluation status' }))
     await user.click(
-      within(screen.getByRole('dialog', { name: 'Filter by Form status' })).getByRole('button', {
+      within(screen.getByRole('dialog', { name: 'Filter by Evaluation status' })).getByRole('button', {
         name: 'Self-evaluation in progress',
       }),
     )
@@ -390,14 +390,14 @@ it('the pie card veils its stale numbers while a filtered read is in flight', as
     })
   })
 
-  it('the Form status funnel offers the exact not-started stage', async () => {
+  it('the Evaluation status funnel offers the exact not-started stage', async () => {
     render(page())
     const user = userEvent.setup()
     await screen.findByRole('table')
 
-    await user.click(screen.getByRole('button', { name: 'Filter by Form status' }))
+    await user.click(screen.getByRole('button', { name: 'Filter by Evaluation status' }))
     await user.click(
-      within(screen.getByRole('dialog', { name: 'Filter by Form status' })).getByRole('button', { name: 'Not started' }),
+      within(screen.getByRole('dialog', { name: 'Filter by Evaluation status' })).getByRole('button', { name: 'Not started' }),
     )
 
     await waitFor(() => {
@@ -405,14 +405,14 @@ it('the pie card veils its stale numbers while a filtered read is in flight', as
     })
   })
 
-  it('the Form status funnel narrows to a manager-phase word too', async () => {
+  it('the Evaluation status funnel narrows to a manager-phase word too', async () => {
     render(page())
     const user = userEvent.setup()
     await screen.findByRole('table')
 
-    await user.click(screen.getByRole('button', { name: 'Filter by Form status' }))
+    await user.click(screen.getByRole('button', { name: 'Filter by Evaluation status' }))
     await user.click(
-      within(screen.getByRole('dialog', { name: 'Filter by Form status' })).getByRole('button', {
+      within(screen.getByRole('dialog', { name: 'Filter by Evaluation status' })).getByRole('button', {
         name: 'In manager review',
       }),
     )
@@ -625,9 +625,9 @@ it('the pie card veils its stale numbers while a filtered read is in flight', as
         reviews: PAGE_TWO.reviews.slice(0, 1),
       },
     })
-    await user.click(screen.getByRole('button', { name: 'Filter by Form status' }))
+    await user.click(screen.getByRole('button', { name: 'Filter by Evaluation status' }))
     await user.click(
-      within(screen.getByRole('dialog', { name: 'Filter by Form status' })).getByRole('button', {
+      within(screen.getByRole('dialog', { name: 'Filter by Evaluation status' })).getByRole('button', {
         name: 'Self-evaluation completed',
       }),
     )
