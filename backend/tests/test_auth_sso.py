@@ -259,3 +259,45 @@ def test_prod_settings_demand_the_sso_values() -> None:
     bundled = _settings(environment="prod")
     assert bundled.environment == "prod"
     assert bundled.session_secret != ""
+
+
+def _sign_in_through_sso(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> int:
+    async def fake_redeem(s: Settings, code: str) -> str:
+        return "id-token"
+
+    async def fake_email(s: Settings, id_token: str) -> str:
+        return "asha_menon@emids.com"
+
+    monkeypatch.setattr(sso_service, "redeem_sso_code", fake_redeem)
+    monkeypatch.setattr(sso_service, "email_from_id_token", fake_email)
+    response = client.get(
+        "/api/auth/sso/callback?code=c&state=st",
+        cookies={"sso_state": "st"},
+        follow_redirects=False,
+    )
+    return response.status_code
+
+
+def test_callback_refuses_an_inactive_employee(
+    asha: Employee, settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    asha.employment_status = "Inactive"
+    client = make_client([asha], settings)
+
+    assert _sign_in_through_sso(client, monkeypatch) == 403
+    assert "pr_session" not in client.cookies
+    assert client.get("/api/auth/session").status_code == 401
+
+
+def test_deactivation_revokes_an_existing_session_cookie(
+    asha: Employee, settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client = make_client([asha], settings)
+    assert _sign_in_through_sso(client, monkeypatch) == 303
+    assert client.get("/api/auth/session").status_code == 200
+
+    # HR flips the row to Inactive; the very next request re-reads it.
+    asha.employment_status = "Inactive"
+    refused = client.get("/api/auth/session")
+    assert refused.status_code == 403
+    assert refused.json()["code"] == "employee_inactive"

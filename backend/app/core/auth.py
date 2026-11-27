@@ -11,6 +11,12 @@ authenticate_email is also called by the login route itself, without the
 header, so login and every protected endpoint produce identities through one
 shared path (including one shared 401 envelope).
 
+An Inactive roster row is refused here (403, employee_inactive), so a
+deactivated employee can neither sign in (form or SSO) nor keep using an
+earlier session cookie: every path re-reads the row through this seam.
+Allow-listed admins are exempt — console access is configuration, and
+locking HR out through a roster flip would strand the console.
+
 get_admin_user stacks on top of it: the role lives in settings until
 migration A5 (user_accounts.auth_role), and this dependency is the single
 place every admin-gated route inherits that gate from. Changing where roles
@@ -51,6 +57,12 @@ def role_for_email(email: str, settings: Settings) -> AuthRole:
     return "employee"
 
 
+def is_inactive(employee: Employee) -> bool:
+    # Roster import accepts Active/Inactive case-insensitively; a blank
+    # status predates the column and has always meant active.
+    return (employee.employment_status or "").strip().lower() == "inactive"
+
+
 def _unauthorized(detail: str, code: str) -> AppError:
     return AppError(detail, code=code, status_code=401)
 
@@ -73,6 +85,12 @@ async def authenticate_email(
 
     employee: Employee | None = await repository.get_by_email(address)
     if employee is not None and employee.email:
+        if not admin and is_inactive(employee):
+            raise AppError(
+                "Your account is inactive. Contact admin.",
+                code="employee_inactive",
+                status_code=403,
+            )
         return AuthUser(
             employee_id=employee.employee_id,
             name=employee.employee_name,

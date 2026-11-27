@@ -141,3 +141,50 @@ def test_unknown_non_admin_email_is_still_a_401() -> None:
     response = client.post("/api/auth/session", json={"email": "nobody@emids.com"})
     assert response.status_code == 401
     assert response.json()["code"] == "auth_unknown_email"
+
+
+def _inactive(employee: Employee) -> Employee:
+    employee.employment_status = "Inactive"
+    return employee
+
+
+def test_inactive_employee_cannot_sign_in(asha: Employee) -> None:
+    client = make_client([_inactive(asha)])
+    response = client.post("/api/auth/session", json={"email": "asha_menon@emids.com"})
+    assert response.status_code == 403
+    assert response.json() == {
+        "detail": "Your account is inactive. Contact admin.",
+        "code": "employee_inactive",
+    }
+
+
+def test_inactive_status_is_matched_case_insensitively(asha: Employee) -> None:
+    asha.employment_status = " inactive "
+    client = make_client([asha])
+    response = client.post("/api/auth/session", json={"email": "asha_menon@emids.com"})
+    assert response.status_code == 403
+    assert response.json()["code"] == "employee_inactive"
+
+
+def test_inactive_employee_is_refused_on_protected_endpoints(asha: Employee) -> None:
+    # An identity carried in from before the deactivation stops working too.
+    client = make_client([_inactive(asha)])
+    response = client.get("/api/evaluations/me", headers={"X-Stub-User": "asha_menon@emids.com"})
+    assert response.status_code == 403
+    assert response.json()["code"] == "employee_inactive"
+
+
+@pytest.mark.parametrize("status", ["Active", "", None])
+def test_active_or_blank_status_still_signs_in(asha: Employee, status: str | None) -> None:
+    asha.employment_status = status
+    client = make_client([asha])
+    response = client.post("/api/auth/session", json={"email": "asha_menon@emids.com"})
+    assert response.status_code == 200
+    assert response.json()["employeeId"] == "EMP-V001"
+
+
+def test_allowlisted_admin_with_an_inactive_roster_row_keeps_console_access(asha: Employee) -> None:
+    client = make_client([_inactive(asha)], stub_admin_emails=["asha_menon@emids.com"])
+    response = client.post("/api/auth/session", json={"email": "asha_menon@emids.com"})
+    assert response.status_code == 200
+    assert response.json()["role"] == "admin"
