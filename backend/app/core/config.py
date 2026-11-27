@@ -69,6 +69,12 @@ class Settings(BaseSettings):
     # being honored, so knowing an address is no longer enough.
     provision_password: str = ""
 
+    # Submission-receipt mail: the no-reply mailbox Microsoft Graph sends the
+    # self-evaluation acknowledgment from (the Entra app registration needs
+    # the Mail.Send application permission, admin-consented). Empty disables
+    # the notification — same dev-safe pattern as the Entra endpoints above.
+    mail_sender_address: str = ""
+
     # Stub-auth phase: emails hold the admin console role while roles live in
     # settings (user_accounts.auth_role arrives with migration A5). Env syntax:
     #   PR_STUB_ADMIN_EMAILS='["boss@emids.com"]'

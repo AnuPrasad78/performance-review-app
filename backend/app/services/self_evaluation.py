@@ -30,6 +30,7 @@ import datetime
 from typing import cast
 
 from app.core.auth import AuthUser
+from app.core.config import Settings
 from app.core.errors import AppError
 from app.models.employee import Employee
 from app.models.evaluation import (
@@ -60,6 +61,7 @@ from app.schemas.self_evaluation import (
     SelfEvaluationPatch,
 )
 from app.services.roster_mapping import to_row
+from app.services.mail import send_submission_receipt
 
 #: The two words under which the employee still owns the form. Every
 #: employee-side guard (freeze, deadline, submit) reads this one pair — the
@@ -359,6 +361,7 @@ async def submit_self_evaluation(
     employee_repository: EmployeeRepository,
     evaluation_repository: EvaluationRepository,
     cycle_repository: ReviewCycleRepository,
+    settings: Settings,
 ) -> SelfEvaluationOut:
     cycle, evaluation = await _scoped(user, evaluation_repository, cycle_repository)
     employee = await _roster_employee(user, employee_repository)
@@ -398,7 +401,12 @@ async def submit_self_evaluation(
         )
 
     evaluation.status = STATUS_SELF_EVALUATION_COMPLETED
-    evaluation.employee_signed_at = datetime.datetime.now(datetime.timezone.utc)
+    submitted_at = datetime.datetime.now(datetime.timezone.utc)
+    evaluation.employee_signed_at = submitted_at
+    # The moment of record — the row is complete and the transaction commits
+    # at request end — is exactly when the receipt fires. Sent-status mail is
+    # best-effort: an outage logs, it never fails the submission.
+    await send_submission_receipt(employee, cycle, submitted_at, settings)
     return render_document(employee, cycle, evaluation)
 
 

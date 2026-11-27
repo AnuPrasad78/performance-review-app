@@ -352,11 +352,15 @@ def make_client(
     employee: Employee | None = None,
     cycle: ReviewCycle | None = CYCLE,
     evaluation_row: Evaluation | None = None,
+    settings: Settings | None = None,
 ) -> tuple[TestClient, MutableEvaluationRepository]:
     """Builds the TestClient and hands back the mutable evaluation stub — the
     same object the service mutated through the request."""
     employee = employee if employee is not None else roster_employee()
-    settings = Settings(database_url="postgresql+asyncpg://ignored:ignored@localhost:5432/ignored")
+    if settings is None:
+        settings = Settings(
+            database_url="postgresql+asyncpg://ignored:ignored@localhost:5432/ignored"
+        )
     app = create_app(settings)
     # get_settings is the lru_cache accessor the DI layer uses; without this
     # override the test's settings lose to a process-cached .env read.

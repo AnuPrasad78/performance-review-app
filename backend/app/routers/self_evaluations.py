@@ -10,6 +10,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Response
 
 from app.core.auth import AuthUser, get_admin_user, get_roster_user
+from app.core.config import Settings, get_settings
 from app.repositories.evaluation_repository import (
     EvaluationRepository,
     get_evaluation_repository,
@@ -140,12 +141,14 @@ async def submit_my_evaluation(
     employee_repository: Annotated[EmployeeRepository, Depends(get_employee_repository)],
     evaluation_repository: Annotated[EvaluationRepository, Depends(get_evaluation_repository)],
     cycle_repository: Annotated[ReviewCycleRepository, Depends(get_review_cycle_repository)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> SelfEvaluationOut:
     return await submit_self_evaluation(
         user,
         employee_repository=employee_repository,
         evaluation_repository=evaluation_repository,
         cycle_repository=cycle_repository,
+        settings=settings,
     )
 
 

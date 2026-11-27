@@ -12,6 +12,11 @@ from tests.evaluation_fixtures import (
     submit,
 )
 
+import pytest
+
+import app.services.mail as mail
+from app.core.config import Settings
+
 
 def full_answers() -> dict[str, str]:
     return {
@@ -217,6 +222,72 @@ def test_submit_completes_the_review() -> None:
     assert response.json()["employeeSignedAt"] is not None
     assert evaluations.row.status == "SELF_EVALUATION_COMPLETED"
     assert evaluations.row.employee_signed_at is not None
+
+
+def test_submit_mails_the_receipt_to_the_roster_address(monkeypatch) -> None:
+    captured: dict = {}
+
+    async def fake_token(_settings: object) -> str:
+        return "token-stub"
+
+    def fake_send(url: str, headers: dict, payload: dict) -> None:
+        captured["url"] = url
+        captured["payload"] = payload
+
+    monkeypatch.setattr("app.services.mail._acquire_token", fake_token)
+    monkeypatch.setattr("app.services.mail._send_sync", fake_send)
+    client, _ = make_client(
+        evaluation_row=complete_row(),
+        settings=Settings(
+            database_url="postgresql+asyncpg://ignored:ignored@localhost:5432/ignored",
+            mail_sender_address="noreply@emids.com",
+        ),
+    )
+
+    response = submit(client)
+
+    assert response.status_code == 200
+    message = captured["payload"]["message"]
+    assert captured["url"].startswith("https://graph.microsoft.com")
+    assert message["toRecipients"][0]["emailAddress"]["address"] == "asha_menon@emids.com"
+    assert "2026" in message["subject"]
+
+
+def test_a_mail_outage_does_not_fail_the_submit(monkeypatch) -> None:
+    async def fake_token(_settings: object) -> str:
+        return "token-stub"
+
+    def boom(url: str, headers: dict, payload: dict) -> None:
+        raise mail.MailDeliveryError("down")
+
+    monkeypatch.setattr("app.services.mail._acquire_token", fake_token)
+    monkeypatch.setattr("app.services.mail._send_sync", boom)
+    client, evaluations = make_client(
+        evaluation_row=complete_row(),
+        settings=Settings(
+            database_url="postgresql+asyncpg://ignored:ignored@localhost:5432/ignored",
+            mail_sender_address="noreply@emids.com",
+        ),
+    )
+
+    response = submit(client)
+
+    assert response.status_code == 200
+    assert evaluations.row.status == "SELF_EVALUATION_COMPLETED"
+
+
+def test_disabled_mail_config_runs_the_submit_silent(monkeypatch) -> None:
+    # Blank sender (the default everywhere except a mail-wired deployment):
+    # the Graph exchange must never start for the submit to stay unaffected.
+    async def refuse(_settings: object) -> str:
+        pytest.fail("a disabled mail config must not touch Graph")
+
+    monkeypatch.setattr("app.services.mail._acquire_token", refuse)
+    client, _ = make_client(evaluation_row=complete_row())
+
+    response = submit(client)
+
+    assert response.status_code == 200
 
 
 def test_submit_lands_on_an_already_submitted_review() -> None:

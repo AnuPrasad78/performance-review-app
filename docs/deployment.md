@@ -72,6 +72,12 @@ internet ─HTTPS─▶ web  (nginx: SPA + /api proxy)        external ingress, 
     any roster address typed, so use it for test data only. In `prod` the
     form is closed and SSO is the only way in.
   - `prod` requires SSO, and setup refuses to configure prod without it.
+- **Submission-receipt mail.** When `PR_MAIL_SENDER_ADDRESS` is set, a
+  successful self-evaluation submit emails that employee an acknowledgment,
+  sent through Microsoft Graph as that no-reply mailbox. The app registration
+  needs the **Mail.Send (Application)** permission, admin-consented, and the
+  mailbox must be mail-enabled in the tenant. An unset value (the dev
+  default) disables the mail quietly — a submit never fails because of it.
 - **Probes.** setup adds them once through ARM, because `az` has no probe
   flags.
   - api liveness `/api/health`: never touches the database, so a database
