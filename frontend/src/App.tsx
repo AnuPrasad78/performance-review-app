@@ -2,8 +2,10 @@ import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from 'rea
 import type { ReactNode } from 'react'
 import { Spinner } from './components/atoms/Spinner'
 import { AppShell, type NavSection } from './components/organisms/AppShell'
+import { BrandBar } from './components/organisms/BrandBar'
 import { AdminStoreProvider } from './state/AdminContext'
 import { AuthProvider, useAuth } from './state/AuthContext'
+import { SessionProfileProvider } from './state/SessionProfileContext'
 import { LoginPage, ROLE_HOME } from './pages/LoginPage'
 import { UsersPage } from './pages/UsersPage'
 import { UploadPage } from './pages/UploadPage'
@@ -27,9 +29,15 @@ function AdminLayout() {
   )
 }
 
-/** The employee page renders its own hero header; the layout only guards the outlet. */
+/** The sticky brand bar sits above the employee page; the page publishes
+    the loaded roster row so the bar's session chip shows the real person. */
 function EmployeeLayout() {
-  return <Outlet />
+  return (
+    <SessionProfileProvider>
+      <BrandBar label="Talent & Culture" />
+      <Outlet />
+    </SessionProfileProvider>
+  )
 }
 
 /** The still moment between a redirect back from SSO and the cookie identity

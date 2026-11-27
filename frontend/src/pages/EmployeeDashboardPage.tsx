@@ -27,6 +27,9 @@ import { validateSelfEvaluation } from '../lib/selfEvaluationValidation'
 import { QUESTION_LABELS } from '../lib/selfEvaluationContent'
 import { useAutoSave } from '../hooks/useAutoSave'
 import { useDelaySkeleton } from '../hooks/useDelaySkeleton'
+import { useSessionProfile } from '../state/SessionProfileContext'
+import { useAuth } from '../state/AuthContext'
+import { greetingFor } from '../lib/greeting'
 import type {
   AssessmentQuestionId,
   ForwardCommitment,
@@ -73,6 +76,9 @@ const STEPS: readonly WizardStep[] = [
 
 export function EmployeeDashboardPage() {
   const now = useDeadlineClock()
+  const { session } = useAuth()
+  // The minute tick that drives the countdown also rolls the greeting over.
+  const greeting = session === null ? null : greetingFor(session.name, now)
   const [record, setRecord] = useState<SelfEvaluationRecord | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   /** Placeholder bands wait 180ms before showing — fast answers never flash. */
@@ -168,11 +174,20 @@ export function EmployeeDashboardPage() {
     saveResumeIndices(record.draft.employee.email, indices)
   }, [record, sectionIndex, questionIndex])
 
+  /** The layout's brand bar shows the session chip; it learns the real
+      roster row from this page, the only place that loads it. */
+  const { setProfile } = useSessionProfile()
+  const loadedEmployee = record?.draft.employee ?? null
+  useEffect(() => {
+    setProfile(loadedEmployee)
+  }, [loadedEmployee, setProfile])
+  useEffect(() => () => setProfile(null), [setProfile])
+
   if (notEligible !== null) {
     return (
       <div className="hero-page">
         <div className="hero-card brand-frame">
-          <HeroHeader sectionProgress={[]} />
+          <HeroHeader greeting={greeting} sectionProgress={[]} />
           <div className="hero-card__body">
             <Card caption="Welcome to emids" captionAccent>
               <p>{notEligible}</p>
@@ -187,7 +202,7 @@ export function EmployeeDashboardPage() {
     return (
       <div className="hero-page">
         <div className="hero-card brand-frame">
-          <HeroHeader sectionProgress={[]} />
+          <HeroHeader greeting={greeting} sectionProgress={[]} />
           <div className="hero-card__body">
             <p className="muted">{loadError}</p>
           </div>
@@ -202,7 +217,7 @@ export function EmployeeDashboardPage() {
     return (
       <div className="hero-page">
         <div className="hero-card brand-frame">
-          <HeroHeader sectionProgress={[]} />
+          <HeroHeader greeting={greeting} sectionProgress={[]} />
           <div className="hero-card__body" role="status">
             <span className="sr-only">Loading your review.</span>
             {skeletonVisible ? (
@@ -241,7 +256,7 @@ export function EmployeeDashboardPage() {
     return (
       <div className="hero-page">
         <div className="hero-card brand-frame">
-          <HeroHeader sectionProgress={[]} />
+          <HeroHeader greeting={greeting} sectionProgress={[]} />
           <div className="hero-card__body">
             <Card caption="Submission closed" captionAccent>
               <p className="deadline-closed">ops time passed</p>
@@ -411,7 +426,7 @@ export function EmployeeDashboardPage() {
   return (
     <div className="hero-page">
       <div className="hero-card brand-frame">
-        <HeroHeader sectionProgress={sectionProgress} profile={draft.employee} deadline={deadline} />
+        <HeroHeader greeting={greeting} sectionProgress={sectionProgress} deadline={deadline} />
         <div className="hero-card__body">
           <div className="page-stack">
             {previewing ? (

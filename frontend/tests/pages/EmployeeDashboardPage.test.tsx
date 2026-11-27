@@ -2,6 +2,8 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthProvider } from '../../src/state/AuthContext'
+import { SessionProfileProvider } from '../../src/state/SessionProfileContext'
+import { BrandBar } from '../../src/components/organisms/BrandBar'
 import { EmployeeDashboardPage } from '../../src/pages/EmployeeDashboardPage'
 
 const SESSION_KEY = 'performance-review.session.v1'
@@ -89,7 +91,10 @@ function openWire(overrides: Record<string, unknown> = {}): Record<string, unkno
 function page(): React.ReactElement {
   return (
     <AuthProvider>
-      <EmployeeDashboardPage />
+      <SessionProfileProvider>
+        <BrandBar label="Talent & Culture" />
+        <EmployeeDashboardPage />
+      </SessionProfileProvider>
     </AuthProvider>
   )
 }
@@ -117,8 +122,9 @@ describe('EmployeeDashboardPage — shell', () => {
     expect(steps.length).toBeGreaterThan(0)
     expect(document.querySelector('.steps-nav__step.is-active')).not.toBeNull()
 
-    // The profile lives in the session menu popover, sourced from the API's
-    // employee row (not the mock lookup).
+    // The profile lives in the brand bar's session menu popover, sourced from
+    // the API's employee row the page publishes (not the mock lookup).
+    expect(screen.getByText('Talent & Culture')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Session details' }))
     const popover = await screen.findByRole('dialog', { name: 'Session details' })
     expect(within(popover).getByText('Software Engineer')).toBeInTheDocument()
@@ -547,9 +553,8 @@ describe('EmployeeDashboardPage — submission deadline', () => {
     render(page())
 
     expect(await screen.findByText(/Your Growth\. Our Success! 🚀/)).toBeInTheDocument()
-    expect(
-      await screen.findByText(/\d+ Days Left — Complete your self-evaluation\./),
-    ).toBeInTheDocument()
+    expect(await screen.findByText(/^\d+ Days Left$/)).toBeInTheDocument()
+    expect(screen.getByText('Complete your self-evaluation.')).toBeInTheDocument()
   })
 
   it('does not show the countdown once the review is submitted', async () => {

@@ -228,7 +228,11 @@
 /* Floating-card layout: the team photo runs edge to edge and dimmed, and a
    single centered white card carries the whole review — centered-column
    pattern of the Apex-style reference. */
+/* flow-root keeps the card's top/bottom margins inside the page, so the
+   photo backdrop runs all the way to the bottom instead of the canvas
+   colour showing through beneath the card. */
 .hero-page {
+  display: flow-root;
   min-height: 100vh;
   background:
     linear-gradient(rgba(14, 24, 22, 0.62), rgba(14, 24, 22, 0.62)),
@@ -244,83 +248,124 @@
 }
 .hero-card__body { padding: 25px 30px 40px; display: flex; flex-direction: column; gap: 20px; }
 
-/* hero band */
+/* Sticky frosted brand bar above the employee page: brand lockup left, the
+   session chip right, visible at every scroll depth. */
+.brand-bar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 32px;
+  background: color-mix(in srgb, var(--canvas) 86%, transparent);
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  border-bottom: 1px solid var(--hairline);
+}
+.brand-bar__brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.brand-bar__logo { height: 20px; display: block; }
+.brand-bar__divider { width: 1px; height: 18px; background: var(--hairline); }
+.brand-bar__label { font-size: 14px; font-weight: 500; color: var(--ink-2); white-space: nowrap; }
+.brand-bar__session { display: flex; align-items: center; }
+.brand-bar .header__session { position: static; }
+.brand-bar .session-chip { padding: 3px 14px 3px 4px; }
+.brand-bar .avatar--profile-icon { width: 34px; height: 34px; }
+
+/* hero band — a single column: identity and title up top, then a row of
+   two companion cards (announcement + progress). Everything is in flow, so
+   the band is exactly as tall as its content, never stretched. */
 .hero {
   position: relative;
   display: flex;
-  justify-content: space-between;
-  gap: 24px;
-  flex-wrap: wrap;
-  padding: 34px 30px 30px;
+  flex-direction: column;
+  gap: 20px;
+  padding: 26px 24px 22px;
+  container-type: inline-size;
   color: #ffffff;
   border-radius: 4px;
   /* Same photo as the page backdrop, attachment fixed: the hero band reads
      as a window onto the page background rather than a second image. */
   background: url('../assets/desk-team.jpg') center 35% / cover no-repeat fixed;
 }
+/* Dark-teal wash over the photo: carries the reference's teal atmosphere
+   while the office scene stays visible behind white text. */
 .hero::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: rgba(13, 42, 40, 0.55);
+  background: rgba(16, 56, 62, 0.8);
   pointer-events: none;
 }
-.hero__lead { position: relative; min-width: 0; flex: 1 1 380px; }
-/* Side overlays the hero's right edge and spans its full height: the session
-    chip rides the top, the progress block drops to the bottom by bottom:0.
-    Out of the flex flow, flex-wrap can no longer push it inward mid-hero. */
-/* the side column must sit above hero__lead (z-index 1), which otherwise
-    covers the session chip and swallows its clicks */
-.hero__side {
-  position: absolute;
-  z-index: 2;
-  top: 34px;
-  right: 30px;
-  bottom: 30px;
-  width: 260px;
+/* lead and cards must stay above the scrim overlay */
+.hero__lead,
+.hero__cards { position: relative; z-index: 1; min-width: 0; }
+
+/* Sans hierarchy: a quiet bold greeting, a strong one-line title, then the
+   subtitle and period in descending weight. The greeting wraps naturally
+   for long names (balanced lines, never truncated). */
+.hero__greeting {
+  font-size: clamp(15px, calc((100cqi - 48px) / 40), 18px);
+  font-weight: 700;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.88);
+  margin: 0;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+/* the title holds one line; its size tracks the hero's own width */
+.hero__title {
+  font-size: clamp(16px, calc((100cqi - 48px) / 17), 36px);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+  color: #ffffff;
+  margin: 14px 0 0;
+  white-space: nowrap;
+}
+.hero__subtitle {
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.92);
+  margin-top: 14px;
+}
+.hero__meta {
+  font-size: 14px;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.82);
+  margin-top: 10px;
+}
+
+/* Companion cards: equal columns, equal heights, one light-teal treatment. */
+.hero__cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-items: stretch;
+}
+.hero__card {
+  margin: 0;
+  background: var(--teal-wash);
+  border: 1px solid var(--teal-light);
+  border-radius: 14px;
+  padding: 18px 20px;
+  color: var(--teal-deep);
+}
+/* a lone card (submitted review, or no progress yet) spans the row */
+.hero__card:only-child { grid-column: 1 / -1; }
+
+.hero__deadline {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  align-items: flex-end;
+  justify-content: center;
 }
-/* the lead must stay above the hero's scrim overlay */
-.hero__lead { position: relative; z-index: 1; }
+.hero__deadline-tagline { font-size: 18px; font-weight: 600; line-height: 1.35; color: var(--black); }
+.hero__deadline-count { font-size: 18px; font-weight: 600; line-height: 1.35; color: var(--teal-deep); margin-top: 10px; }
+.hero__deadline-action { font-size: 14.5px; line-height: 1.4; color: var(--teal-deep); margin-top: 4px; }
 
-.hero__brand { display: flex; align-items: center; gap: 10px; }
-.hero__brand-logo { height: 17px; display: block; }
-.hero__brand-divider { width: 1px; height: 14px; background: rgba(255, 255, 255, 0.5); }
-.hero__brand-label { font-size: 12px; color: rgba(255, 255, 255, 0.8); }
-
-.hero__title {
-  font-family: Georgia, 'Times New Roman', serif;
-  font-size: 44px;
-  font-weight: 600;
-  letter-spacing: -0.015em;
-  line-height: 1.06;
-  color: #ffffff;
-  margin-top: 16px;
-  max-width: 620px;
-}
-.hero__subtitle { font-size: 15.5px; color: rgba(255, 255, 255, 0.92); margin-top: 12px; }
-.hero__meta {
-  font-family: var(--mono);
-  font-variant-numeric: tabular-nums;
-  font-size: 10.5px;
-  letter-spacing: 0.05em;
-  color: rgba(255, 255, 255, 0.75);
-  margin-top: 8px;
-}
-.hero__deadline {
-  margin-top: 12px;
-  align-self: flex-start;
-  max-width: calc(100% - 290px);
-  background: var(--teal-wash);
-  color: var(--teal-deep);
-  font-size: 13.5px;
-  font-weight: 600;
-  border-radius: 8px;
-  padding: 8px 14px;
-}
 .deadline-closed {
   font-size: 16px;
   font-weight: 600;
@@ -367,27 +412,36 @@
 }
 .hero__reviewing-value .icon { color: var(--ink-2); flex: none; }
 
-/* progress block sits at the right bottom of the hero, stacked under the chip */
-.hero__foot { display: flex; flex: 1; flex-direction: column; align-items: flex-end; align-self: stretch; }
+/* progress card: one stat per row, label left and value right, a hairline
+   divider between; the rows share the card's height evenly */
 .hero__status-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  width: 250px;
-  margin: 0;
-  margin-top: auto;
-  padding: 12px 14px;
-  background: rgba(255, 255, 255, 0.14);
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  border-radius: 10px;
+  justify-content: space-between;
+  padding-top: 14px;
+  padding-bottom: 14px;
 }
+.hero__status-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 0;
+}
+.hero__status-row + .hero__status-row { border-top: 1px solid var(--teal-light); }
 .hero__status-label {
-  font-size: 10px;
-  letter-spacing: 0.1em;
-  color: rgba(255, 255, 255, 0.8);
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--teal-deep);
 }
-.hero__status-value { color: #ffffff; font-weight: 700; margin: 0; }
-.hero__status-row { display: flex; justify-content: space-between; align-items: baseline; gap: 14px; }
+.hero__status-value {
+  font-variant-numeric: tabular-nums;
+  font-size: 19px;
+  font-weight: 600;
+  color: var(--black);
+  margin: 0;
+}
 
 /* session chip inside the hero */
 .hero .header__session { position: static; }
@@ -508,6 +562,7 @@
 
 @media (max-width: 760px) {
   .form-row--2, .form-row--type { grid-template-columns: 1fr; }
+  .hero__cards { grid-template-columns: 1fr; }
   .form-actions { padding: 14px 16px 18px; }
 }
 /* phone: the session chip collapses to its avatar so the header stays balanced */
@@ -515,4 +570,8 @@
   .session-chip { padding: 5px; gap: 0; justify-content: center; }
   .session-chip__text { display: none; }
   .session-chip > svg { display: none; }
+  .brand-bar { padding: 0 16px; }
+  .hero { padding: 22px 18px 18px; gap: 16px; }
+  .hero-card { width: calc(100% - 24px); margin: 20px auto 40px; }
+  .hero-card__body { padding: 20px 16px 32px; }
 }
